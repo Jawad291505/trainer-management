@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================
+   DESIGN TOKENS
+   All colors are defined here as CSS variables. Components must never
+   hardcode colors. Change the theme from this one place (the
+   --color-primary* set is also overridden at runtime by the ThemeProvider).
+   ===================================================================== */
+:root {
+    /* Brand — Premium Navy (default). Primary vars are overridden by ThemeProvider. */
+    --color-primary: #0b2545;
+    --color-primary-dark: #081b34;
+    --color-primary-light: #1d3a63;
+    --color-primary-soft: #e8eef6;
+    --color-primary-rgb: 11, 37, 69;
+
+    /* Surfaces */
+    --color-background: #f5f7fa;
+    --color-surface: #ffffff;
+    --color-surface-secondary: #f8fafc;
+
+    /* Text */
+    --color-text-primary: #10192b;
+    --color-text-secondary: #4a5568;
+    --color-text-muted: #8a94a6;
+
+    /* Sidebar — always a deep navy for a sleek, premium console feel.
+       Kept independent of the accent theme so the shell stays consistent. */
+    --sidebar-bg: #0b1a30;
+    --sidebar-bg-deep: #081324;
+    --sidebar-surface: rgba(255, 255, 255, 0.06);
+    --sidebar-surface-hover: rgba(255, 255, 255, 0.09);
+    --sidebar-text: rgba(255, 255, 255, 0.62);
+    --sidebar-text-active: #ffffff;
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+
+    /* Lines */
+    --color-border: #e6e9ef;
+    --color-border-strong: #d5dae3;
+
+    /* Status */
+    --color-success: #16a34a;
+    --color-success-soft: #e7f6ec;
+    --color-warning: #d97706;
+    --color-warning-soft: #fdf1e0;
+    --color-danger: #dc2626;
+    --color-danger-soft: #fdeaea;
+    --color-info: #2563eb;
+    --color-info-soft: #e8f0fe;
+
+    /* Shape & motion */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --shadow-soft: 0 8px 24px rgba(16, 24, 40, 0.08);
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background: var(--color-background);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbars — subtle and premium */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+    background-clip: content-box;
+}
+
+/* Utility helpers layered on top of Tailwind */
+@layer components {
+    .app-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+    }
+
+    .app-card-hover {
+        transition: box-shadow var(--transition), transform var(--transition);
+    }
+
+    .app-card-hover:hover {
+        box-shadow: var(--shadow-soft);
+        transform: translateY(-2px);
+    }
+
+    .section-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--color-text-primary);
+    }
+
+    .muted {
+        color: var(--color-text-muted);
+    }
+}
+
+/* Fade / rise entrance used across pages */
+@keyframes riseIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-rise {
+    animation: riseIn 0.35s ease both;
+}
+
+/* ---- Ant Design surface harmonisation ---- */
+.ant-layout {
+    background: var(--color-background) !important;
+}
+
+.ant-table-wrapper .ant-table {
+    background: transparent;
+}
+
+.ant-table-wrapper .ant-table-thead>tr>th {
+    background: var(--color-surface-secondary) !important;
+    color: var(--color-text-secondary) !important;
+    font-weight: 600 !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody>tr>td {
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+.ant-table-wrapper .ant-table-tbody>tr:hover>td {
+    background: var(--color-surface-secondary) !important;
+}
+
+/* Keep menu selection tied to the theme accent */
+.ant-menu-light .ant-menu-item-selected {
+    background: var(--color-primary-soft) !important;
+    color: var(--color-primary) !important;
+}
+
+/* Remove default number-input spinners look inside builders */
+.builder-input .ant-input-number {
+    width: 100%;
+}
+
+/* No horizontal overflow on mobile */
+#root {
+    overflow-x: hidden;
+}
