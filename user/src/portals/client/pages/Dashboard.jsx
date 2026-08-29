@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Button, App } from 'antd'
 import { MessageOutlined, RightOutlined, FireOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
+import ChartCard from '../../../components/common/ChartCard'
+import DonutChart from '../../../components/charts/DonutChart'
+import GrowthChart from '../../../components/charts/GrowthChart'
+import BarSeriesChart from '../../../components/charts/BarSeriesChart'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import UserAvatar from '../../../components/common/UserAvatar'
 import ProgressRing from '../components/ProgressRing'
@@ -12,7 +16,17 @@ import {
     trainer,
     todayTasks,
     getTodayProgress,
+    weightProgress,
+    weeklyCompletion,
 } from '../../../services/mockData'
+
+const TASK_TYPE_LABELS = {
+    meal: 'Meals',
+    water: 'Water',
+    workout: 'Workout',
+    walk: 'Walk',
+    sleep: 'Sleep',
+}
 
 export default function Dashboard() {
     const navigate = useNavigate()
@@ -26,6 +40,13 @@ export default function Dashboard() {
     }, [])
 
     const progress = getTodayProgress(tasks)
+
+    const taskTypeData = Object.entries(
+        tasks.reduce((acc, t) => {
+            acc[t.type] = (acc[t.type] || 0) + 1
+            return acc
+        }, {})
+    ).map(([type, value]) => ({ name: TASK_TYPE_LABELS[type] || type, value }))
 
     const toggle = (id) => {
         setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)))
@@ -91,6 +112,42 @@ export default function Dashboard() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Progress charts */}
+            <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <ChartCard className="lg:col-span-2" title="Weight Journey" subtitle="Last 8 weeks (kg)">
+                    <GrowthChart
+                        data={weightProgress}
+                        dataKey="weight"
+                        xKey="week"
+                        name="Weight"
+                        height={260}
+                    />
+                </ChartCard>
+                <ChartCard title="Today's Plan" subtitle="Tasks by type">
+                    <DonutChart data={taskTypeData} centerLabel="tasks" />
+                </ChartCard>
+            </div>
+
+            <div className="mt-4">
+                <ChartCard title="Weekly Consistency" subtitle="Daily task completion (%)">
+                    <BarSeriesChart
+                        data={weeklyCompletion}
+                        dataKey="pct"
+                        xKey="day"
+                        name="Completion"
+                        domain={[0, 100]}
+                        valueFormatter={(v) => `${v}%`}
+                        colorFor={(e) =>
+                            e.pct >= 80
+                                ? 'var(--color-success)'
+                                : e.pct >= 60
+                                    ? 'var(--color-primary)'
+                                    : 'var(--color-warning)'
+                        }
+                    />
+                </ChartCard>
             </div>
 
             {/* Today's tasks */}

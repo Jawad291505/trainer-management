@@ -226,6 +226,47 @@ export const messagesByClient = {
     ],
 }
 
+// ---- Chart datasets (derived) ----
+
+// Clients grouped by training goal — donut.
+export const clientGoalData = goals
+    .map((g) => ({ name: g, value: clients.filter((c) => c.goal === g).length }))
+    .filter((d) => d.value > 0)
+
+// Clients grouped by membership plan — donut.
+export const clientPlanData = plans
+    .map((p) => ({ name: p, value: clients.filter((c) => c.plan === p).length }))
+    .filter((d) => d.value > 0)
+
+// Follow-up pipeline by state — donut.
+export const followUpStatusData = [
+    { key: 'overdue', name: 'Overdue', value: followUps.filter((f) => f.bucket === 'overdue').length },
+    { key: 'today', name: 'Today', value: followUps.filter((f) => f.bucket === 'today').length },
+    { key: 'upcoming', name: 'Upcoming', value: followUps.filter((f) => f.bucket === 'upcoming').length },
+    { key: 'completed', name: 'Completed', value: followUps.filter((f) => f.bucket === 'completed').length },
+].filter((d) => d.value > 0)
+
+// Sessions delivered per weekday — bar.
+export const weeklySessions = [
+    { day: 'Mon', sessions: 6 },
+    { day: 'Tue', sessions: 5 },
+    { day: 'Wed', sessions: 7 },
+    { day: 'Thu', sessions: 4 },
+    { day: 'Fri', sessions: 6 },
+    { day: 'Sat', sessions: 3 },
+    { day: 'Sun', sessions: 1 },
+]
+
+// Average client goal-completion by month — area.
+export const clientProgressTrend = [
+    { month: 'Mar', progress: 41 },
+    { month: 'Apr', progress: 47 },
+    { month: 'May', progress: 54 },
+    { month: 'Jun', progress: 59 },
+    { month: 'Jul', progress: 63 },
+    { month: 'Aug', progress: 66 },
+]
+
 // ---- Dashboard stats ----
 export function getStats() {
     const total = clients.length

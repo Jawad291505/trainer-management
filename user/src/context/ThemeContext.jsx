@@ -14,6 +14,11 @@ function applyPrimary(primary) {
     root.style.setProperty('--color-primary-soft', soft(primary, 0.9))
     root.style.setProperty('--color-primary-rgb', rgbString(primary))
     root.style.setProperty('--color-on-primary', readableOn(primary))
+
+    // The sidebar shares the accent, but as a deep tinted surface so white
+    // text stays legible for any preset (navy, amber, rose, …).
+    root.style.setProperty('--sidebar-bg', shade(primary, -0.32))
+    root.style.setProperty('--sidebar-bg-deep', shade(primary, -0.52))
 }
 
 export function ThemeProvider({ children }) {

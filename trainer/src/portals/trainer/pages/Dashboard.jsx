@@ -14,13 +14,27 @@ import {
 import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import ChartCard from '../../../components/common/ChartCard'
+import DonutChart from '../../../components/charts/DonutChart'
+import GrowthChart from '../../../components/charts/GrowthChart'
+import BarSeriesChart from '../../../components/charts/BarSeriesChart'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import UserAvatar from '../../../components/common/UserAvatar'
 import ScheduleTimeline from '../components/ScheduleTimeline'
-import { getStats, todaySchedule, clients, currentTrainer } from '../../../services/mockData'
+import {
+    getStats,
+    clients,
+    currentTrainer,
+    clientGoalData,
+    clientPlanData,
+    followUpStatusData,
+    weeklySessions,
+    clientProgressTrend,
+} from '../../../services/mockData'
+import { useSchedule } from '../../../context/ScheduleContext'
 
 export default function Dashboard() {
     const navigate = useNavigate()
+    const { today: todaySchedule } = useSchedule()
     const [loading, setLoading] = useState(true)
     const [stats, setStats] = useState(null)
 
@@ -57,6 +71,41 @@ export default function Dashboard() {
                 {cards.map((c, i) => (
                     <StatCard key={i} {...c} />
                 ))}
+            </div>
+
+            {/* Client mix + follow-up pipeline */}
+            <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <ChartCard title="Clients by Goal" subtitle="What your roster is training for">
+                    <DonutChart data={clientGoalData} centerLabel="clients" />
+                </ChartCard>
+                <ChartCard title="Clients by Plan" subtitle="Membership tier split">
+                    <DonutChart data={clientPlanData} centerLabel="clients" />
+                </ChartCard>
+                <ChartCard title="Follow-up Pipeline" subtitle="Where check-ins stand">
+                    <DonutChart data={followUpStatusData} centerLabel="follow-ups" />
+                </ChartCard>
+            </div>
+
+            {/* Activity + progress trends */}
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <ChartCard className="lg:col-span-2" title="Sessions This Week" subtitle="Sessions delivered per day">
+                    <BarSeriesChart
+                        data={weeklySessions}
+                        dataKey="sessions"
+                        xKey="day"
+                        name="Sessions"
+                        domain={[0, 'dataMax + 1']}
+                        valueFormatter={(v) => `${v} sessions`}
+                    />
+                </ChartCard>
+                <ChartCard title="Avg Client Progress" subtitle="Mean goal completion by month">
+                    <GrowthChart
+                        data={clientProgressTrend}
+                        dataKey="progress"
+                        name="Avg progress"
+                        height={260}
+                    />
+                </ChartCard>
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">

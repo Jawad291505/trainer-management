@@ -36,9 +36,10 @@
     --sidebar-text-active: #ffffff;
     --sidebar-border: rgba(255, 255, 255, 0.08);
 
-    /* Lines */
-    --color-border: #e6e9ef;
-    --color-border-strong: #d5dae3;
+    /* Lines — kept faint; cards use shadow, not outlines */
+    --color-border: #eceef2;
+    --color-border-strong: #dbdfe6;
+    --color-hairline: rgba(16, 24, 40, 0.06);
 
     /* Status */
     --color-success: #16a34a;
@@ -55,13 +56,33 @@
     --radius-md: 12px;
     --radius-lg: 16px;
     --radius-xl: 20px;
-    --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
-    --shadow-soft: 0 8px 24px rgba(16, 24, 40, 0.08);
+    --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px -4px rgba(16, 24, 40, 0.10);
+    --shadow-soft: 0 10px 30px -8px rgba(16, 24, 40, 0.12);
     --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
     box-sizing: border-box;
+}
+
+/* Preflight is disabled (see tailwind.config) to avoid clashing with Ant
+   Design's reset — so bare <button>s used as list / card rows would keep the
+   browser's default border and bevel. Strip that here. Ant Design buttons
+   keep their look via higher-specificity .ant-* rules; utility classes like
+   `border-t` and inline styles still win over these element selectors. */
+button {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    text-align: inherit;
+    cursor: pointer;
+}
+
+button:disabled {
+    cursor: not-allowed;
 }
 
 html,
@@ -101,7 +122,6 @@ body {
 @layer components {
     .app-card {
         background: var(--color-surface);
-        border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-card);
     }
@@ -123,6 +143,192 @@ body {
 
     .muted {
         color: var(--color-text-muted);
+    }
+
+    /* ---- Messaging (premium, low-chrome) ---- */
+    .chat-shell {
+        background: var(--color-surface);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
+    }
+
+    /* One faint separator instead of stacked panel borders */
+    .chat-hairline {
+        box-shadow: inset -1px 0 0 var(--color-border);
+    }
+
+    .chat-conv {
+        appearance: none;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        cursor: pointer;
+        border-radius: var(--radius-md);
+        transition: background var(--transition);
+    }
+
+    .chat-conv:hover {
+        background: var(--color-surface-secondary);
+    }
+
+    .chat-conv:focus-visible {
+        background: var(--color-surface-secondary);
+    }
+
+    .chat-conv-active,
+    .chat-conv-active:hover {
+        background: var(--color-primary-soft);
+    }
+
+    .chat-canvas {
+        background:
+            radial-gradient(900px 320px at 50% -60px, rgba(var(--color-primary-rgb), 0.05), transparent 70%),
+            var(--color-surface-secondary);
+    }
+
+    .chat-bubble-in {
+        background: var(--color-surface);
+        color: var(--color-text-primary);
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+    }
+
+    .chat-bubble-out {
+        background: linear-gradient(180deg, var(--color-primary-light), var(--color-primary));
+        color: var(--color-on-primary, #fff);
+        box-shadow: 0 6px 18px -6px rgba(var(--color-primary-rgb), 0.45);
+    }
+
+    .chat-composer {
+        background: var(--color-surface);
+        box-shadow: 0 -10px 24px -16px rgba(16, 24, 40, 0.18);
+    }
+
+    .chat-field {
+        background: var(--color-surface-secondary);
+        border-radius: 999px;
+    }
+
+    /* ---- Sidebar (premium, striking accent gradient) ---- */
+    .sidebar-shell {
+        border-right: 1px solid rgba(var(--color-primary-rgb), 0.45);
+        background:
+            radial-gradient(120% 45% at 0% 0%, rgba(var(--color-primary-rgb), 0.65), transparent 70%),
+            linear-gradient(
+                162deg,
+                var(--color-primary-light) 0%,
+                var(--color-primary) 20%,
+                var(--sidebar-bg) 55%,
+                var(--sidebar-bg-deep) 100%
+            );
+    }
+
+    .sidebar-heading {
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .sidebar-caption {
+        color: rgba(255, 255, 255, 0.45);
+    }
+
+    .sidebar-brand {
+        color: #fff;
+        background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary-dark));
+        box-shadow:
+            0 8px 18px -6px rgba(var(--color-primary-rgb), 0.55),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .sidebar-rule {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--sidebar-border), transparent);
+    }
+
+    .sidebar-item {
+        position: relative;
+        color: var(--sidebar-text);
+        background: transparent;
+        transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+    }
+
+    .sidebar-item:hover,
+    .sidebar-item:focus-visible {
+        outline: none;
+        color: var(--sidebar-text-active);
+        background: linear-gradient(90deg, var(--sidebar-surface-hover), rgba(255, 255, 255, 0.02));
+    }
+
+    .sidebar-item--active,
+    .sidebar-item--active:hover,
+    .sidebar-item--active:focus-visible {
+        color: var(--sidebar-bg);
+        background: linear-gradient(180deg, #ffffff, #eef1f6);
+        box-shadow:
+            0 8px 20px -8px rgba(0, 0, 0, 0.5),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+    }
+
+    .sidebar-help {
+        background: linear-gradient(160deg, var(--sidebar-surface), rgba(255, 255, 255, 0.012));
+        box-shadow:
+            inset 0 0 0 1px var(--sidebar-border),
+            0 14px 30px -20px rgba(0, 0, 0, 0.65);
+    }
+
+    /* ---- Auth screens (hero shares the sidebar's striking gradient) ---- */
+    .auth-hero {
+        position: relative;
+        overflow: hidden;
+        color: #fff;
+        background:
+            radial-gradient(120% 45% at 0% 0%, rgba(var(--color-primary-rgb), 0.7), transparent 70%),
+            linear-gradient(
+                162deg,
+                var(--color-primary-light) 0%,
+                var(--color-primary) 22%,
+                var(--sidebar-bg) 60%,
+                var(--sidebar-bg-deep) 100%
+            );
+    }
+
+    .auth-hero::before,
+    .auth-hero::after {
+        content: '';
+        position: absolute;
+        border-radius: 999px;
+        filter: blur(44px);
+        pointer-events: none;
+    }
+
+    .auth-hero::before {
+        width: 460px;
+        height: 460px;
+        top: -150px;
+        right: -160px;
+        background: radial-gradient(circle, rgba(var(--color-primary-rgb), 0.55), transparent 70%);
+    }
+
+    .auth-hero::after {
+        width: 360px;
+        height: 360px;
+        bottom: -140px;
+        left: -90px;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 70%);
+    }
+
+    .auth-hero-grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 46px 46px;
+        -webkit-mask-image: radial-gradient(120% 75% at 50% 0%, #000 25%, transparent 80%);
+        mask-image: radial-gradient(120% 75% at 50% 0%, #000 25%, transparent 80%);
+    }
+
+    .auth-panel {
+        background: var(--color-surface);
     }
 }
 

@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from '../layouts/AppLayout'
+import Login from '../pages/Login'
+import { useAuth } from '../context/AuthContext'
 import Dashboard from '../portals/client/pages/Dashboard'
 import MyDiet from '../portals/client/pages/MyDiet'
 import MyExercises from '../portals/client/pages/MyExercises'
@@ -12,9 +14,12 @@ import Settings from '../portals/client/pages/Settings'
 import NotFound from '../pages/NotFound'
 
 export default function AppRoutes() {
+    const { authed } = useAuth()
+
     return (
         <Routes>
-            <Route element={<AppLayout />}>
+            <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
+            <Route element={authed ? <AppLayout /> : <Navigate to="/login" replace />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/diet" element={<MyDiet />} />
                 <Route path="/exercises" element={<MyExercises />} />

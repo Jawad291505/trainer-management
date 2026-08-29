@@ -10,8 +10,8 @@ import {
 import { useTheme } from '../../context/ThemeContext'
 import ChartTooltip from './ChartTooltip'
 
-// Area chart for client growth over time.
-export default function GrowthChart({ data, dataKey = 'clients', height = 280 }) {
+// Area chart for a single trend series over time.
+export default function GrowthChart({ data, dataKey = 'clients', name = 'Clients', xKey = 'month', height = 280 }) {
     const { primary } = useTheme()
     return (
         <ResponsiveContainer width="100%" height={height}>
@@ -23,13 +23,13 @@ export default function GrowthChart({ data, dataKey = 'clients', height = 280 })
                     </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey={xKey} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={44} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area
                     type="monotone"
                     dataKey={dataKey}
-                    name="Clients"
+                    name={name}
                     stroke={primary}
                     strokeWidth={2.5}
                     fill="url(#growthFill)"

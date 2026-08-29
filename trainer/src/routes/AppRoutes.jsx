@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AppLayout from '../layouts/AppLayout'
+import Login from '../pages/Login'
+import { useAuth } from '../context/AuthContext'
 import Dashboard from '../portals/trainer/pages/Dashboard'
 import Clients from '../portals/trainer/pages/Clients'
 import ClientProfile from '../portals/trainer/pages/ClientProfile'
@@ -13,9 +15,12 @@ import Settings from '../portals/trainer/pages/Settings'
 import NotFound from '../pages/NotFound'
 
 export default function AppRoutes() {
+    const { authed } = useAuth()
+
     return (
         <Routes>
-            <Route element={<AppLayout />}>
+            <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
+            <Route element={authed ? <AppLayout /> : <Navigate to="/login" replace />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/clients" element={<Clients />} />
                 <Route path="/clients/:id" element={<ClientProfile />} />

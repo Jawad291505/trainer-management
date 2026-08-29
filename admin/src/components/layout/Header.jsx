@@ -14,10 +14,12 @@ import {
 import UserAvatar from '../common/UserAvatar'
 import NotificationMenu from './NotificationMenu'
 import ThemePicker from '../common/ThemePicker'
+import { useAuth } from '../../context/AuthContext'
 import { notifications } from '../../services/mockData'
 
 export default function Header({ collapsed, onToggle, onOpenMobile }) {
     const navigate = useNavigate()
+    const { logout } = useAuth()
     const [notifOpen, setNotifOpen] = useState(false)
     const unread = notifications.filter((n) => n.unread).length
 
@@ -89,6 +91,10 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
                         items: profileItems,
                         onClick: ({ key }) => {
                             if (key === 'settings') navigate('/settings')
+                            else if (key === 'logout') {
+                                logout()
+                                navigate('/login', { replace: true })
+                            }
                         },
                     }}
                     trigger={['click']}

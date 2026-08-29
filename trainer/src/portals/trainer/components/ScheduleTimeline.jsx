@@ -1,4 +1,5 @@
-import { CheckCircleFilled, SyncOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import { CheckCircleFilled, SyncOutlined, ClockCircleOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Button, Popconfirm } from 'antd'
 import { activityTypes, getClient } from '../../../services/mockData'
 
 const STATUS = {
@@ -9,7 +10,7 @@ const STATUS = {
 }
 
 // Vertical timeline for the trainer's daily schedule.
-export default function ScheduleTimeline({ items }) {
+export default function ScheduleTimeline({ items, onRemove }) {
     return (
         <div className="flex flex-col">
             {items.map((s, i) => {
@@ -34,12 +35,24 @@ export default function ScheduleTimeline({ items }) {
                         <div className={`mb-4 flex-1 rounded-xl p-3 ${last ? 'mb-0' : ''}`} style={{ background: 'var(--color-surface-secondary)' }}>
                             <div className="flex items-center justify-between gap-2">
                                 <span className="text-sm font-semibold text-text-primary">{s.title}</span>
-                                <span
-                                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                    style={{ color: st.color }}
-                                >
-                                    {st.icon} {st.label}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                    <span
+                                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                                        style={{ color: st.color }}
+                                    >
+                                        {st.icon} {st.label}
+                                    </span>
+                                    {onRemove && (
+                                        <Popconfirm
+                                            title="Remove this activity?"
+                                            okText="Remove"
+                                            okButtonProps={{ danger: true }}
+                                            onConfirm={() => onRemove(s.id)}
+                                        >
+                                            <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                                        </Popconfirm>
+                                    )}
+                                </div>
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-xs text-text-muted">
                                 <span
@@ -50,6 +63,7 @@ export default function ScheduleTimeline({ items }) {
                                 </span>
                                 {client && <span>· {client.name}</span>}
                             </div>
+                            {s.notes && <div className="mt-1.5 text-xs text-text-secondary">{s.notes}</div>}
                         </div>
                     </div>
                 )

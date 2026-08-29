@@ -1,21 +1,21 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { QuestionCircleOutlined } from '@ant-design/icons'
-import { clientNav } from '../../constants/navigation'
+import { clientNavGroups } from '../../constants/navigation'
+
+const NAV_GROUPS = clientNavGroups
+const BRAND_SUBTITLE = 'My Fitness'
 
 function Logo({ collapsed }) {
     return (
         <div className={`flex items-center gap-3 px-5 py-6 ${collapsed ? 'justify-center px-0' : ''}`}>
-            <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base font-black shadow-lg"
-                style={{ background: 'var(--color-primary)', color: 'var(--color-on-primary, #fff)' }}
-            >
+            <div className="sidebar-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base font-black">
                 FT
             </div>
             {!collapsed && (
                 <div className="leading-tight">
                     <div className="text-[15px] font-extrabold text-white">FitTrack</div>
                     <div className="text-[11px] font-medium" style={{ color: 'var(--sidebar-text)' }}>
-                        My Fitness
+                        {BRAND_SUBTITLE}
                     </div>
                 </div>
             )}
@@ -23,8 +23,9 @@ function Logo({ collapsed }) {
     )
 }
 
-// Sleek navy sidebar. Fixed dark surface (independent of the accent theme)
-// with a soft active pill, left accent indicator and subtle hover states.
+// Sleek dark sidebar. The surface is a gradient-touched tint of the accent
+// theme; navigation is split into labelled sections, each with a heading and a
+// short caption describing what its items do.
 export default function Sidebar({ collapsed, onNavigate }) {
     const location = useLocation()
     const navigate = useNavigate()
@@ -33,69 +34,55 @@ export default function Sidebar({ collapsed, onNavigate }) {
         key === '/' ? location.pathname === '/' : location.pathname.startsWith(key)
 
     return (
-        <div
-            className="relative flex h-full flex-col"
-            style={{
-                background:
-                    'linear-gradient(180deg, var(--sidebar-bg) 0%, var(--sidebar-bg-deep) 100%)',
-                borderRight: '1px solid var(--sidebar-border)',
-            }}
-        >
+        <div className="sidebar-shell relative flex h-full flex-col">
             <Logo collapsed={collapsed} />
 
-            {!collapsed && (
-                <div
-                    className="px-6 pb-2 text-[10px] font-bold uppercase tracking-[0.12em]"
-                    style={{ color: 'rgba(255,255,255,0.35)' }}
-                >
-                    Menu
-                </div>
-            )}
-
             <nav className="flex-1 overflow-y-auto px-3 pb-4">
-                {clientNav.map(({ key, label, icon: Icon }) => {
-                    const active = isActive(key)
-                    return (
-                        <button
-                            key={key}
-                            onClick={() => {
-                                navigate(key)
-                                onNavigate?.()
-                            }}
-                            title={collapsed ? label : undefined}
-                            className="group relative mb-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none transition-all duration-200 ease-out"
-                            style={{
-                                border: 'none',
-                                background: active ? '#ffffff' : 'transparent',
-                                color: active ? 'var(--sidebar-bg)' : 'var(--sidebar-text)',
-                                boxShadow: active ? '0 4px 14px rgba(0, 0, 0, 0.25)' : 'none',
-                                justifyContent: collapsed ? 'center' : 'flex-start',
-                            }}
-                            onMouseEnter={(e) => {
-                                if (!active) {
-                                    e.currentTarget.style.background = 'var(--sidebar-surface-hover)'
-                                    e.currentTarget.style.color = 'var(--sidebar-text-active)'
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (!active) {
-                                    e.currentTarget.style.background = 'transparent'
-                                    e.currentTarget.style.color = 'var(--sidebar-text)'
-                                }
-                            }}
-                        >
-                            <Icon style={{ fontSize: 18 }} />
-                            {!collapsed && <span>{label}</span>}
-                        </button>
-                    )
-                })}
+                {NAV_GROUPS.map((group, gi) => (
+                    <div key={group.heading} className={gi === 0 ? '' : 'mt-4'}>
+                        {gi > 0 && (
+                            <div className={`sidebar-rule mb-3 ${collapsed ? 'mx-2' : 'mx-1'}`} />
+                        )}
+
+                        {!collapsed && (
+                            <div className="mb-2 px-2">
+                                <div className="sidebar-heading text-[10px] font-bold uppercase tracking-[0.14em]">
+                                    {group.heading}
+                                </div>
+                                <div className="sidebar-caption mt-0.5 text-[11px] font-medium leading-snug">
+                                    {group.caption}
+                                </div>
+                            </div>
+                        )}
+
+                        {group.items.map(({ key, label, icon: Icon }) => {
+                            const active = isActive(key)
+                            return (
+                                <button
+                                    key={key}
+                                    onClick={() => {
+                                        navigate(key)
+                                        onNavigate?.()
+                                    }}
+                                    title={collapsed ? label : undefined}
+                                    className={`sidebar-item mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold ${
+                                        active ? 'sidebar-item--active' : ''
+                                    }`}
+                                    style={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
+                                >
+                                    <Icon
+                                        style={{ fontSize: 18, color: active ? 'var(--color-primary)' : undefined }}
+                                    />
+                                    {!collapsed && <span>{label}</span>}
+                                </button>
+                            )
+                        })}
+                    </div>
+                ))}
             </nav>
 
             {!collapsed && (
-                <div
-                    className="m-3 rounded-2xl p-4"
-                    style={{ background: 'var(--sidebar-surface)', border: '1px solid var(--sidebar-border)' }}
-                >
+                <div className="sidebar-help m-3 rounded-2xl p-4">
                     <div className="flex items-center gap-2 text-sm font-bold text-white">
                         <QuestionCircleOutlined />
                         Need help?

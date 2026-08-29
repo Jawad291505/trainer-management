@@ -1,40 +1,51 @@
 import { useState } from 'react'
-import { Segmented, Button, App } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Segmented, Button, Modal, Form, Input, Select, TimePicker, App } from 'antd'
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
 import PageHeader from '../../../components/common/PageHeader'
 import ScheduleTimeline from '../components/ScheduleTimeline'
-import { todaySchedule, activityTypes, getClient } from '../../../services/mockData'
+import { activityTypes, clients } from '../../../services/mockData'
+import { useSchedule, WEEK_DAYS } from '../../../context/ScheduleContext'
 
-const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAY_OPTIONS = [
+    { value: 'today', label: 'Today' },
+    ...WEEK_DAYS.map((d) => ({ value: d, label: d })),
+]
 
-// A simple week grid derived from the mock day schedule for demo purposes.
-const weekEvents = {
-    Mon: [
-        { time: '08:00', title: 'Strength', type: 'workout' },
-        { time: '14:00', title: 'Diet review', type: 'meal' },
-    ],
-    Tue: [{ time: '10:00', title: 'Consultation', type: 'consultation' }],
-    Wed: [
-        { time: '09:00', title: 'Hypertrophy', type: 'workout' },
-        { time: '17:00', title: 'Follow-up', type: 'followup' },
-    ],
-    Thu: [{ time: '11:00', title: 'Endurance', type: 'workout' }],
-    Fri: [
-        { time: '08:30', title: 'Legs', type: 'workout' },
-        { time: '15:00', title: 'Check-in', type: 'consultation' },
-    ],
-    Sat: [{ time: '10:00', title: 'Mobility', type: 'workout' }],
-    Sun: [],
-}
+const TYPE_OPTIONS = Object.entries(activityTypes).map(([value, t]) => ({ value, label: t.label }))
 
 export default function Schedule() {
     const { message } = App.useApp()
     const [view, setView] = useState('day')
+    const [open, setOpen] = useState(false)
+    const [form] = Form.useForm()
+    const { today, week, addActivity, removeActivity } = useSchedule()
+
+    const openModal = () => {
+        form.setFieldsValue({ type: 'workout', day: 'today', time: null, title: '', clientId: undefined, notes: '' })
+        setOpen(true)
+    }
+
+    const submit = async () => {
+        const v = await form.validateFields()
+        addActivity({
+            day: v.day,
+            time: v.time.format('HH:mm'),
+            title: v.title,
+            type: v.type,
+            clientId: v.clientId,
+            notes: v.notes,
+        })
+        setOpen(false)
+        form.resetFields()
+        setView(v.day === 'today' ? 'day' : 'week')
+        message.success('Activity added to your schedule')
+    }
 
     return (
         <div>
             <PageHeader title="Schedule" subtitle="Plan and track your sessions.">
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('Open new activity form')}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openModal}>
                     New activity
                 </Button>
             </PageHeader>
@@ -62,27 +73,35 @@ export default function Schedule() {
             {view === 'day' ? (
                 <div className="app-card p-5 md:p-6">
                     <div className="mb-4 text-sm font-bold text-text-primary">Thursday, 27 August 2026</div>
-                    <ScheduleTimeline items={todaySchedule} />
+                    <ScheduleTimeline items={today} onRemove={(id) => removeActivity('today', id)} />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
-                    {WEEK.map((d) => (
+                    {WEEK_DAYS.map((d) => (
                         <div key={d} className="app-card flex flex-col p-3">
                             <div className="mb-2 border-b pb-2 text-center text-sm font-bold text-text-primary" style={{ borderColor: 'var(--color-border)' }}>
                                 {d}
                             </div>
                             <div className="flex flex-1 flex-col gap-2">
-                                {weekEvents[d].length === 0 ? (
+                                {week[d].length === 0 ? (
                                     <div className="py-4 text-center text-xs text-text-muted">Rest day</div>
                                 ) : (
-                                    weekEvents[d].map((e, i) => (
+                                    week[d].map((e) => (
                                         <div
-                                            key={i}
-                                            className="rounded-lg p-2 text-xs"
+                                            key={e.id}
+                                            className="group relative rounded-lg p-2 text-xs"
                                             style={{ background: 'var(--color-surface-secondary)', borderLeft: `3px solid ${activityTypes[e.type].color}` }}
                                         >
                                             <div className="font-bold text-text-primary">{e.time}</div>
                                             <div className="text-text-secondary">{e.title}</div>
+                                            <Button
+                                                size="small"
+                                                type="text"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={() => removeActivity(d, e.id)}
+                                                className="!absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100"
+                                            />
                                         </div>
                                     ))
                                 )}
@@ -91,6 +110,44 @@ export default function Schedule() {
                     ))}
                 </div>
             )}
+
+            <Modal
+                title="New activity"
+                open={open}
+                onCancel={() => setOpen(false)}
+                onOk={submit}
+                okText="Add activity"
+                centered
+            >
+                <Form form={form} layout="vertical" className="mt-4" requiredMark={false}>
+                    <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Give the activity a title' }]}>
+                        <Input placeholder="e.g. Strength session" autoFocus />
+                    </Form.Item>
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <Form.Item name="type" label="Type" rules={[{ required: true }]}>
+                            <Select options={TYPE_OPTIONS} />
+                        </Form.Item>
+                        <Form.Item name="day" label="Day" rules={[{ required: true }]}>
+                            <Select options={DAY_OPTIONS} />
+                        </Form.Item>
+                        <Form.Item name="time" label="Time" rules={[{ required: true, message: 'Pick a time' }]}>
+                            <TimePicker className="w-full" format="HH:mm" minuteStep={5} needConfirm={false} />
+                        </Form.Item>
+                        <Form.Item name="clientId" label="Client">
+                            <Select
+                                allowClear
+                                showSearch
+                                optionFilterProp="label"
+                                placeholder="Optional"
+                                options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                            />
+                        </Form.Item>
+                    </div>
+                    <Form.Item name="notes" label="Notes">
+                        <Input.TextArea rows={2} placeholder="Optional details for this session" />
+                    </Form.Item>
+                </Form>
+            </Modal>
         </div>
     )
 }
