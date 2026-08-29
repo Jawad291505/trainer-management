@@ -8,6 +8,7 @@ import MyExercises from '../portals/client/pages/MyExercises'
 import MySchedule from '../portals/client/pages/MySchedule'
 import MyProgress from '../portals/client/pages/MyProgress'
 import Messages from '../portals/client/pages/Messages'
+import MyRequests from '../portals/client/pages/MyRequests'
 import NotificationsPage from '../portals/client/pages/NotificationsPage'
 import Profile from '../portals/client/pages/Profile'
 import Settings from '../portals/client/pages/Settings'
@@ -26,6 +27,7 @@ export default function AppRoutes() {
                 <Route path="/schedule" element={<MySchedule />} />
                 <Route path="/progress" element={<MyProgress />} />
                 <Route path="/messages" element={<Messages />} />
+                <Route path="/requests" element={<MyRequests />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />

@@ -10,6 +10,15 @@ export const currentTrainer = {
     avatarColor: '#0b2545',
 }
 
+// Consultation goal categories. "Other" lets a trainer type a custom goal.
+export const clientGoals = [
+    'Fat Loss',
+    'Muscle Gain',
+    'Body Recomposition',
+    'PCOS',
+    'Busy Moms',
+    'Diabetic Patients',
+]
 const goals = ['Weight Loss', 'Muscle Gain', 'General Fitness', 'Endurance', 'Toning']
 const plans = ['Starter', 'Standard', 'Premium', 'Elite']
 const avatarColors = ['#0b2545', '#7c3aed', '#047857', '#be123c', '#b45309', '#0f766e', '#2563eb']
@@ -277,6 +286,80 @@ export function getStats() {
     const completedFollowUps = followUps.filter((f) => f.bucket === 'completed').length
     return { total, active, attention, todaySessions, pendingFollowUps, completedFollowUps }
 }
+
+// ---- Correction requests (client → trainer) ----
+export const correctionAreaLabels = {
+    diet: 'Diet plan',
+    exercise: 'Exercise plan',
+    progress: 'Progress / weigh-in',
+    general: 'General',
+}
+export const correctionTypeLabels = {
+    swap: 'Swap / substitute',
+    'too-hard': 'Too difficult',
+    injury: 'Injury / pain',
+    'wrong-data': 'Wrong data',
+    other: 'Other',
+}
+
+export const corrections = [
+    {
+        id: 'RQ-1001',
+        clientId: 'CL-2002',
+        clientName: 'Noah Carter',
+        avatarColor: '#7c3aed',
+        area: 'exercise',
+        item: 'Barbell Back Squat',
+        type: 'injury',
+        note: 'Left knee flares up on deep squats. Can we swap to a leg press or box squat?',
+        status: 'open',
+        reply: '',
+        createdAt: '2026-08-27',
+        resolvedAt: null,
+    },
+    {
+        id: 'RQ-1002',
+        clientId: 'CL-2005',
+        clientName: 'Ava Patel',
+        avatarColor: '#b45309',
+        area: 'diet',
+        item: 'Lunch — Grilled chicken & rice',
+        type: 'swap',
+        note: 'I am vegetarian now. Need a plant-based protein swap for lunch and dinner.',
+        status: 'open',
+        reply: '',
+        createdAt: '2026-08-26',
+        resolvedAt: null,
+    },
+    {
+        id: 'RQ-1003',
+        clientId: 'CL-2001',
+        clientName: 'Emma Thompson',
+        avatarColor: '#0b2545',
+        area: 'progress',
+        item: 'Weigh-in — week of 25 Aug',
+        type: 'wrong-data',
+        note: 'My scale said 67.4kg this morning, not 68. Can you update it?',
+        status: 'open',
+        reply: '',
+        createdAt: '2026-08-25',
+        resolvedAt: null,
+    },
+    {
+        id: 'RQ-1004',
+        clientId: 'CL-2008',
+        clientName: 'Ethan Andersen',
+        avatarColor: '#0f766e',
+        area: 'exercise',
+        item: 'Morning cardio — 45 min',
+        type: 'too-hard',
+        note: '45 minutes fasted is leaving me dizzy. Can we shorten it or move it post-breakfast?',
+        status: 'resolved',
+        reply: 'Cut to 25 min and moved it to after breakfast. Updated in your plan.',
+        createdAt: '2026-08-22',
+        resolvedAt: '2026-08-23',
+    },
+]
 
 // ---- Notifications ----
 export const notifications = [

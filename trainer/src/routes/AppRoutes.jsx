@@ -9,6 +9,7 @@ import Schedule from '../portals/trainer/pages/Schedule'
 import DietPlans from '../portals/trainer/pages/DietPlans'
 import ExercisePlans from '../portals/trainer/pages/ExercisePlans'
 import FollowUps from '../portals/trainer/pages/FollowUps'
+import Requests from '../portals/trainer/pages/Requests'
 import Messages from '../portals/trainer/pages/Messages'
 import NotificationsPage from '../portals/trainer/pages/NotificationsPage'
 import Settings from '../portals/trainer/pages/Settings'
@@ -28,6 +29,7 @@ export default function AppRoutes() {
                 <Route path="/diet-plans" element={<DietPlans />} />
                 <Route path="/exercise-plans" element={<ExercisePlans />} />
                 <Route path="/follow-ups" element={<FollowUps />} />
+                <Route path="/requests" element={<Requests />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/settings" element={<Settings />} />

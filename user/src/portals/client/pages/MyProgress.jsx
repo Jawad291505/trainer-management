@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { useTheme } from '../../../context/ThemeContext'
 import PageHeader from '../../../components/common/PageHeader'
+import RequestCorrection from '../components/RequestCorrection'
 import StatCard from '../../../components/common/StatCard'
 import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
@@ -30,7 +31,9 @@ export default function MyProgress() {
 
     return (
         <div>
-            <PageHeader title="My Progress" subtitle="Look how far you've come. Keep it up!" />
+            <PageHeader title="My Progress" subtitle="Look how far you've come. Keep it up!">
+                <RequestCorrection area="progress" />
+            </PageHeader>
 
             <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
                 <StatCard label="Weight Lost" value={`${lost}kg`} accent="var(--color-success)" hint="Since you started" />

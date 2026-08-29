@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { trainerNavGroups } from '../../constants/navigation'
+import { useCorrections } from '../../context/CorrectionsContext'
 
 const NAV_GROUPS = trainerNavGroups
 const BRAND_SUBTITLE = 'Trainer Studio'
@@ -29,6 +30,8 @@ function Logo({ collapsed }) {
 export default function Sidebar({ collapsed, onNavigate }) {
     const location = useLocation()
     const navigate = useNavigate()
+    const { openCount } = useCorrections()
+    const badgeCounts = { corrections: openCount }
 
     const isActive = (key) =>
         key === '/' ? location.pathname === '/' : location.pathname.startsWith(key)
@@ -55,8 +58,9 @@ export default function Sidebar({ collapsed, onNavigate }) {
                             </div>
                         )}
 
-                        {group.items.map(({ key, label, icon: Icon }) => {
+                        {group.items.map(({ key, label, icon: Icon, badge }) => {
                             const active = isActive(key)
+                            const count = badge ? badgeCounts[badge] || 0 : 0
                             return (
                                 <button
                                     key={key}
@@ -70,10 +74,28 @@ export default function Sidebar({ collapsed, onNavigate }) {
                                     }`}
                                     style={{ justifyContent: collapsed ? 'center' : 'flex-start' }}
                                 >
-                                    <Icon
-                                        style={{ fontSize: 18, color: active ? 'var(--color-primary)' : undefined }}
-                                    />
-                                    {!collapsed && <span>{label}</span>}
+                                    <span className="relative flex items-center">
+                                        <Icon
+                                            style={{ fontSize: 18, color: active ? 'var(--color-primary)' : undefined }}
+                                        />
+                                        {collapsed && count > 0 && (
+                                            <span
+                                                className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
+                                                style={{ background: 'var(--color-danger)' }}
+                                            >
+                                                {count}
+                                            </span>
+                                        )}
+                                    </span>
+                                    {!collapsed && <span className="flex-1 text-left">{label}</span>}
+                                    {!collapsed && count > 0 && (
+                                        <span
+                                            className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white"
+                                            style={{ background: 'var(--color-danger)' }}
+                                        >
+                                            {count}
+                                        </span>
+                                    )}
                                 </button>
                             )
                         })}

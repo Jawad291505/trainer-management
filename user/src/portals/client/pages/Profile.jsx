@@ -1,11 +1,14 @@
-import { Form, Input, InputNumber, Button, App, Select } from 'antd'
+import { useState } from 'react'
+import { Form, Input, InputNumber, Button, App, Select, Modal } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatCard from '../../../components/common/StatCard'
-import { currentClient, trainer } from '../../../services/mockData'
+import { currentClient, trainer, clientGoals } from '../../../services/mockData'
 
 export default function Profile() {
     const { message } = App.useApp()
+    const [photoOpen, setPhotoOpen] = useState(false)
+    const [photoUrl, setPhotoUrl] = useState('')
 
     return (
         <div>
@@ -17,7 +20,7 @@ export default function Profile() {
                         <UserAvatar name={currentClient.name} color={currentClient.avatarColor} size={88} />
                         <div className="mt-3 text-lg font-bold text-text-primary">{currentClient.name}</div>
                         <div className="text-sm text-text-muted">{currentClient.goal} · {currentClient.plan} plan</div>
-                        <Button className="mt-4" block>Change photo</Button>
+                        <Button className="mt-4" block onClick={() => setPhotoOpen(true)}>Change photo</Button>
                     </div>
 
                     <div className="mt-5 rounded-xl p-4" style={{ background: 'var(--color-surface-secondary)' }}>
@@ -58,16 +61,48 @@ export default function Profile() {
                                 <Form.Item name="phone" label="Phone"><Input /></Form.Item>
                                 <Form.Item name="goal" label="Fitness goal">
                                     <Select
-                                        options={['Weight Loss', 'Muscle Gain', 'General Fitness', 'Endurance', 'Toning'].map((g) => ({ value: g, label: g }))}
+                                        options={[
+                                            ...clientGoals.map((g) => ({ value: g, label: g })),
+                                            { value: '__other__', label: 'Other…' },
+                                        ]}
                                     />
                                 </Form.Item>
                                 <Form.Item name="target" label="Target weight (kg)"><InputNumber min={30} max={200} style={{ width: '100%' }} /></Form.Item>
+                                <Form.Item noStyle shouldUpdate={(p, c) => p.goal !== c.goal}>
+                                    {({ getFieldValue }) =>
+                                        getFieldValue('goal') === '__other__' && (
+                                            <Form.Item
+                                                name="customGoal"
+                                                label="Custom goal name"
+                                                rules={[{ required: true, message: 'Enter a goal name' }]}
+                                            >
+                                                <Input placeholder="e.g. Marathon Prep" />
+                                            </Form.Item>
+                                        )
+                                    }
+                                </Form.Item>
                             </div>
                             <Button type="primary" htmlType="submit">Save changes</Button>
                         </Form>
                     </div>
                 </div>
             </div>
+
+            <Modal
+                title="Change photo"
+                open={photoOpen}
+                onCancel={() => setPhotoOpen(false)}
+                onOk={() => {
+                    message.success('Photo updated')
+                    setPhotoUrl('')
+                    setPhotoOpen(false)
+                }}
+                okText="Update photo"
+                centered
+            >
+                <p className="mb-2 text-sm text-text-secondary">Paste an image URL to use as your profile photo.</p>
+                <Input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://…/photo.jpg" />
+            </Modal>
         </div>
     )
 }

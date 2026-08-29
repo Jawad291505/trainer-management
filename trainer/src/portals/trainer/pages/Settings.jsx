@@ -1,11 +1,35 @@
-import { Form, Input, Switch, Button, App, Tabs } from 'antd'
+import { useState } from 'react'
+import { Form, Input, Switch, Button, App, Tabs, Modal } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
 import ThemePicker from '../../../components/common/ThemePicker'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { currentTrainer } from '../../../services/mockData'
 
+function ChangePhotoModal({ open, onClose }) {
+    const { message } = App.useApp()
+    const [url, setUrl] = useState('')
+    return (
+        <Modal
+            title="Change photo"
+            open={open}
+            onCancel={onClose}
+            onOk={() => {
+                message.success('Photo updated')
+                setUrl('')
+                onClose()
+            }}
+            okText="Update photo"
+            centered
+        >
+            <p className="mb-2 text-sm text-text-secondary">Paste an image URL to use as your profile photo.</p>
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…/photo.jpg" />
+        </Modal>
+    )
+}
+
 function ProfileTab() {
     const { message } = App.useApp()
+    const [photoOpen, setPhotoOpen] = useState(false)
     return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="app-card p-5 lg:col-span-1">
@@ -13,8 +37,9 @@ function ProfileTab() {
                     <UserAvatar name={currentTrainer.name} color={currentTrainer.avatarColor} size={84} />
                     <div className="mt-3 text-lg font-bold text-text-primary">{currentTrainer.name}</div>
                     <div className="text-sm text-text-muted">{currentTrainer.specialization}</div>
-                    <Button className="mt-4" block>Change photo</Button>
+                    <Button className="mt-4" block onClick={() => setPhotoOpen(true)}>Change photo</Button>
                 </div>
+                <ChangePhotoModal open={photoOpen} onClose={() => setPhotoOpen(false)} />
             </div>
             <div className="app-card p-5 lg:col-span-2">
                 <Form

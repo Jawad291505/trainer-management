@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Tabs, Progress, Timeline } from 'antd'
+import { Button, Tabs, Progress, Timeline, Modal, Input, App } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -30,10 +30,23 @@ import { clients, clientProgressSeries, clientActivity } from '../../../services
 export default function ClientDetail() {
     const { id } = useParams()
     const navigate = useNavigate()
+    const { message } = App.useApp()
     const { primary } = useTheme()
     const client = clients.find((c) => c.id === id)
+    const [msgOpen, setMsgOpen] = useState(false)
+    const [msgText, setMsgText] = useState('')
 
     const weightData = useMemo(() => clientProgressSeries, [])
+
+    const sendMessage = () => {
+        if (!msgText.trim()) {
+            message.warning('Write a message first')
+            return
+        }
+        message.success(`Message sent to ${client.name}`)
+        setMsgText('')
+        setMsgOpen(false)
+    }
 
     if (!client) {
         return (
@@ -72,7 +85,33 @@ export default function ClientDetail() {
                         <CalendarOutlined style={{ color: 'var(--color-text-muted)' }} />
                         <span className="text-text-secondary">Joined {client.joinDate}</span>
                     </div>
+                    {client.planMonths && (
+                        <div className="flex items-center gap-3">
+                            <CalendarOutlined style={{ color: 'var(--color-text-muted)' }} />
+                            <span className="text-text-secondary">
+                                {client.planMonths}-month plan · {client.startDate} → {client.endDate}
+                            </span>
+                        </div>
+                    )}
                 </div>
+
+                {(client.weight || client.height || client.bmi) && (
+                    <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl p-3 text-center" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div>
+                            <div className="text-base font-extrabold text-text-primary">{client.weight ? `${client.weight}kg` : '—'}</div>
+                            <div className="text-[11px] text-text-muted">Weight</div>
+                        </div>
+                        <div>
+                            <div className="text-base font-extrabold text-text-primary">{client.height ? `${client.height}cm` : '—'}</div>
+                            <div className="text-[11px] text-text-muted">Height</div>
+                        </div>
+                        <div>
+                            <div className="text-base font-extrabold text-text-primary">{client.bmi ?? '—'}</div>
+                            <div className="text-[11px] text-text-muted">BMI</div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="mt-5">
                     <div className="mb-1.5 flex items-center justify-between text-sm">
                         <span className="font-semibold text-text-secondary">Overall progress</span>
@@ -154,7 +193,7 @@ export default function ClientDetail() {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <Button icon={<MailOutlined />}>Message</Button>
+                        <Button icon={<MailOutlined />} onClick={() => setMsgOpen(true)}>Message</Button>
                         <Button type="primary" onClick={() => navigate('/assignments')}>
                             Reassign trainer
                         </Button>
@@ -178,6 +217,23 @@ export default function ClientDetail() {
                     ]}
                 />
             </div>
+
+            <Modal
+                title={`Message ${client.name}`}
+                open={msgOpen}
+                onCancel={() => setMsgOpen(false)}
+                onOk={sendMessage}
+                okText="Send message"
+                centered
+            >
+                <Input.TextArea
+                    className="mt-2"
+                    rows={4}
+                    value={msgText}
+                    onChange={(e) => setMsgText(e.target.value)}
+                    placeholder={`Write a message to ${client.name}…`}
+                />
+            </Modal>
         </div>
     )
 }

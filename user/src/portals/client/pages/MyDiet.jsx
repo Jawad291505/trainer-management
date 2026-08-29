@@ -8,6 +8,7 @@ import {
   FireOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
+import RequestCorrection from '../components/RequestCorrection'
 import { dietPlan } from '../../../services/mockData'
 
 export default function MyDiet() {
@@ -72,7 +73,9 @@ export default function MyDiet() {
 
   return (
     <div>
-      <PageHeader title="My Diet Plan" subtitle={dietPlan.title} />
+      <PageHeader title="My Diet Plan" subtitle={dietPlan.title}>
+        <RequestCorrection area="diet" items={dietPlan.meals.map((m) => `${m.name} — ${m.time}`)} />
+      </PageHeader>
 
       {/* Overall summary */}
       <div className="app-card mb-4 p-5">

@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
-import { Select, Button, DatePicker, App } from 'antd'
+import { Select, Button, DatePicker, App, Dropdown, Modal, Descriptions } from 'antd'
 import {
     DollarOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
     CloseCircleOutlined,
     DownloadOutlined,
+    MoreOutlined,
+    EyeOutlined,
+    FileTextOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
@@ -27,6 +30,7 @@ export default function Payments() {
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
     const [method, setMethod] = useState('all')
+    const [detail, setDetail] = useState(null)
 
     const methods = useMemo(() => Array.from(new Set(seed.map((p) => p.method))), [])
 
@@ -65,6 +69,29 @@ export default function Payments() {
         { title: 'Status', dataIndex: 'status', width: 120, render: (s) => <StatusBadge status={s} /> },
         { title: 'Method', dataIndex: 'method', width: 170, render: (m) => <span className="text-text-secondary">{m}</span> },
         { title: 'Transaction', dataIndex: 'txnId', width: 140, render: (t) => <span className="font-mono text-xs text-text-muted">{t}</span> },
+        {
+            title: '',
+            key: 'actions',
+            width: 50,
+            fixed: 'right',
+            render: (_, r) => (
+                <Dropdown
+                    trigger={['click']}
+                    menu={{
+                        items: [
+                            { key: 'view', icon: <EyeOutlined />, label: 'View details' },
+                            { key: 'invoice', icon: <FileTextOutlined />, label: 'Download invoice' },
+                        ],
+                        onClick: ({ key }) => {
+                            if (key === 'view') setDetail(r)
+                            else message.success(`Invoice ${r.id} downloaded`)
+                        },
+                    }}
+                >
+                    <Button type="text" icon={<MoreOutlined />} />
+                </Dropdown>
+            ),
+        },
     ]
 
     return (
@@ -114,8 +141,43 @@ export default function Payments() {
                     <DatePicker.RangePicker className="sm:ml-auto" />
                 </FilterBar>
 
-                <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1150} />
+                <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1200} />
             </div>
+
+            <Modal
+                title="Payment details"
+                open={!!detail}
+                onCancel={() => setDetail(null)}
+                centered
+                footer={[
+                    <Button key="close" onClick={() => setDetail(null)}>Close</Button>,
+                    <Button
+                        key="invoice"
+                        type="primary"
+                        icon={<DownloadOutlined />}
+                        onClick={() => {
+                            message.success(`Invoice ${detail.id} downloaded`)
+                            setDetail(null)
+                        }}
+                    >
+                        Download invoice
+                    </Button>,
+                ]}
+            >
+                {detail && (
+                    <Descriptions column={1} size="small" className="mt-2" bordered>
+                        <Descriptions.Item label="Payment ID">{detail.id}</Descriptions.Item>
+                        <Descriptions.Item label="Client">{detail.clientName}</Descriptions.Item>
+                        <Descriptions.Item label="Trainer">{detail.trainerName}</Descriptions.Item>
+                        <Descriptions.Item label="Plan">{detail.plan}</Descriptions.Item>
+                        <Descriptions.Item label="Amount">{money(detail.amount)}</Descriptions.Item>
+                        <Descriptions.Item label="Date">{detail.date}</Descriptions.Item>
+                        <Descriptions.Item label="Status">{detail.status}</Descriptions.Item>
+                        <Descriptions.Item label="Method">{detail.method}</Descriptions.Item>
+                        <Descriptions.Item label="Transaction">{detail.txnId}</Descriptions.Item>
+                    </Descriptions>
+                )}
+            </Modal>
         </div>
     )
 }

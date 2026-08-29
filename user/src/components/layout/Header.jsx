@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Badge, Dropdown, Popover, Input } from 'antd'
+import { Badge, Dropdown, Popover, Input, AutoComplete } from 'antd'
 import {
     MenuUnfoldOutlined,
     MenuFoldOutlined,
@@ -15,13 +15,49 @@ import UserAvatar from '../common/UserAvatar'
 import NotificationMenu from './NotificationMenu'
 import ThemePicker from '../common/ThemePicker'
 import { useAuth } from '../../context/AuthContext'
-import { notifications } from '../../services/mockData'
+import { notifications, dietPlan, exercisePlan } from '../../services/mockData'
+
+const SEARCH_INDEX = [
+    { value: 'page:/diet', label: 'My Diet Plan', sub: dietPlan.title, path: '/diet' },
+    { value: 'page:/exercises', label: 'My Exercise Plan', sub: exercisePlan.title, path: '/exercises' },
+    { value: 'page:/schedule', label: 'My Schedule', sub: 'Today & upcoming activities', path: '/schedule' },
+    { value: 'page:/progress', label: 'My Progress', sub: 'Weight & consistency', path: '/progress' },
+    { value: 'page:/messages', label: 'Messages', sub: 'Chat with your trainer', path: '/messages' },
+    { value: 'page:/profile', label: 'My Profile', sub: 'Personal details & goals', path: '/profile' },
+    ...dietPlan.meals.map((m) => ({ value: `meal:${m.id}`, label: m.name, sub: `Meal · ${m.time}`, path: '/diet' })),
+    ...exercisePlan.exercises.map((e) => ({ value: `ex:${e.id}`, label: e.name, sub: `Exercise · ${e.sets}×${e.reps}`, path: '/exercises' })),
+]
 
 export default function Header({ collapsed, onToggle, onOpenMobile }) {
     const navigate = useNavigate()
     const { logout } = useAuth()
     const [notifOpen, setNotifOpen] = useState(false)
+    const [query, setQuery] = useState('')
     const unread = notifications.filter((n) => n.unread).length
+
+    const searchOptions = useMemo(() => {
+        const q = query.trim().toLowerCase()
+        if (!q) return []
+        return SEARCH_INDEX.filter(
+            (e) => e.label.toLowerCase().includes(q) || e.sub.toLowerCase().includes(q),
+        )
+            .slice(0, 8)
+            .map((e) => ({
+                value: e.value,
+                path: e.path,
+                label: (
+                    <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-text-primary">{e.label}</span>
+                        <span className="text-xs text-text-muted">{e.sub}</span>
+                    </div>
+                ),
+            }))
+    }, [query])
+
+    const onSelectResult = (_value, option) => {
+        navigate(option.path)
+        setQuery('')
+    }
 
     const profileItems = [
         { key: 'profile', icon: <UserOutlined />, label: 'My profile' },
@@ -54,12 +90,23 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
             </button>
 
             <div className="hidden max-w-md flex-1 md:block">
-                <Input
-                    prefix={<SearchOutlined style={{ color: 'var(--color-text-muted)' }} />}
-                    placeholder="Search meals, exercises…"
-                    variant="filled"
-                    style={{ borderRadius: 10 }}
-                />
+                <AutoComplete
+                    value={query}
+                    onChange={setQuery}
+                    options={searchOptions}
+                    onSelect={onSelectResult}
+                    filterOption={false}
+                    style={{ width: '100%' }}
+                    allowClear
+                    notFoundContent={query.trim() ? 'No matches' : null}
+                >
+                    <Input
+                        prefix={<SearchOutlined style={{ color: 'var(--color-text-muted)' }} />}
+                        placeholder="Search meals, exercises…"
+                        variant="filled"
+                        style={{ borderRadius: 10 }}
+                    />
+                </AutoComplete>
             </div>
 
             <div className="ml-auto flex items-center gap-1 md:gap-2">

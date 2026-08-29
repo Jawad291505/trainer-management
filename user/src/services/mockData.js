@@ -1,11 +1,21 @@
 // Centralized, realistic mock data for the Client portal.
 // The logged-in client is "Emma Thompson".
 
+// Consultation goal categories. "Other" lets a client type a custom goal.
+export const clientGoals = [
+    'Fat Loss',
+    'Muscle Gain',
+    'Body Recomposition',
+    'PCOS',
+    'Busy Moms',
+    'Diabetic Patients',
+]
+
 export const currentClient = {
     id: 'CL-2001',
     name: 'Emma Thompson',
     email: 'emma.thompson@gmail.com',
-    goal: 'Weight Loss',
+    goal: 'Fat Loss',
     plan: 'Elite',
     weight: 68,
     target: 62,
@@ -155,6 +165,47 @@ export const messages = [
     { id: 'm3', from: 'trainer', text: 'Great. Add 2.5kg to bench if the last set felt strong.', time: '08:07' },
     { id: 'm4', from: 'client', text: 'Will do. Thanks coach!', time: '08:09' },
     { id: 'm5', from: 'trainer', text: 'Smash it 🔥 Send me how it goes.', time: '08:10' },
+]
+
+// ---- Correction requests (client → trainer) ----
+export const correctionAreaLabels = {
+    diet: 'Diet plan',
+    exercise: 'Exercise plan',
+    progress: 'Progress / weigh-in',
+    general: 'General',
+}
+export const correctionTypeLabels = {
+    swap: 'Swap / substitute',
+    'too-hard': 'Too difficult',
+    injury: 'Injury / pain',
+    'wrong-data': 'Wrong data',
+    other: 'Other',
+}
+export const correctionTypeOptions = Object.entries(correctionTypeLabels).map(([value, label]) => ({ value, label }))
+
+export const correctionSeed = [
+    {
+        id: 'RQ-2001',
+        area: 'exercise',
+        item: 'Rope Pushdown',
+        type: 'injury',
+        note: 'Elbow tendon is sore on pushdowns. Can we swap for a different triceps move this week?',
+        status: 'open',
+        reply: '',
+        createdAt: '2026-08-28',
+        resolvedAt: null,
+    },
+    {
+        id: 'RQ-2002',
+        area: 'diet',
+        item: 'Snack — Greek yogurt & almonds',
+        type: 'swap',
+        note: "I'm out of Greek yogurt and can't restock till the weekend. Any substitute?",
+        status: 'resolved',
+        reply: 'Swap for 150g cottage cheese or a scoop of whey in water. Same protein, no need to log it as a cheat.',
+        createdAt: '2026-08-24',
+        resolvedAt: '2026-08-25',
+    },
 ]
 
 // ---- Notifications ----

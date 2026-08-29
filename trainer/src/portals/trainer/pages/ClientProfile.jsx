@@ -22,6 +22,7 @@ import {
     Cell,
 } from 'recharts'
 import { useTheme } from '../../../context/ThemeContext'
+import { useCorrections } from '../../../context/CorrectionsContext'
 import StatCard from '../../../components/common/StatCard'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
@@ -37,13 +38,17 @@ import {
     clientChecklist,
     weeklyCompletion,
     weightProgress,
+    correctionAreaLabels,
+    correctionTypeLabels,
 } from '../../../services/mockData'
 
 export default function ClientProfile() {
     const { id } = useParams()
     const navigate = useNavigate()
     const { primary } = useTheme()
+    const { requests } = useCorrections()
     const client = getClient(id)
+    const clientRequests = requests.filter((r) => r.clientId === id)
 
     const completion = useMemo(() => {
         const done = clientChecklist.filter((t) => t.done).length
@@ -183,6 +188,43 @@ export default function ClientProfile() {
         </div>
     )
 
+    const requestsTab =
+        clientRequests.length === 0 ? (
+            <div className="app-card">
+                <EmptyState title="No correction requests" description={`${client.name} hasn't asked for any changes.`} />
+            </div>
+        ) : (
+            <div className="flex flex-col gap-3">
+                {clientRequests.map((r) => (
+                    <div key={r.id} className="app-card p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Tag bordered={false} style={{ borderRadius: 999 }}>
+                                        {correctionAreaLabels[r.area] || r.area}
+                                    </Tag>
+                                    <span className="text-xs font-medium text-text-muted">
+                                        {correctionTypeLabels[r.type] || r.type}
+                                    </span>
+                                    <span className="text-xs text-text-muted">· {r.createdAt}</span>
+                                </div>
+                                {r.item && <div className="mt-1 text-sm font-medium text-text-secondary">{r.item}</div>}
+                                <p className="mt-1 mb-0 text-sm text-text-secondary">{r.note}</p>
+                                {r.reply && (
+                                    <div className="mt-2 rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
+                                        <span className="font-semibold text-text-secondary">Your reply: </span>
+                                        <span className="text-text-secondary">{r.reply}</span>
+                                    </div>
+                                )}
+                            </div>
+                            <StatusBadge status={r.status} />
+                        </div>
+                    </div>
+                ))}
+                <Button type="primary" onClick={() => navigate('/requests')}>Manage requests</Button>
+            </div>
+        )
+
     return (
         <div>
             <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/clients')} className="mb-2" style={{ color: 'var(--color-text-secondary)', paddingLeft: 0 }}>
@@ -223,6 +265,11 @@ export default function ClientProfile() {
                         { key: 'exercise', label: 'Exercise Plan', children: exerciseTab },
                         { key: 'progress', label: 'Progress', children: progressTab },
                         { key: 'followups', label: 'Follow-ups', children: followUpTab },
+                        {
+                            key: 'requests',
+                            label: `Requests${clientRequests.filter((r) => r.status === 'open').length ? ` (${clientRequests.filter((r) => r.status === 'open').length})` : ''}`,
+                            children: requestsTab,
+                        },
                     ]}
                 />
             </div>

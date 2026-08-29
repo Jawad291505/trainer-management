@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Progress } from 'antd'
 import { PlayCircleOutlined, CheckOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
+import RequestCorrection from '../components/RequestCorrection'
 import { exercisePlan } from '../../../services/mockData'
 
 export default function MyExercises() {
@@ -14,7 +15,9 @@ export default function MyExercises() {
 
     return (
         <div>
-            <PageHeader title="My Exercise Plan" subtitle={`${exercisePlan.title} · Today: ${exercisePlan.today}`} />
+            <PageHeader title="My Exercise Plan" subtitle={`${exercisePlan.title} · Today: ${exercisePlan.today}`}>
+                <RequestCorrection area="exercise" items={exercisePlan.exercises.map((e) => e.name)} />
+            </PageHeader>
 
             <div className="app-card mb-4 p-4">
                 <div className="mb-1.5 flex items-center justify-between text-sm">

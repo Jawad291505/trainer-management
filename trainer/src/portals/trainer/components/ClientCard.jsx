@@ -23,8 +23,9 @@ export default function ClientCard({ client }) {
             { key: 'chat', icon: <MessageOutlined />, label: 'Message' },
         ],
         onClick: ({ key }) => {
-            if (key === 'view') navigate(`/clients/${client.id}`)
-            else if (key === 'chat') navigate('/messages')
+            if (key === 'chat') navigate('/messages')
+            else if (key === 'diet') navigate('/diet-plans')
+            else if (key === 'exercise') navigate('/exercise-plans')
             else navigate(`/clients/${client.id}`)
         },
     }

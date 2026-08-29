@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Rate, Tabs, Progress } from 'antd'
+import { Button, Rate, Tabs, Progress, Modal, Input, App } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -24,9 +24,22 @@ const money = (v) => `$${v.toLocaleString()}`
 export default function TrainerDetail() {
     const { id } = useParams()
     const navigate = useNavigate()
+    const { message } = App.useApp()
     const trainer = trainers.find((t) => t.id === id)
+    const [msgOpen, setMsgOpen] = useState(false)
+    const [msgText, setMsgText] = useState('')
 
     const assigned = useMemo(() => clients.filter((c) => c.trainerId === id), [id])
+
+    const sendMessage = () => {
+        if (!msgText.trim()) {
+            message.warning('Write a message first')
+            return
+        }
+        message.success(`Message sent to ${trainer.name}`)
+        setMsgText('')
+        setMsgOpen(false)
+    }
 
     if (!trainer) {
         return (
@@ -142,7 +155,7 @@ export default function TrainerDetail() {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <Button icon={<MailOutlined />}>Message</Button>
+                        <Button icon={<MailOutlined />} onClick={() => setMsgOpen(true)}>Message</Button>
                         <Button type="primary" onClick={() => navigate('/assignments')}>
                             Manage clients
                         </Button>
@@ -165,6 +178,23 @@ export default function TrainerDetail() {
                     ]}
                 />
             </div>
+
+            <Modal
+                title={`Message ${trainer.name}`}
+                open={msgOpen}
+                onCancel={() => setMsgOpen(false)}
+                onOk={sendMessage}
+                okText="Send message"
+                centered
+            >
+                <Input.TextArea
+                    className="mt-2"
+                    rows={4}
+                    value={msgText}
+                    onChange={(e) => setMsgText(e.target.value)}
+                    placeholder={`Write a message to ${trainer.name}…`}
+                />
+            </Modal>
         </div>
     )
 }

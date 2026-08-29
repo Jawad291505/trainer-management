@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Select, Dropdown, Button, Tag, App } from 'antd'
+import { Select, Dropdown, Button, Tag, App, Modal, Form, Input } from 'antd'
 import {
     MoreOutlined,
     EyeOutlined,
@@ -9,6 +9,7 @@ import {
     CheckCircleOutlined,
     DeleteOutlined,
     UserSwitchOutlined,
+    PlusOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
@@ -17,7 +18,7 @@ import DataTable from '../../../components/tables/DataTable'
 import StatusBadge from '../../../components/common/StatusBadge'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { confirmDelete } from '../../../utils/confirm'
-import { users as seedUsers } from '../../../services/mockData'
+import { users as seedUsers, trainers } from '../../../services/mockData'
 
 const ROLE_TAG = {
     'Super Admin': 'var(--color-primary)',
@@ -32,6 +33,64 @@ export default function Users() {
     const [search, setSearch] = useState('')
     const [role, setRole] = useState('all')
     const [status, setStatus] = useState('all')
+    const [editing, setEditing] = useState(null) // record, 'new', or null
+    const [assignFor, setAssignFor] = useState(null)
+    const [form] = Form.useForm()
+    const [assignForm] = Form.useForm()
+    const editingRole = Form.useWatch('role', form)
+
+    const openCreate = () => {
+        setEditing('new')
+        form.setFieldsValue({ name: '', email: '', role: 'Client', status: 'pending', trainerName: undefined })
+    }
+    const openEdit = (record) => {
+        setEditing(record)
+        form.setFieldsValue({
+            name: record.name,
+            email: record.email,
+            role: record.role,
+            status: record.status,
+            trainerName: record.trainerName && record.trainerName !== '—' ? record.trainerName : undefined,
+        })
+    }
+    const saveUser = async () => {
+        const v = await form.validateFields()
+        const trainerName = v.role === 'Client' ? v.trainerName || 'Unassigned' : '—'
+        if (editing === 'new') {
+            setData((prev) => [
+                {
+                    id: `${v.role === 'Trainer' ? 'TR' : v.role === 'Client' ? 'CL' : 'AD'}-${Date.now()}`,
+                    name: v.name,
+                    email: v.email,
+                    role: v.role,
+                    status: v.status,
+                    trainerName,
+                    joinDate: new Date().toISOString().slice(0, 10),
+                    lastActivity: 'Just now',
+                    avatarColor: '#2563eb',
+                },
+                ...prev,
+            ])
+            message.success(`${v.name} added`)
+        } else {
+            setData((prev) =>
+                prev.map((u) => (u.id === editing.id ? { ...u, name: v.name, email: v.email, role: v.role, status: v.status, trainerName } : u)),
+            )
+            message.success('User updated')
+        }
+        setEditing(null)
+    }
+
+    const openAssign = (record) => {
+        setAssignFor(record)
+        assignForm.setFieldsValue({ trainerName: record.trainerName && record.trainerName !== '—' ? record.trainerName : undefined })
+    }
+    const submitAssign = async () => {
+        const v = await assignForm.validateFields()
+        setData((prev) => prev.map((u) => (u.id === assignFor.id ? { ...u, trainerName: v.trainerName } : u)))
+        message.success(`${assignFor.name} assigned to ${v.trainerName}`)
+        setAssignFor(null)
+    }
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -120,7 +179,9 @@ export default function Users() {
                             items: [
                                 { key: 'view', icon: <EyeOutlined />, label: 'View profile' },
                                 { key: 'edit', icon: <EditOutlined />, label: 'Edit' },
-                                { key: 'assign', icon: <UserSwitchOutlined />, label: 'Assign trainer' },
+                                ...(r.role === 'Client'
+                                    ? [{ key: 'assign', icon: <UserSwitchOutlined />, label: 'Assign trainer' }]
+                                    : []),
                                 { type: 'divider' },
                                 {
                                     key: 'toggle',
@@ -131,9 +192,10 @@ export default function Users() {
                             ],
                             onClick: ({ key }) => {
                                 if (key === 'view') viewProfile(r)
+                                else if (key === 'edit') openEdit(r)
+                                else if (key === 'assign') openAssign(r)
                                 else if (key === 'toggle') toggleStatus(r)
                                 else if (key === 'delete') remove(r)
-                                else message.info(`${key} — ${r.name}`)
                             },
                         }}
                     >
@@ -147,7 +209,7 @@ export default function Users() {
     return (
         <div>
             <PageHeader title="User Management" subtitle={`${filtered.length} users found`}>
-                <Button type="primary">Add user</Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Add user</Button>
             </PageHeader>
 
             <FilterBar>
@@ -177,6 +239,76 @@ export default function Users() {
             </FilterBar>
 
             <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1050} />
+
+            <Modal
+                title={editing === 'new' ? 'Add user' : 'Edit user'}
+                open={!!editing}
+                onCancel={() => setEditing(null)}
+                onOk={saveUser}
+                okText={editing === 'new' ? 'Add user' : 'Save changes'}
+                centered
+            >
+                <Form form={form} layout="vertical" className="mt-4">
+                    <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}>
+                        <Input placeholder="e.g. Jordan Blake" />
+                    </Form.Item>
+                    <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}>
+                        <Input placeholder="jordan.blake@fittrack.io" />
+                    </Form.Item>
+                    <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                        <Form.Item name="role" label="Role" rules={[{ required: true }]}>
+                            <Select
+                                options={[
+                                    { value: 'Super Admin', label: 'Super Admin' },
+                                    { value: 'Trainer', label: 'Trainer' },
+                                    { value: 'Client', label: 'Client' },
+                                ]}
+                            />
+                        </Form.Item>
+                        <Form.Item name="status" label="Status" rules={[{ required: true }]}>
+                            <Select
+                                options={[
+                                    { value: 'active', label: 'Active' },
+                                    { value: 'inactive', label: 'Inactive' },
+                                    { value: 'pending', label: 'Pending' },
+                                ]}
+                            />
+                        </Form.Item>
+                    </div>
+                    {editingRole === 'Client' && (
+                        <Form.Item name="trainerName" label="Assigned trainer">
+                            <Select
+                                allowClear
+                                showSearch
+                                optionFilterProp="label"
+                                placeholder="Leave empty for unassigned"
+                                options={trainers.map((t) => ({ value: t.name, label: t.name }))}
+                            />
+                        </Form.Item>
+                    )}
+                </Form>
+            </Modal>
+
+            <Modal
+                title={assignFor ? `Assign trainer to ${assignFor.name}` : 'Assign trainer'}
+                open={!!assignFor}
+                onCancel={() => setAssignFor(null)}
+                onOk={submitAssign}
+                okText="Assign"
+                okButtonProps={{ icon: <UserSwitchOutlined /> }}
+                centered
+            >
+                <Form form={assignForm} layout="vertical" className="mt-4">
+                    <Form.Item name="trainerName" label="Trainer" rules={[{ required: true, message: 'Pick a trainer' }]}>
+                        <Select
+                            showSearch
+                            optionFilterProp="label"
+                            placeholder="Select a trainer"
+                            options={trainers.map((t) => ({ value: t.name, label: `${t.name} — ${t.clients}/${t.capacity} clients` }))}
+                        />
+                    </Form.Item>
+                </Form>
+            </Modal>
         </div>
     )
 }

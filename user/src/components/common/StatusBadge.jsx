@@ -7,6 +7,9 @@ const MAP = {
     inactive: { label: 'Inactive', bg: 'var(--color-surface-secondary)', fg: 'var(--color-text-muted)' },
     failed: { label: 'Failed', bg: 'var(--color-danger-soft)', fg: 'var(--color-danger)' },
     refunded: { label: 'Refunded', bg: 'var(--color-info-soft)', fg: 'var(--color-info)' },
+    open: { label: 'Awaiting reply', bg: 'var(--color-warning-soft)', fg: 'var(--color-warning)' },
+    resolved: { label: 'Resolved', bg: 'var(--color-success-soft)', fg: 'var(--color-success)' },
+    declined: { label: 'Declined', bg: 'var(--color-danger-soft)', fg: 'var(--color-danger)' },
 }
 
 export default function StatusBadge({ status }) {

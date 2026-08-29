@@ -82,7 +82,17 @@ export const trainers = [
     },
 ]
 
-const goals = ['Weight Loss', 'Muscle Gain', 'General Fitness', 'Endurance', 'Toning', 'Rehabilitation']
+// Consultation goal categories offered to clients. "Other" lets an admin
+// type a custom goal when none of the presets fit.
+export const clientGoals = [
+    'Fat Loss',
+    'Muscle Gain',
+    'Body Recomposition',
+    'PCOS',
+    'Busy Moms',
+    'Diabetic Patients',
+]
+const goals = clientGoals
 const plans = ['Starter', 'Standard', 'Premium', 'Elite']
 const firstNames = ['Emma', 'Noah', 'Olivia', 'James', 'Ava', 'William', 'Isabella', 'Ethan', 'Mia', 'Lucas', 'Charlotte', 'Henry', 'Amelia', 'Jack', 'Harper', 'Leo', 'Grace', 'Owen', 'Chloe', 'Sam', 'Zoe', 'Ryan', 'Lily', 'Adam', 'Nora', 'Ben', 'Ruby', 'Theo', 'Ella', 'Max']
 const lastNames = ['Thompson', 'Carter', 'Reyes', 'Nguyen', 'Patel', 'Rossi', 'Kowalski', 'Andersen', 'Silva', 'Murphy', 'Haddad', 'Larsen', 'Volkov', 'Osei', 'Bianchi', 'Kim', 'Novak', 'Costa', 'Weber', 'Dubois']

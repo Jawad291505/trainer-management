@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Segmented, Button, App } from 'antd'
+import { Segmented, Button, App, Modal, Form, Select, DatePicker, Input } from 'antd'
+import dayjs from 'dayjs'
 import {
     PlusOutlined,
     CheckOutlined,
@@ -12,7 +13,7 @@ import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import EmptyState from '../../../components/common/EmptyState'
 import UserAvatar from '../../../components/common/UserAvatar'
-import { followUps as seed } from '../../../services/mockData'
+import { followUps as seed, clients } from '../../../services/mockData'
 
 const BUCKETS = [
     { key: 'today', label: 'Due Today' },
@@ -26,6 +27,36 @@ export default function FollowUps() {
     const navigate = useNavigate()
     const [data, setData] = useState(seed)
     const [active, setActive] = useState('today')
+    const [open, setOpen] = useState(false)
+    const [form] = Form.useForm()
+
+    const openModal = () => {
+        form.setFieldsValue({ clientId: undefined, date: dayjs().add(1, 'day'), note: 'Weekly progress review' })
+        setOpen(true)
+    }
+
+    const createFollowUp = async () => {
+        const v = await form.validateFields()
+        const client = clients.find((c) => c.id === v.clientId)
+        const diff = v.date.startOf('day').diff(dayjs().startOf('day'), 'day')
+        const bucket = diff < 0 ? 'overdue' : diff === 0 ? 'today' : 'upcoming'
+        setData((prev) => [
+            {
+                id: `FU-${Date.now()}`,
+                clientId: client.id,
+                clientName: client.name,
+                avatarColor: client.avatarColor,
+                goal: client.goal,
+                date: v.date.format('YYYY-MM-DD'),
+                bucket,
+                note: v.note || 'Weekly progress review',
+            },
+            ...prev,
+        ])
+        setOpen(false)
+        setActive(bucket)
+        message.success('Follow-up scheduled')
+    }
 
     const counts = BUCKETS.reduce((acc, b) => {
         acc[b.key] = data.filter((f) => f.bucket === b.key).length
@@ -42,7 +73,7 @@ export default function FollowUps() {
     return (
         <div>
             <PageHeader title="Follow-ups" subtitle="Stay on top of client check-ins.">
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('Open new follow-up form')}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openModal}>
                     New follow-up
                 </Button>
             </PageHeader>
@@ -103,6 +134,32 @@ export default function FollowUps() {
                     })}
                 </div>
             )}
+
+            <Modal
+                title="New follow-up"
+                open={open}
+                onCancel={() => setOpen(false)}
+                onOk={createFollowUp}
+                okText="Schedule"
+                centered
+            >
+                <Form form={form} layout="vertical" className="mt-4" requiredMark={false}>
+                    <Form.Item name="clientId" label="Client" rules={[{ required: true, message: 'Pick a client' }]}>
+                        <Select
+                            showSearch
+                            optionFilterProp="label"
+                            placeholder="Select a client"
+                            options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                        />
+                    </Form.Item>
+                    <Form.Item name="date" label="Date" rules={[{ required: true, message: 'Pick a date' }]}>
+                        <DatePicker className="w-full" format="YYYY-MM-DD" />
+                    </Form.Item>
+                    <Form.Item name="note" label="Note">
+                        <Input.TextArea rows={2} placeholder="What is this check-in about?" />
+                    </Form.Item>
+                </Form>
+            </Modal>
         </div>
     )
 }
