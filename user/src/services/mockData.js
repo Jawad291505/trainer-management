@@ -45,45 +45,53 @@ export const todayTasks = [
 ]
 
 // ---- Diet plan ----
+// Items reference the shared food library by `foodId` with a numeric `qty` +
+// `unit`. Macros and GI/GL are derived at render time (utils/nutrition.js) from
+// the exact same data the trainer used, so the client sees identical numbers.
 export const dietPlan = {
     title: 'Fat Loss — Week 6',
+    assignedBy: 'TR-1001',
+    updatedAt: '2026-08-27',
     meals: [
         {
             id: 'M1', name: 'Breakfast', time: '08:00', taskId: 'T1',
             items: [
-                { food: 'Egg whites', qty: '4' },
-                { food: 'Oats', qty: '50g' },
-                { food: 'Blueberries', qty: '80g' },
+                { foodId: 'F-egg-white', qty: 4 },
+                { foodId: 'F-oats', qty: 50 },
+                { foodId: 'F-blueberries', qty: 80 },
             ],
             notes: 'Have within 30 min of waking.',
         },
         {
             id: 'M2', name: 'Snack', time: '11:00', taskId: null,
             items: [
-                { food: 'Greek yogurt', qty: '150g' },
-                { food: 'Almonds', qty: '15g' },
+                { foodId: 'F-greek-yogurt', qty: 150 },
+                { foodId: 'F-almonds', qty: 15 },
             ],
             notes: '',
         },
         {
             id: 'M3', name: 'Lunch', time: '13:00', taskId: 'T4',
             items: [
-                { food: 'Grilled chicken', qty: '150g' },
-                { food: 'Brown rice', qty: '120g' },
-                { food: 'Mixed greens', qty: '1 bowl' },
+                { foodId: 'F-chicken-breast', qty: 150 },
+                { foodId: 'F-brown-rice', qty: 120 },
+                { foodId: 'F-mixed-greens', qty: 100 },
             ],
             notes: '',
         },
         {
             id: 'M4', name: 'Snack', time: '16:00', taskId: null,
-            items: [{ food: 'Apple', qty: '1' }, { food: 'Peanut butter', qty: '1 tbsp' }],
+            items: [
+                { foodId: 'F-apple', qty: 1 },
+                { foodId: 'F-peanut-butter', qty: 15 },
+            ],
             notes: '',
         },
         {
             id: 'M5', name: 'Dinner', time: '19:30', taskId: 'T6',
             items: [
-                { food: 'Salmon', qty: '140g' },
-                { food: 'Sweet potato', qty: '150g' },
+                { foodId: 'F-salmon', qty: 140 },
+                { foodId: 'F-sweet-potato', qty: 150 },
             ],
             notes: 'Add greens if still hungry.',
         },
@@ -91,15 +99,40 @@ export const dietPlan = {
 }
 
 // ---- Exercise plan ----
+// Organized by training day (mirrors the trainer's builder). `todayId` marks
+// the day the client should train now.
 export const exercisePlan = {
     title: 'Push / Pull / Legs',
-    today: 'Chest & Triceps',
-    exercises: [
-        { id: 'E1', name: 'Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://youtube.com/watch?v=rT7DgCr-3pg', instructions: 'Control the eccentric, drive through the chest.', done: true },
-        { id: 'E2', name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', instructions: 'Keep a slight arch, full range.', done: true },
-        { id: 'E3', name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', youtube: '', instructions: 'Squeeze at the top for a second.', done: false },
-        { id: 'E4', name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Elbows tucked, full extension.', done: false },
-        { id: 'E5', name: 'Overhead Extension', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Keep upper arms still.', done: false },
+    assignedBy: 'TR-1001',
+    updatedAt: '2026-08-27',
+    todayId: 'D1',
+    days: [
+        {
+            id: 'D1', day: 'Today', focus: 'Chest & Triceps',
+            exercises: [
+                { id: 'E1', name: 'Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://youtube.com/watch?v=rT7DgCr-3pg', instructions: 'Control the eccentric, drive through the chest.', done: true },
+                { id: 'E2', name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', instructions: 'Keep a slight arch, full range.', done: true },
+                { id: 'E3', name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', youtube: '', instructions: 'Squeeze at the top for a second.', done: false },
+                { id: 'E4', name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Elbows tucked, full extension.', done: false },
+                { id: 'E5', name: 'Overhead Extension', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Keep upper arms still.', done: false },
+            ],
+        },
+        {
+            id: 'D2', day: 'Wednesday', focus: 'Back & Biceps',
+            exercises: [
+                { id: 'E6', name: 'Deadlift', sets: 4, reps: '5', rest: '120s', youtube: 'https://youtube.com/watch?v=op9kVnSso6Q', instructions: 'Brace hard before every rep.', done: false },
+                { id: 'E7', name: 'Pull-ups', sets: 3, reps: 'AMRAP', rest: '90s', youtube: '', instructions: 'Full hang to chin over bar.', done: false },
+                { id: 'E8', name: 'Barbell Row', sets: 3, reps: '10', rest: '75s', youtube: '', instructions: 'Flat back, pull to the hips.', done: false },
+            ],
+        },
+        {
+            id: 'D3', day: 'Friday', focus: 'Legs',
+            exercises: [
+                { id: 'E9', name: 'Back Squat', sets: 4, reps: '8', rest: '120s', youtube: 'https://youtube.com/watch?v=ultWZbUMPL8', instructions: 'Depth below parallel.', done: false },
+                { id: 'E10', name: 'Romanian Deadlift', sets: 3, reps: '10', rest: '90s', youtube: '', instructions: 'Feel the hamstring stretch.', done: false },
+                { id: 'E11', name: 'Leg Press', sets: 3, reps: '12', rest: '75s', youtube: '', instructions: 'Controlled tempo, no lockout slam.', done: false },
+            ],
+        },
     ],
 }
 

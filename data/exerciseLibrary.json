@@ -1,0 +1,21 @@
+{
+    "categories": ["Chest", "Back", "Legs", "Shoulders", "Arms", "Core", "Cardio"],
+    "items": [
+        { "id": "X-bench-press", "name": "Bench Press", "category": "Chest", "defaultSets": 4, "defaultReps": "8-10", "defaultRest": "90s", "youtube": "https://youtube.com/watch?v=rT7DgCr-3pg", "notes": "Control the eccentric.", "source": "admin" },
+        { "id": "X-incline-db-press", "name": "Incline Dumbbell Press", "category": "Chest", "defaultSets": 3, "defaultReps": "10-12", "defaultRest": "75s", "youtube": "https://youtube.com/watch?v=8iPEnn-ltC8", "notes": "", "source": "admin" },
+        { "id": "X-cable-fly", "name": "Cable Fly", "category": "Chest", "defaultSets": 3, "defaultReps": "12-15", "defaultRest": "60s", "youtube": "", "notes": "Squeeze at the top.", "source": "admin" },
+        { "id": "X-deadlift", "name": "Deadlift", "category": "Back", "defaultSets": 4, "defaultReps": "5", "defaultRest": "120s", "youtube": "https://youtube.com/watch?v=op9kVnSso6Q", "notes": "Brace hard.", "source": "admin" },
+        { "id": "X-pull-ups", "name": "Pull-ups", "category": "Back", "defaultSets": 3, "defaultReps": "AMRAP", "defaultRest": "90s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-barbell-row", "name": "Barbell Row", "category": "Back", "defaultSets": 3, "defaultReps": "10", "defaultRest": "75s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-back-squat", "name": "Back Squat", "category": "Legs", "defaultSets": 4, "defaultReps": "8", "defaultRest": "120s", "youtube": "https://youtube.com/watch?v=ultWZbUMPL8", "notes": "Depth below parallel.", "source": "admin" },
+        { "id": "X-rdl", "name": "Romanian Deadlift", "category": "Legs", "defaultSets": 3, "defaultReps": "10", "defaultRest": "90s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-leg-press", "name": "Leg Press", "category": "Legs", "defaultSets": 3, "defaultReps": "12", "defaultRest": "75s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-ohp", "name": "Overhead Press", "category": "Shoulders", "defaultSets": 4, "defaultReps": "8", "defaultRest": "90s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-lateral-raise", "name": "Lateral Raise", "category": "Shoulders", "defaultSets": 3, "defaultReps": "15", "defaultRest": "45s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-bicep-curl", "name": "Bicep Curl", "category": "Arms", "defaultSets": 3, "defaultReps": "12", "defaultRest": "60s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-rope-pushdown", "name": "Rope Pushdown", "category": "Arms", "defaultSets": 3, "defaultReps": "12", "defaultRest": "60s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-plank", "name": "Plank", "category": "Core", "defaultSets": 3, "defaultReps": "60s hold", "defaultRest": "45s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-hanging-leg-raise", "name": "Hanging Leg Raise", "category": "Core", "defaultSets": 3, "defaultReps": "12", "defaultRest": "60s", "youtube": "", "notes": "", "source": "admin" },
+        { "id": "X-treadmill", "name": "Treadmill Run", "category": "Cardio", "defaultSets": 1, "defaultReps": "20 min", "defaultRest": "-", "youtube": "", "notes": "Steady state, zone 2.", "source": "admin" }
+    ]
+}

@@ -1,0 +1,35 @@
+{
+    "categories": ["Protein", "Carb", "Fat", "Dairy", "Fruit", "Vegetable"],
+    "thresholds": {
+        "gi": { "medium": 56, "high": 70 },
+        "glItem": { "medium": 11, "high": 20 },
+        "glMeal": { "medium": 20, "high": 30 }
+    },
+    "items": [
+        { "id": "F-chicken-breast", "name": "Chicken Breast", "category": "Protein", "unit": "g", "base": 100, "step": 50, "defaultQty": 150, "gi": 0, "cal": 165, "protein": 31, "carbs": 0, "fat": 3.6, "source": "admin" },
+        { "id": "F-salmon", "name": "Salmon", "category": "Protein", "unit": "g", "base": 100, "step": 20, "defaultQty": 140, "gi": 0, "cal": 200, "protein": 28, "carbs": 0, "fat": 9, "source": "admin" },
+        { "id": "F-lean-beef", "name": "Lean Beef", "category": "Protein", "unit": "g", "base": 100, "step": 50, "defaultQty": 150, "gi": 0, "cal": 217, "protein": 26, "carbs": 0, "fat": 12, "source": "admin" },
+        { "id": "F-tuna", "name": "Tuna (canned)", "category": "Protein", "unit": "g", "base": 100, "step": 20, "defaultQty": 100, "gi": 0, "cal": 116, "protein": 26, "carbs": 0, "fat": 1, "source": "admin" },
+        { "id": "F-paneer", "name": "Paneer", "category": "Protein", "unit": "g", "base": 100, "step": 25, "defaultQty": 100, "gi": 27, "cal": 265, "protein": 18, "carbs": 3.4, "fat": 20, "source": "admin" },
+        { "id": "F-tofu", "name": "Tofu", "category": "Protein", "unit": "g", "base": 100, "step": 25, "defaultQty": 150, "gi": 15, "cal": 76, "protein": 8, "carbs": 1.9, "fat": 4.8, "source": "admin" },
+        { "id": "F-whole-egg", "name": "Whole Egg", "category": "Protein", "unit": "count", "base": 1, "step": 1, "defaultQty": 2, "gi": 0, "cal": 78, "protein": 6.3, "carbs": 0.6, "fat": 5.3, "source": "admin" },
+        { "id": "F-egg-white", "name": "Egg White", "category": "Protein", "unit": "count", "base": 1, "step": 1, "defaultQty": 4, "gi": 0, "cal": 17, "protein": 3.6, "carbs": 0.2, "fat": 0.1, "source": "admin" },
+        { "id": "F-oats", "name": "Oats", "category": "Carb", "unit": "g", "base": 100, "step": 10, "defaultQty": 50, "gi": 55, "cal": 389, "protein": 16.9, "carbs": 66, "fat": 6.9, "source": "admin" },
+        { "id": "F-brown-rice", "name": "Brown Rice (cooked)", "category": "Carb", "unit": "g", "base": 100, "step": 20, "defaultQty": 120, "gi": 68, "cal": 123, "protein": 2.7, "carbs": 26, "fat": 1, "source": "admin" },
+        { "id": "F-white-rice", "name": "White Rice (cooked)", "category": "Carb", "unit": "g", "base": 100, "step": 20, "defaultQty": 120, "gi": 73, "cal": 130, "protein": 2.7, "carbs": 28, "fat": 0.3, "source": "admin" },
+        { "id": "F-sweet-potato", "name": "Sweet Potato", "category": "Carb", "unit": "g", "base": 100, "step": 25, "defaultQty": 150, "gi": 63, "cal": 86, "protein": 1.6, "carbs": 20, "fat": 0.1, "source": "admin" },
+        { "id": "F-potato", "name": "Potato (boiled)", "category": "Carb", "unit": "g", "base": 100, "step": 25, "defaultQty": 150, "gi": 78, "cal": 87, "protein": 1.9, "carbs": 20, "fat": 0.1, "source": "admin" },
+        { "id": "F-whole-wheat-bread", "name": "Whole Wheat Bread", "category": "Carb", "unit": "count", "base": 1, "step": 1, "defaultQty": 2, "gi": 74, "cal": 82, "protein": 4, "carbs": 14, "fat": 1.1, "source": "admin" },
+        { "id": "F-quinoa", "name": "Quinoa (cooked)", "category": "Carb", "unit": "g", "base": 100, "step": 20, "defaultQty": 100, "gi": 53, "cal": 120, "protein": 4.4, "carbs": 21, "fat": 1.9, "source": "admin" },
+        { "id": "F-banana", "name": "Banana", "category": "Fruit", "unit": "count", "base": 1, "step": 1, "defaultQty": 1, "gi": 51, "cal": 105, "protein": 1.3, "carbs": 27, "fat": 0.4, "source": "admin" },
+        { "id": "F-apple", "name": "Apple", "category": "Fruit", "unit": "count", "base": 1, "step": 1, "defaultQty": 1, "gi": 36, "cal": 95, "protein": 0.5, "carbs": 25, "fat": 0.3, "source": "admin" },
+        { "id": "F-blueberries", "name": "Blueberries", "category": "Fruit", "unit": "g", "base": 100, "step": 20, "defaultQty": 80, "gi": 53, "cal": 57, "protein": 0.7, "carbs": 14, "fat": 0.3, "source": "admin" },
+        { "id": "F-milk", "name": "Milk", "category": "Dairy", "unit": "ml", "base": 100, "step": 50, "defaultQty": 250, "gi": 39, "cal": 42, "protein": 3.4, "carbs": 5, "fat": 1, "source": "admin" },
+        { "id": "F-greek-yogurt", "name": "Greek Yogurt", "category": "Dairy", "unit": "g", "base": 100, "step": 25, "defaultQty": 150, "gi": 11, "cal": 59, "protein": 10, "carbs": 3.6, "fat": 0.4, "source": "admin" },
+        { "id": "F-almonds", "name": "Almonds", "category": "Fat", "unit": "g", "base": 100, "step": 10, "defaultQty": 20, "gi": 0, "cal": 579, "protein": 21, "carbs": 22, "fat": 50, "source": "admin" },
+        { "id": "F-peanut-butter", "name": "Peanut Butter", "category": "Fat", "unit": "g", "base": 100, "step": 5, "defaultQty": 15, "gi": 14, "cal": 588, "protein": 25, "carbs": 20, "fat": 50, "source": "admin" },
+        { "id": "F-olive-oil", "name": "Olive Oil", "category": "Fat", "unit": "ml", "base": 100, "step": 5, "defaultQty": 10, "gi": 0, "cal": 884, "protein": 0, "carbs": 0, "fat": 100, "source": "admin" },
+        { "id": "F-mixed-greens", "name": "Mixed Greens", "category": "Vegetable", "unit": "g", "base": 100, "step": 25, "defaultQty": 100, "gi": 15, "cal": 20, "protein": 2, "carbs": 3, "fat": 0.3, "source": "admin" },
+        { "id": "F-broccoli", "name": "Broccoli", "category": "Vegetable", "unit": "g", "base": 100, "step": 25, "defaultQty": 100, "gi": 15, "cal": 34, "protein": 2.8, "carbs": 7, "fat": 0.4, "source": "admin" }
+    ]
+}

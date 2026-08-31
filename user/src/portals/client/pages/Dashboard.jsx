@@ -18,7 +18,11 @@ import {
     getTodayProgress,
     weightProgress,
     weeklyCompletion,
+    dietPlan,
+    exercisePlan,
 } from '../../../services/mockData'
+import { getFood } from '../../../services/foodLibrary'
+import { computeNutrition } from '../../../utils/nutrition'
 
 const TASK_TYPE_LABELS = {
     meal: 'Meals',
@@ -40,6 +44,19 @@ export default function Dashboard() {
     }, [])
 
     const progress = getTodayProgress(tasks)
+
+    // Planned calories for the day, derived from the same food library the
+    // trainer built the plan from.
+    const plannedCalories = dietPlan.meals.reduce(
+        (sum, m) =>
+            sum +
+            m.items.reduce((s, it) => {
+                const food = getFood(it.foodId)
+                return food ? s + computeNutrition(food, it.qty).cal : s
+            }, 0),
+        0,
+    )
+    const todayWorkout = exercisePlan.days.find((d) => d.id === exercisePlan.todayId) || exercisePlan.days[0]
 
     const taskTypeData = Object.entries(
         tasks.reduce((acc, t) => {
@@ -112,6 +129,32 @@ export default function Dashboard() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Today's focus — ties diet + workout together */}
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <button
+                    onClick={() => navigate('/diet')}
+                    className="app-card app-card-hover flex items-center justify-between p-5 text-left"
+                >
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Today's nutrition</div>
+                        <div className="mt-1 text-lg font-extrabold text-text-primary">{plannedCalories} kcal planned</div>
+                        <div className="text-xs text-text-secondary">{dietPlan.meals.length} meals · {dietPlan.title}</div>
+                    </div>
+                    <RightOutlined style={{ color: 'var(--color-text-muted)' }} />
+                </button>
+                <button
+                    onClick={() => navigate('/exercises')}
+                    className="app-card app-card-hover flex items-center justify-between p-5 text-left"
+                >
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Today's training</div>
+                        <div className="mt-1 text-lg font-extrabold text-text-primary">{todayWorkout.focus}</div>
+                        <div className="text-xs text-text-secondary">{todayWorkout.exercises.length} exercises · {exercisePlan.title}</div>
+                    </div>
+                    <RightOutlined style={{ color: 'var(--color-text-muted)' }} />
+                </button>
             </div>
 
             {/* Progress charts */}

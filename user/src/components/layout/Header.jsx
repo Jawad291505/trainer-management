@@ -25,7 +25,9 @@ const SEARCH_INDEX = [
     { value: 'page:/messages', label: 'Messages', sub: 'Chat with your trainer', path: '/messages' },
     { value: 'page:/profile', label: 'My Profile', sub: 'Personal details & goals', path: '/profile' },
     ...dietPlan.meals.map((m) => ({ value: `meal:${m.id}`, label: m.name, sub: `Meal · ${m.time}`, path: '/diet' })),
-    ...exercisePlan.exercises.map((e) => ({ value: `ex:${e.id}`, label: e.name, sub: `Exercise · ${e.sets}×${e.reps}`, path: '/exercises' })),
+    ...exercisePlan.days.flatMap((d) =>
+        d.exercises.map((e) => ({ value: `ex:${e.id}`, label: e.name, sub: `Exercise · ${e.sets}×${e.reps}`, path: '/exercises' })),
+    ),
 ]
 
 export default function Header({ collapsed, onToggle, onOpenMobile }) {
