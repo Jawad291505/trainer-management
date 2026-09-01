@@ -9,15 +9,26 @@ import { exerciseCategories } from '../../../services/exerciseLibrary'
 export default function ExerciseModal({ open, onCancel, onAdd }) {
     const { exercises, addExercise } = useLibrary()
     const [mode, setMode] = useState('library')
+    const [cat, setCat] = useState(exerciseCategories[0])
     const [exId, setExId] = useState(null)
     const [pickForm] = Form.useForm()
     const [newForm] = Form.useForm()
 
     const exercise = useMemo(() => exercises.find((x) => x.id === exId), [exercises, exId])
 
+    // Exercises in the chosen category.
+    const exInCat = useMemo(
+        () =>
+            exercises
+                .filter((x) => x.category === cat)
+                .map((x) => ({ value: x.id, label: `${x.name}${x.source === 'trainer' ? ' (custom)' : ''}` })),
+        [exercises, cat],
+    )
+
     useEffect(() => {
         if (open) {
             setMode('library')
+            setCat(exerciseCategories[0])
             setExId(null)
             pickForm.resetFields()
             newForm.resetFields()
@@ -35,16 +46,6 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
             })
         }
     }, [exercise, pickForm])
-
-    const options = exerciseCategories
-        .map((cat) => ({
-            label: cat,
-            title: cat,
-            options: exercises
-                .filter((x) => x.category === cat)
-                .map((x) => ({ value: x.id, label: `${x.name}${x.source === 'trainer' ? ' (custom)' : ''}` })),
-        }))
-        .filter((g) => g.options.length > 0)
 
     const handleOk = async () => {
         if (mode === 'library') {
@@ -110,16 +111,32 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
 
             {mode === 'library' ? (
                 <div className="mt-4">
-                    <div className="mb-1 text-xs font-semibold text-text-secondary">Exercise</div>
-                    <Select
-                        showSearch
-                        placeholder="Search exercises…"
-                        value={exId}
-                        onChange={setExId}
-                        options={options}
-                        optionFilterProp="label"
-                        style={{ width: '100%' }}
-                    />
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <div>
+                            <div className="mb-1 text-xs font-semibold text-text-secondary">Category</div>
+                            <Select
+                                value={cat}
+                                onChange={(c) => {
+                                    setCat(c)
+                                    setExId(null)
+                                }}
+                                options={exerciseCategories.map((c) => ({ value: c, label: c }))}
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <div>
+                            <div className="mb-1 text-xs font-semibold text-text-secondary">Exercise</div>
+                            <Select
+                                showSearch
+                                placeholder="Select an exercise…"
+                                value={exId}
+                                onChange={setExId}
+                                options={exInCat}
+                                optionFilterProp="label"
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                    </div>
                     {exercise && (
                         <Form form={pickForm} layout="vertical" className="mt-4 builder-input">
                             <div className="grid grid-cols-3 gap-x-4">

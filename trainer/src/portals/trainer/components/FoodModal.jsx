@@ -11,16 +11,29 @@ import {
 } from '../../../utils/nutrition'
 import GlycemicBadge from './GlycemicBadge'
 
-// Lets the trainer either pick a predefined food and set its quantity (macros
-// recalculate live) or add a fully custom food ("Add something else").
+// Lets the trainer pick a category → a food and set its quantity (macros + GI/GL
+// recalculate live below), or add a fully custom food ("Add something else").
 export default function FoodModal({ open, onCancel, onAdd }) {
     const { foods, addFood } = useLibrary()
     const [mode, setMode] = useState('library') // 'library' | 'custom'
+    const [cat, setCat] = useState(foodCategories[0])
     const [foodId, setFoodId] = useState(null)
     const [qty, setQty] = useState(0)
     const [customForm] = Form.useForm()
 
     const food = useMemo(() => foods.find((f) => f.id === foodId), [foods, foodId])
+
+    // Foods in the chosen category.
+    const foodsInCat = useMemo(
+        () =>
+            foods
+                .filter((f) => f.category === cat)
+                .map((f) => ({
+                    value: f.id,
+                    label: `${f.name}${f.source === 'trainer' ? ' (custom)' : ''}`,
+                })),
+        [foods, cat],
+    )
 
     // When a food is chosen, seed the quantity with its default.
     useEffect(() => {
@@ -31,6 +44,7 @@ export default function FoodModal({ open, onCancel, onAdd }) {
     useEffect(() => {
         if (open) {
             setMode('library')
+            setCat(foodCategories[0])
             setFoodId(null)
             setQty(0)
             customForm.resetFields()
@@ -40,29 +54,15 @@ export default function FoodModal({ open, onCancel, onAdd }) {
     // Live nutrition for the current selection + quantity.
     const nutrition = useMemo(() => (food ? computeNutrition(food, qty) : null), [food, qty])
 
-    const foodOptions = foodCategories
-        .map((cat) => ({
-            label: cat,
-            title: cat,
-            options: foods
-                .filter((f) => f.category === cat)
-                .map((f) => ({
-                    value: f.id,
-                    label: `${f.name}${f.source === 'trainer' ? ' (custom)' : ''}`,
-                })),
-        }))
-        .filter((g) => g.options.length > 0)
-
     const handleOk = async () => {
         if (mode === 'custom') {
             const v = await customForm.validateFields()
             // Persist to the trainer's custom library so it's reusable.
             const created = addFood({
                 name: v.name,
-                category: v.category || 'Protein',
+                category: v.category || foodCategories[0],
                 unit: v.unit || 'g',
                 // Macros are entered for `qty`, so use it as the base amount.
-                // Later scaling (changing qty) then stays proportional.
                 base: v.qty,
                 step: v.unit === 'count' ? 1 : 10,
                 defaultQty: v.qty,
@@ -119,16 +119,33 @@ export default function FoodModal({ open, onCancel, onAdd }) {
 
             {mode === 'library' ? (
                 <div className="mt-4">
-                    <div className="mb-1 text-xs font-semibold text-text-secondary">Food</div>
-                    <Select
-                        showSearch
-                        placeholder="Search foods…"
-                        value={foodId}
-                        onChange={setFoodId}
-                        options={foodOptions}
-                        optionFilterProp="label"
-                        style={{ width: '100%' }}
-                    />
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <div>
+                            <div className="mb-1 text-xs font-semibold text-text-secondary">Category</div>
+                            <Select
+                                value={cat}
+                                onChange={(c) => {
+                                    setCat(c)
+                                    setFoodId(null)
+                                    setQty(0)
+                                }}
+                                options={foodCategories.map((c) => ({ value: c, label: c }))}
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <div>
+                            <div className="mb-1 text-xs font-semibold text-text-secondary">Food</div>
+                            <Select
+                                showSearch
+                                placeholder="Select a food…"
+                                value={foodId}
+                                onChange={setFoodId}
+                                options={foodsInCat}
+                                optionFilterProp="label"
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                    </div>
 
                     {food && (
                         <>
@@ -209,7 +226,7 @@ export default function FoodModal({ open, onCancel, onAdd }) {
                         <Form.Item name="name" label="Food name" rules={[{ required: true, message: 'Enter a name' }]}>
                             <Input placeholder="e.g. Homemade smoothie" />
                         </Form.Item>
-                        <Form.Item name="category" label="Category" initialValue="Protein">
+                        <Form.Item name="category" label="Category" initialValue={foodCategories[0]}>
                             <Select options={foodCategories.map((c) => ({ value: c, label: c }))} />
                         </Form.Item>
                         <Form.Item name="unit" label="Unit" initialValue="g">
