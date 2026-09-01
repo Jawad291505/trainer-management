@@ -1,0 +1,203 @@
+[
+  {
+    "id": "GDP-1",
+    "title": "Fat Loss — Standard",
+    "goal": "Fat Loss",
+    "description": "Higher-protein, moderate-carb template (~1450 kcal) built from the food library for a steady deficit.",
+    "meals": [
+      {
+        "name": "Breakfast",
+        "time": "08:00",
+        "notes": "Have within 30 min of waking.",
+        "items": [
+          { "food": "Egg whites, cooked", "amount": 4, "unit": "large whites", "cal": 68, "protein": 14, "carbs": 1, "fat": 0 },
+          { "food": "Rolled oats, cooked", "amount": 1, "unit": "cup cooked", "cal": 166, "protein": 6, "carbs": 28, "fat": 4 },
+          { "food": "Blueberries", "amount": 1, "unit": "cup", "cal": 84, "protein": 1, "carbs": 22, "fat": 0 }
+        ]
+      },
+      {
+        "name": "Lunch",
+        "time": "13:00",
+        "notes": "",
+        "items": [
+          { "food": "Chicken breast, skinless, cooked", "amount": 150, "unit": "g", "cal": 248, "protein": 47, "carbs": 0, "fat": 5 },
+          { "food": "Brown rice, cooked", "amount": 1, "unit": "cup cooked", "cal": 246, "protein": 5, "carbs": 51, "fat": 2 },
+          { "food": "Broccoli, cooked", "amount": 1, "unit": "cup", "cal": 55, "protein": 4, "carbs": 11, "fat": 1 }
+        ]
+      },
+      {
+        "name": "Snack",
+        "time": "16:00",
+        "notes": "",
+        "items": [
+          { "food": "Greek yogurt, plain, nonfat", "amount": 0.75, "unit": "cup", "cal": 100, "protein": 18, "carbs": 6, "fat": 1 },
+          { "food": "Almonds", "amount": 20, "unit": "nuts", "cal": 162, "protein": 6, "carbs": 6, "fat": 14 }
+        ]
+      },
+      {
+        "name": "Dinner",
+        "time": "19:30",
+        "notes": "Add extra greens if still hungry.",
+        "items": [
+          { "food": "Cod, cooked", "amount": 150, "unit": "g", "cal": 158, "protein": 34, "carbs": 0, "fat": 1 },
+          { "food": "Sweet potato, boiled", "amount": 1, "unit": "medium", "cal": 99, "protein": 2, "carbs": 23, "fat": 0 },
+          { "food": "Green beans, cooked", "amount": 1, "unit": "cup", "cal": 44, "protein": 2, "carbs": 10, "fat": 0 }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "GDP-2",
+    "title": "Muscle Gain — Standard",
+    "goal": "Muscle Gain",
+    "description": "Calorie-surplus template (~2600 kcal) with carbohydrate placed around training.",
+    "meals": [
+      {
+        "name": "Breakfast",
+        "time": "07:30",
+        "notes": "",
+        "items": [
+          { "food": "Egg, whole, cooked", "amount": 2, "unit": "large", "cal": 155, "protein": 13, "carbs": 1, "fat": 11 },
+          { "food": "Rolled oats, cooked", "amount": 1, "unit": "cup cooked", "cal": 166, "protein": 6, "carbs": 28, "fat": 4 },
+          { "food": "Banana", "amount": 1, "unit": "small", "cal": 89, "protein": 1, "carbs": 23, "fat": 0 },
+          { "food": "Whole milk (3.25%)", "amount": 1, "unit": "cup", "cal": 149, "protein": 8, "carbs": 12, "fat": 8 }
+        ]
+      },
+      {
+        "name": "Lunch",
+        "time": "13:00",
+        "notes": "",
+        "items": [
+          { "food": "Beef mince, 85% lean, cooked", "amount": 150, "unit": "g", "cal": 375, "protein": 39, "carbs": 0, "fat": 23 },
+          { "food": "White rice, cooked", "amount": 1, "unit": "cup cooked", "cal": 260, "protein": 5, "carbs": 56, "fat": 1 },
+          { "food": "Broccoli, cooked", "amount": 1, "unit": "cup", "cal": 55, "protein": 4, "carbs": 11, "fat": 1 }
+        ]
+      },
+      {
+        "name": "Pre-Workout",
+        "time": "16:30",
+        "notes": "Eat 60-90 min before training.",
+        "items": [
+          { "food": "Whole-wheat bread", "amount": 2, "unit": "slices", "cal": 148, "protein": 8, "carbs": 25, "fat": 2 },
+          { "food": "Peanut butter, unsweetened", "amount": 2, "unit": "tbsp", "cal": 188, "protein": 8, "carbs": 6, "fat": 16 },
+          { "food": "Apple, with skin", "amount": 1, "unit": "small", "cal": 62, "protein": 0, "carbs": 17, "fat": 0 }
+        ]
+      },
+      {
+        "name": "Dinner",
+        "time": "20:00",
+        "notes": "",
+        "items": [
+          { "food": "Chicken breast, skinless, cooked", "amount": 150, "unit": "g", "cal": 248, "protein": 47, "carbs": 0, "fat": 5 },
+          { "food": "Whole-wheat pasta, cooked", "amount": 1, "unit": "cup", "cal": 209, "protein": 8, "carbs": 42, "fat": 2 },
+          { "food": "Olive oil", "amount": 1, "unit": "tbsp", "cal": 124, "protein": 0, "carbs": 0, "fat": 14 }
+        ]
+      },
+      {
+        "name": "Before Bed",
+        "time": "22:30",
+        "notes": "Slow-digesting protein overnight.",
+        "items": [
+          { "food": "Cottage cheese, low-fat", "amount": 1, "unit": "cup", "cal": 185, "protein": 25, "carbs": 8, "fat": 5 },
+          { "food": "Walnuts", "amount": 7, "unit": "whole kernels", "cal": 183, "protein": 4, "carbs": 4, "fat": 18 }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "GDP-3",
+    "title": "Body Recomposition",
+    "goal": "Body Recomposition",
+    "description": "Maintenance-level template (~2050 kcal) with high protein for training-day recomposition.",
+    "meals": [
+      {
+        "name": "Breakfast",
+        "time": "08:00",
+        "notes": "",
+        "items": [
+          { "food": "Egg, whole, cooked", "amount": 2, "unit": "large", "cal": 155, "protein": 13, "carbs": 1, "fat": 11 },
+          { "food": "Egg whites, cooked", "amount": 4, "unit": "large whites", "cal": 68, "protein": 14, "carbs": 1, "fat": 0 },
+          { "food": "Whole-wheat bread", "amount": 2, "unit": "slices", "cal": 148, "protein": 8, "carbs": 25, "fat": 2 }
+        ]
+      },
+      {
+        "name": "Lunch",
+        "time": "13:00",
+        "notes": "",
+        "items": [
+          { "food": "Chicken breast, skinless, cooked", "amount": 150, "unit": "g", "cal": 248, "protein": 47, "carbs": 0, "fat": 5 },
+          { "food": "Quinoa, cooked", "amount": 1, "unit": "cup cooked", "cal": 240, "protein": 9, "carbs": 43, "fat": 4 },
+          { "food": "Spinach, cooked", "amount": 1, "unit": "cup", "cal": 41, "protein": 5, "carbs": 7, "fat": 1 }
+        ]
+      },
+      {
+        "name": "Snack",
+        "time": "16:00",
+        "notes": "",
+        "items": [
+          { "food": "Greek yogurt, plain, nonfat", "amount": 0.75, "unit": "cup", "cal": 100, "protein": 18, "carbs": 6, "fat": 1 },
+          { "food": "Apple, with skin", "amount": 1, "unit": "small", "cal": 62, "protein": 0, "carbs": 17, "fat": 0 }
+        ]
+      },
+      {
+        "name": "Dinner",
+        "time": "19:30",
+        "notes": "",
+        "items": [
+          { "food": "Salmon, cooked", "amount": 100, "unit": "g", "cal": 206, "protein": 22, "carbs": 0, "fat": 12 },
+          { "food": "Potato, boiled, skinless", "amount": 1, "unit": "medium", "cal": 131, "protein": 3, "carbs": 30, "fat": 0 },
+          { "food": "Asparagus, cooked", "amount": 1, "unit": "cup", "cal": 40, "protein": 4, "carbs": 7, "fat": 0 }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "GDP-4",
+    "title": "Balanced Maintenance",
+    "goal": "General Fitness",
+    "description": "Simple balanced template (~2000 kcal) for maintaining weight and habits.",
+    "meals": [
+      {
+        "name": "Breakfast",
+        "time": "08:00",
+        "notes": "",
+        "items": [
+          { "food": "Rolled oats, cooked", "amount": 1, "unit": "cup cooked", "cal": 166, "protein": 6, "carbs": 28, "fat": 4 },
+          { "food": "Low-fat milk (1%)", "amount": 1, "unit": "cup", "cal": 103, "protein": 8, "carbs": 12, "fat": 2 },
+          { "food": "Strawberries", "amount": 1, "unit": "cup", "cal": 48, "protein": 1, "carbs": 12, "fat": 1 }
+        ]
+      },
+      {
+        "name": "Lunch",
+        "time": "13:00",
+        "notes": "",
+        "items": [
+          { "food": "Tuna, canned in water, drained", "amount": 100, "unit": "g", "cal": 116, "protein": 26, "carbs": 0, "fat": 1 },
+          { "food": "Whole-wheat bread", "amount": 2, "unit": "slices", "cal": 148, "protein": 8, "carbs": 25, "fat": 2 },
+          { "food": "Tomato, raw", "amount": 1, "unit": "medium", "cal": 22, "protein": 1, "carbs": 5, "fat": 0 },
+          { "food": "Cucumber, with peel", "amount": 1, "unit": "cup sliced", "cal": 16, "protein": 1, "carbs": 4, "fat": 0 }
+        ]
+      },
+      {
+        "name": "Snack",
+        "time": "16:00",
+        "notes": "",
+        "items": [
+          { "food": "Greek yogurt, plain, nonfat", "amount": 0.75, "unit": "cup", "cal": 100, "protein": 18, "carbs": 6, "fat": 1 },
+          { "food": "Banana", "amount": 1, "unit": "small", "cal": 89, "protein": 1, "carbs": 23, "fat": 0 }
+        ]
+      },
+      {
+        "name": "Dinner",
+        "time": "19:30",
+        "notes": "",
+        "items": [
+          { "food": "Tofu, firm", "amount": 150, "unit": "g", "cal": 216, "protein": 26, "carbs": 4, "fat": 13 },
+          { "food": "Brown rice, cooked", "amount": 1, "unit": "cup cooked", "cal": 246, "protein": 5, "carbs": 51, "fat": 2 },
+          { "food": "Bell pepper, raw", "amount": 1, "unit": "cup", "cal": 46, "protein": 2, "carbs": 9, "fat": 0 },
+          { "food": "Olive oil", "amount": 1, "unit": "tbsp", "cal": 124, "protein": 0, "carbs": 0, "fat": 14 }
+        ]
+      }
+    ]
+  }
+]

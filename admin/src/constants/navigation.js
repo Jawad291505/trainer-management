@@ -5,6 +5,7 @@ import {
     UsergroupAddOutlined,
     DeploymentUnitOutlined,
     ReadOutlined,
+    AppleOutlined,
     CreditCardOutlined,
     BellOutlined,
     SettingOutlined,
@@ -33,6 +34,7 @@ export const adminNavGroups = [
         caption: 'Content & billing',
         items: [
             { key: '/libraries', label: 'Libraries', icon: ReadOutlined },
+            { key: '/diet-plans', label: 'Diet Plans', icon: AppleOutlined },
             { key: '/payments', label: 'Payments', icon: CreditCardOutlined },
         ],
     },

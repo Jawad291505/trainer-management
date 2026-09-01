@@ -1,4 +1,5 @@
 import { ClockCircleOutlined } from '@ant-design/icons'
+import { formatQty } from '../../../utils/foodScale'
 
 // Displays a single meal with its food items and macro totals.
 export default function MealCard({ meal, onEdit }) {
@@ -30,7 +31,7 @@ export default function MealCard({ meal, onEdit }) {
                 {meal.items.map((it, i) => (
                     <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
                         <span className="font-medium text-text-primary">{it.food}</span>
-                        <span className="text-text-muted">{it.qty}</span>
+                        <span className="text-text-muted">{formatQty(it)}</span>
                     </div>
                 ))}
             </div>

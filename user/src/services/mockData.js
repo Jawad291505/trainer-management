@@ -45,8 +45,11 @@ export const todayTasks = [
 ]
 
 // ---- Diet plan ----
+// Assigned by the trainer, who started from the Admin "Fat Loss — Standard"
+// General Diet Plan and then customised it for this client.
 export const dietPlan = {
     title: 'Fat Loss — Week 6',
+    source: 'Based on “Fat Loss — Standard” · customised by Marcus',
     meals: [
         {
             id: 'M1', name: 'Breakfast', time: '08:00', taskId: 'T1',
@@ -91,15 +94,18 @@ export const dietPlan = {
 }
 
 // ---- Exercise plan ----
+// Assigned by the trainer, who selected each exercise from the Admin master
+// Library (Category → Exercise). Cues and videos come from the library entry.
 export const exercisePlan = {
     title: 'Push / Pull / Legs',
     today: 'Chest & Triceps',
+    source: 'Exercises selected from the master Library by Marcus',
     exercises: [
-        { id: 'E1', name: 'Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://youtube.com/watch?v=rT7DgCr-3pg', instructions: 'Control the eccentric, drive through the chest.', done: true },
-        { id: 'E2', name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', instructions: 'Keep a slight arch, full range.', done: true },
-        { id: 'E3', name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', youtube: '', instructions: 'Squeeze at the top for a second.', done: false },
-        { id: 'E4', name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Elbows tucked, full extension.', done: false },
-        { id: 'E5', name: 'Overhead Extension', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Keep upper arms still.', done: false },
+        { id: 'E1', name: 'Barbell Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://www.youtube.com/watch?v=rT7DgCr-3pg', instructions: 'Lie flat with feet planted. Grip slightly wider than shoulder-width, lower under control to mid-chest with elbows ~45°, pause, then press up and slightly back to lockout.', done: true },
+        { id: 'E2', name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://www.youtube.com/watch?v=8iPEnn-ltC8', instructions: 'Bench at 30-45°. Start with dumbbells at the outside of the shoulders, press up and slightly together, then lower until a stretch is felt across the upper chest.', done: true },
+        { id: 'E3', name: 'Cable Chest Fly', sets: 3, reps: '12-15', rest: '60s', youtube: 'https://www.youtube.com/watch?v=Iwe6AmxVf7o', instructions: 'Pulleys at chest height, soft elbows. Sweep the hands together in a wide arc, squeeze at the midline, then return slowly to a stretch. Keep the torso still.', done: false },
+        { id: 'E4', name: 'Triceps Rope Pushdown', sets: 3, reps: '12-15', rest: '45s', youtube: 'https://www.youtube.com/watch?v=2-LAMcpzODU', instructions: 'Rope at the top pulley, elbows tucked. Extend the arms down and spread the rope at the bottom, squeezing the triceps, then return to about 90°.', done: false },
+        { id: 'E5', name: 'Overhead Cable Triceps Extension', sets: 3, reps: '12-15', rest: '45s', youtube: '', instructions: 'Face away from the stack, rope overhead, elbows forward. Extend the arms straight out in front keeping the upper arms still, then return to a deep stretch.', done: false },
     ],
 }
 

@@ -9,7 +9,9 @@ import {
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
+import TagSelect from '../../../components/common/TagSelect'
 import { clients, sampleExercisePlan } from '../../../services/mockData'
+import { exerciseCategories, getExercisesByCategory } from '../../../services/masterData'
 
 let daySeq = 100
 let exSeq = 100
@@ -22,6 +24,7 @@ export default function ExercisePlans() {
     const [exModal, setExModal] = useState(null) // dayId
     const [dayForm] = Form.useForm()
     const [exForm] = Form.useForm()
+    const [exCat, setExCat] = useState(exerciseCategories[0])
 
     const addDay = async () => {
         const v = await dayForm.validateFields()
@@ -34,6 +37,27 @@ export default function ExercisePlans() {
     const removeDay = (id) => {
         setDays((prev) => prev.filter((d) => d.id !== id))
         message.success('Day removed')
+    }
+
+    const openExModal = (dayId) => {
+        exForm.resetFields()
+        setExCat(exerciseCategories[0])
+        setExModal(dayId)
+    }
+
+    // Picking a library exercise pre-fills the form (name, cues, video, defaults).
+    const pickLibraryExercise = (name) => {
+        const ex = getExercisesByCategory(exCat).find((x) => x.name === name)
+        if (ex) {
+            exForm.setFieldsValue({
+                name: ex.name,
+                sets: ex.sets,
+                reps: ex.reps,
+                rest: ex.rest && ex.rest !== '-' ? ex.rest : '60s',
+                youtube: ex.video || '',
+                notes: ex.description || '',
+            })
+        }
     }
 
     const addExercise = async () => {
@@ -74,6 +98,11 @@ export default function ExercisePlans() {
                 </Button>
             </div>
 
+            <div className="app-card mb-4 p-4 text-xs text-text-muted">
+                Add exercises from the master <span className="font-semibold text-text-secondary">Library</span> —
+                pick a category, then an exercise — or type a custom one. Sets, reps and cues pre-fill and stay editable.
+            </div>
+
             {days.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
@@ -92,7 +121,7 @@ export default function ExercisePlans() {
                                     <div className="text-xs text-text-muted">{d.focus}</div>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <Button size="small" icon={<PlusOutlined />} onClick={() => setExModal(d.id)} />
+                                    <Button size="small" icon={<PlusOutlined />} onClick={() => openExModal(d.id)} />
                                     <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeDay(d.id)} />
                                 </div>
                             </div>
@@ -139,7 +168,28 @@ export default function ExercisePlans() {
             </Modal>
 
             <Modal title="Add exercise" open={!!exModal} onCancel={() => setExModal(null)} onOk={addExercise} okText="Add exercise" centered>
-                <Form form={exForm} layout="vertical" className="mt-4 builder-input">
+                <div className="mt-4 grid grid-cols-2 gap-x-4">
+                    <div className="mb-3">
+                        <label className="mb-1 block text-xs font-semibold text-text-secondary">Library category</label>
+                        <TagSelect
+                            value={exCat}
+                            onChange={(c) => setExCat(c || exerciseCategories[0])}
+                            options={exerciseCategories}
+                            style={{ width: '100%' }}
+                            placeholder="Pick a muscle group, or type your own"
+                        />
+                    </div>
+                    <div className="mb-3">
+                        <label className="mb-1 block text-xs font-semibold text-text-secondary">Library exercise</label>
+                        <Select
+                            placeholder="Pick to pre-fill"
+                            style={{ width: '100%' }}
+                            onChange={pickLibraryExercise}
+                            options={getExercisesByCategory(exCat).map((e) => ({ value: e.name, label: e.name }))}
+                        />
+                    </div>
+                </div>
+                <Form form={exForm} layout="vertical" className="builder-input">
                     <Form.Item name="name" label="Exercise name" rules={[{ required: true, message: 'Enter an exercise' }]}>
                         <Input placeholder="e.g. Bench Press" />
                     </Form.Item>
@@ -152,7 +202,7 @@ export default function ExercisePlans() {
                         <Input placeholder="https://youtube.com/watch?v=…" />
                     </Form.Item>
                     <Form.Item name="notes" label="Instructions">
-                        <Input.TextArea rows={2} placeholder="Form cues, tempo, etc." />
+                        <Input.TextArea rows={3} placeholder="Form cues, tempo, etc." />
                     </Form.Item>
                 </Form>
             </Modal>

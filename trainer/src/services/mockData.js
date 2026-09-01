@@ -103,9 +103,11 @@ export const followUps = clients.map((c, i) => {
 })
 
 // ---- Diet plan (builder data for a sample client) ----
+// Started from the Admin "Fat Loss — Standard" General Diet Plan, then customised.
 export const sampleDietPlan = {
     clientId: 'CL-2001',
     title: 'Fat Loss — Week 6',
+    source: 'Fat Loss — Standard',
     meals: [
         {
             id: 'M1', name: 'Breakfast', time: '08:00',
@@ -144,10 +146,10 @@ export const sampleExercisePlan = {
         {
             id: 'D1', day: 'Monday', focus: 'Chest & Triceps',
             exercises: [
-                { name: 'Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://youtube.com/watch?v=rT7DgCr-3pg', notes: 'Control the eccentric.' },
-                { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', notes: '' },
-                { name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', youtube: '', notes: 'Squeeze at the top.' },
-                { name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', youtube: '', notes: '' },
+                { name: 'Barbell Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://www.youtube.com/watch?v=rT7DgCr-3pg', notes: 'Control the eccentric; elbows ~45°.' },
+                { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://www.youtube.com/watch?v=8iPEnn-ltC8', notes: '' },
+                { name: 'Cable Chest Fly', sets: 3, reps: '12-15', rest: '60s', youtube: 'https://www.youtube.com/watch?v=Iwe6AmxVf7o', notes: 'Squeeze at the midline.' },
+                { name: 'Triceps Rope Pushdown', sets: 3, reps: '12-15', rest: '45s', youtube: 'https://www.youtube.com/watch?v=2-LAMcpzODU', notes: '' },
             ],
         },
         {

@@ -73,7 +73,7 @@ export default function MyDiet() {
 
   return (
     <div>
-      <PageHeader title="My Diet Plan" subtitle={dietPlan.title}>
+      <PageHeader title="My Diet Plan" subtitle={dietPlan.source ? `${dietPlan.title} · ${dietPlan.source}` : dietPlan.title}>
         <RequestCorrection area="diet" items={dietPlan.meals.map((m) => `${m.name} — ${m.time}`)} />
       </PageHeader>
 

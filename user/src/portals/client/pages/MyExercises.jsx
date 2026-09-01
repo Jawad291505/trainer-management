@@ -15,7 +15,7 @@ export default function MyExercises() {
 
     return (
         <div>
-            <PageHeader title="My Exercise Plan" subtitle={`${exercisePlan.title} · Today: ${exercisePlan.today}`}>
+            <PageHeader title="My Exercise Plan" subtitle={`${exercisePlan.title} · Today: ${exercisePlan.today}${exercisePlan.source ? ` · ${exercisePlan.source}` : ''}`}>
                 <RequestCorrection area="exercise" items={exercisePlan.exercises.map((e) => e.name)} />
             </PageHeader>
 
