@@ -8,9 +8,11 @@ import {
     SendOutlined,
     EditOutlined,
     AppstoreOutlined,
+    CalendarOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
+import ModalTitle from '../../../components/common/ModalTitle'
 import { clients, sampleExercisePlan } from '../../../services/mockData'
 import { useLibrary } from '../../../context/LibraryContext'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
@@ -162,8 +164,16 @@ export default function ExercisePlans() {
                 </div>
             )}
 
-            <Modal title="Add training day" open={dayModal} onCancel={() => setDayModal(false)} onOk={addDay} okText="Add day" centered>
-                <Form form={dayForm} layout="vertical" className="mt-4">
+            <Modal
+                title={<ModalTitle icon={<CalendarOutlined />} title="Add training day" subtitle="e.g. Monday — Chest & Triceps" />}
+                open={dayModal}
+                onCancel={() => setDayModal(false)}
+                onOk={addDay}
+                okText="Add day"
+                okButtonProps={{ icon: <PlusOutlined /> }}
+                centered
+            >
+                <Form form={dayForm} layout="vertical" className="mt-1">
                     <Form.Item name="day" label="Day" rules={[{ required: true, message: 'Enter a day' }]}>
                         <Input placeholder="e.g. Monday" />
                     </Form.Item>
@@ -177,14 +187,13 @@ export default function ExercisePlans() {
 
             {/* My Exercises library manager */}
             <Modal
-                title="My exercises"
+                title={<ModalTitle icon={<AppstoreOutlined />} title="My exercises" subtitle="Exercises you've created — edit or remove anytime" />}
                 open={libModal}
                 onCancel={() => setLibModal(false)}
                 footer={null}
                 centered
                 width={560}
             >
-                <p className="mt-1 text-sm text-text-secondary">Exercises you've created. Edit or remove them anytime.</p>
                 {customExercises.length === 0 ? (
                     <Empty description="No custom exercises yet" className="py-6" />
                 ) : (
@@ -207,15 +216,16 @@ export default function ExercisePlans() {
 
             {/* Edit custom exercise */}
             <Modal
-                title="Edit exercise"
+                title={<ModalTitle icon={<EditOutlined />} title="Edit exercise" subtitle={editing?.name} />}
                 open={!!editing}
                 onCancel={() => setEditing(null)}
                 onOk={saveEdit}
                 okText="Save changes"
+                okButtonProps={{ icon: <SaveOutlined /> }}
                 centered
                 width={520}
             >
-                <Form form={editForm} layout="vertical" className="mt-4 builder-input">
+                <Form form={editForm} layout="vertical" className="mt-1 builder-input">
                     <div className="grid grid-cols-2 gap-x-4">
                         <Form.Item name="name" label="Exercise name" rules={[{ required: true, message: 'Enter a name' }]}>
                             <Input />

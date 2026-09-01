@@ -1,16 +1,19 @@
 import { useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, App, Alert } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, Tag, App, Alert } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
     ClockCircleOutlined,
+    ScheduleOutlined,
     SaveOutlined,
     SendOutlined,
     WarningOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
+import ModalTitle from '../../../components/common/ModalTitle'
 import { clients, sampleDietPlan } from '../../../services/mockData'
+import { dietPlanSeed as dietPlanTemplates } from '../../../services/dietPlans'
 import { useLibrary } from '../../../context/LibraryContext'
 import {
     computeNutrition,
@@ -29,11 +32,37 @@ export default function DietPlans() {
     const { foods } = useLibrary()
     const [clientId, setClientId] = useState(sampleDietPlan.clientId)
     const [meals, setMeals] = useState(sampleDietPlan.meals)
+    const [templateId, setTemplateId] = useState(undefined)
+    const [templateName, setTemplateName] = useState('')
     const [mealModal, setMealModal] = useState(false)
     const [foodModal, setFoodModal] = useState(null) // mealId
     const [mealForm] = Form.useForm()
 
     const openMealModal = () => setMealModal(true)
+
+    // Apply an admin diet-plan template: copy its meals/foods into this client's
+    // plan. The template is never modified; the trainer customises the copy.
+    const applyTemplate = (id) => {
+        setTemplateId(id)
+        const tpl = dietPlanTemplates.find((p) => p.id === id)
+        if (!tpl) return
+        setMeals(
+            tpl.meals.map((m) => ({
+                id: `M${mealSeq++}`,
+                name: m.name,
+                time: m.time,
+                notes: m.notes || '',
+                items: m.items.map((it) => ({ ...it })),
+            })),
+        )
+        setTemplateName(tpl.name)
+        message.success(`Loaded "${tpl.name}" — review and customise before publishing`)
+    }
+
+    const clearTemplate = () => {
+        setTemplateId(undefined)
+        setTemplateName('')
+    }
 
     const addMeal = async () => {
         const v = await mealForm.validateFields()
@@ -117,6 +146,35 @@ export default function DietPlans() {
                 <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} onClick={openMealModal}>
                     Add meal
                 </Button>
+            </div>
+
+            {/* Start from an admin template */}
+            <div className="app-card mb-4 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0">
+                        <div className="text-sm font-semibold text-text-primary">Start from a template</div>
+                        <div className="text-xs text-text-muted">
+                            Copies the template's meals, foods and quantities. Customise before publishing.
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 sm:ml-auto">
+                        <Select
+                            value={templateId}
+                            onChange={applyTemplate}
+                            placeholder="Select a template…"
+                            style={{ width: 240 }}
+                            options={dietPlanTemplates.map((p) => ({ value: p.id, label: `${p.name} · ${p.goal}` }))}
+                        />
+                        {templateName && <Button type="text" onClick={clearTemplate}>Clear</Button>}
+                    </div>
+                </div>
+                {templateName && (
+                    <div className="mt-3">
+                        <Tag bordered={false} color="blue" style={{ borderRadius: 999 }}>
+                            Populated from “{templateName}” — customise freely
+                        </Tag>
+                    </div>
+                )}
             </div>
 
             {/* Daily totals bar */}
@@ -241,8 +299,16 @@ export default function DietPlans() {
                 </div>
             )}
 
-            <Modal title="Add meal" open={mealModal} onCancel={() => setMealModal(false)} onOk={addMeal} okText="Add meal" centered>
-                <Form form={mealForm} layout="vertical" className="mt-4">
+            <Modal
+                title={<ModalTitle icon={<ScheduleOutlined />} title="Add meal" subtitle="A slot in the day — you'll add foods to it next" />}
+                open={mealModal}
+                onCancel={() => setMealModal(false)}
+                onOk={addMeal}
+                okText="Add meal"
+                okButtonProps={{ icon: <PlusOutlined /> }}
+                centered
+            >
+                <Form form={mealForm} layout="vertical" className="mt-1">
                     <Form.Item name="name" label="Meal name" rules={[{ required: true, message: 'Enter a meal name' }]}>
                         <Input placeholder="e.g. Breakfast" />
                     </Form.Item>

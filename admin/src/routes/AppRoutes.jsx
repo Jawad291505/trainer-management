@@ -12,6 +12,7 @@ import Assignments from '../portals/admin/pages/Assignments'
 import Libraries from '../portals/admin/pages/Libraries'
 import Foods from '../portals/admin/pages/Foods'
 import Exercises from '../portals/admin/pages/Exercises'
+import DietPlans from '../portals/admin/pages/DietPlans'
 import Payments from '../portals/admin/pages/Payments'
 import NotificationsPage from '../portals/admin/pages/NotificationsPage'
 import Settings from '../portals/admin/pages/Settings'
@@ -34,6 +35,7 @@ export default function AppRoutes() {
                 <Route path="/libraries" element={<Libraries />} />
                 <Route path="/foods" element={<Foods />} />
                 <Route path="/exercises" element={<Exercises />} />
+                <Route path="/diet-plans" element={<DietPlans />} />
                 <Route path="/payments" element={<Payments />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/settings" element={<Settings />} />

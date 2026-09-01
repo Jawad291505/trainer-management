@@ -5,8 +5,10 @@ import {
     EditOutlined,
     DeleteOutlined,
     MoreOutlined,
+    AppleOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
+import ModalTitle from '../../../components/common/ModalTitle'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
@@ -152,7 +154,13 @@ export default function Foods() {
             )}
 
             <Modal
-                title={editing ? 'Edit food' : 'Add food'}
+                title={
+                    <ModalTitle
+                        icon={<AppleOutlined />}
+                        title={editing ? 'Edit food' : 'Add food'}
+                        subtitle={editing ? editing.name : 'Shared with every trainer'}
+                    />
+                }
                 open={modalOpen}
                 onCancel={() => setModalOpen(false)}
                 onOk={save}

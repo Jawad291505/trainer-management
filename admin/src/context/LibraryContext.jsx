@@ -1,15 +1,17 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
 import { foodSeed } from '../services/foodLibrary'
 import { exerciseSeed } from '../services/exerciseLibrary'
+import { dietPlanSeed } from '../services/dietPlans'
 
-// Admin-managed food & exercise libraries. Seeded from the shared root JSON
-// (/data/*.json) and persisted to localStorage so admin edits survive reloads.
-// This is the layer that, with a backend, would write straight to the database
-// tables the trainer app reads from.
+// Admin-managed food & exercise libraries + diet-plan templates. Seeded from the
+// shared root JSON (/data/*.json) and persisted to localStorage so admin edits
+// survive reloads. This is the layer that, with a backend, would write straight
+// to the database tables the trainer app reads from.
 
 const LibraryContext = createContext(null)
 const FOOD_KEY = 'fittrack.admin.foods'
 const EX_KEY = 'fittrack.admin.exercises'
+const PLAN_KEY = 'fittrack.admin.dietPlans'
 
 function readStored(key, seed) {
     if (typeof window === 'undefined') return [...seed]
@@ -33,6 +35,7 @@ const slug = (name) =>
 export function LibraryProvider({ children }) {
     const [foods, setFoods] = useState(() => readStored(FOOD_KEY, foodSeed))
     const [exercises, setExercises] = useState(() => readStored(EX_KEY, exerciseSeed))
+    const [dietPlans, setDietPlans] = useState(() => readStored(PLAN_KEY, dietPlanSeed))
 
     useEffect(() => {
         try {
@@ -49,6 +52,14 @@ export function LibraryProvider({ children }) {
             /* storage unavailable */
         }
     }, [exercises])
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(PLAN_KEY, JSON.stringify(dietPlans))
+        } catch {
+            /* storage unavailable */
+        }
+    }, [dietPlans])
 
     // ---- Foods ----
     const addFood = useCallback((food) => {
@@ -72,6 +83,19 @@ export function LibraryProvider({ children }) {
         setExercises((prev) => prev.filter((x) => x.id !== id))
     }, [])
 
+    // ---- Diet-plan templates ----
+    const addDietPlan = useCallback((plan) => {
+        const id = `DP-${Date.now()}`
+        setDietPlans((prev) => [...prev, { meals: [], ...plan, id }])
+        return id
+    }, [])
+    const updateDietPlan = useCallback((id, patch) => {
+        setDietPlans((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)))
+    }, [])
+    const removeDietPlan = useCallback((id) => {
+        setDietPlans((prev) => prev.filter((p) => p.id !== id))
+    }, [])
+
     const value = useMemo(
         () => ({
             foods,
@@ -82,8 +106,16 @@ export function LibraryProvider({ children }) {
             addExercise,
             updateExercise,
             removeExercise,
+            dietPlans,
+            addDietPlan,
+            updateDietPlan,
+            removeDietPlan,
         }),
-        [foods, addFood, updateFood, removeFood, exercises, addExercise, updateExercise, removeExercise],
+        [
+            foods, addFood, updateFood, removeFood,
+            exercises, addExercise, updateExercise, removeExercise,
+            dietPlans, addDietPlan, updateDietPlan, removeDietPlan,
+        ],
     )
 
     return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>

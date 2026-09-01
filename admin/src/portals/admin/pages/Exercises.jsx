@@ -6,8 +6,10 @@ import {
     DeleteOutlined,
     MoreOutlined,
     PlayCircleOutlined,
+    ThunderboltOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
+import ModalTitle from '../../../components/common/ModalTitle'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
@@ -156,7 +158,13 @@ export default function Exercises() {
             )}
 
             <Modal
-                title={editing ? 'Edit exercise' : 'Add exercise'}
+                title={
+                    <ModalTitle
+                        icon={<ThunderboltOutlined />}
+                        title={editing ? 'Edit exercise' : 'Add exercise'}
+                        subtitle={editing ? editing.name : 'Shared with every trainer'}
+                    />
+                }
                 open={modalOpen}
                 onCancel={() => setModalOpen(false)}
                 onOk={save}
