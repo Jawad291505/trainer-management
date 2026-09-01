@@ -10,7 +10,8 @@ import Clients from '../portals/admin/pages/Clients'
 import ClientDetail from '../portals/admin/pages/ClientDetail'
 import Assignments from '../portals/admin/pages/Assignments'
 import Libraries from '../portals/admin/pages/Libraries'
-import DietPlans from '../portals/admin/pages/DietPlans'
+import Foods from '../portals/admin/pages/Foods'
+import Exercises from '../portals/admin/pages/Exercises'
 import Payments from '../portals/admin/pages/Payments'
 import NotificationsPage from '../portals/admin/pages/NotificationsPage'
 import Settings from '../portals/admin/pages/Settings'
@@ -31,7 +32,8 @@ export default function AppRoutes() {
                 <Route path="/clients/:id" element={<ClientDetail />} />
                 <Route path="/assignments" element={<Assignments />} />
                 <Route path="/libraries" element={<Libraries />} />
-                <Route path="/diet-plans" element={<DietPlans />} />
+                <Route path="/foods" element={<Foods />} />
+                <Route path="/exercises" element={<Exercises />} />
                 <Route path="/payments" element={<Payments />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/settings" element={<Settings />} />

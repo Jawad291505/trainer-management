@@ -1,30 +1,36 @@
 import { useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, App } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Empty } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
     PlayCircleOutlined,
     SaveOutlined,
     SendOutlined,
+    EditOutlined,
+    AppstoreOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
-import TagSelect from '../../../components/common/TagSelect'
 import { clients, sampleExercisePlan } from '../../../services/mockData'
-import { exerciseCategories, getExercisesByCategory } from '../../../services/masterData'
+import { useLibrary } from '../../../context/LibraryContext'
+import { exerciseCategories } from '../../../services/exerciseLibrary'
+import { confirmDelete } from '../../../utils/confirm'
+import ExerciseModal from '../components/ExerciseModal'
 
 let daySeq = 100
 let exSeq = 100
 
 export default function ExercisePlans() {
     const { message } = App.useApp()
+    const { customExercises, updateExercise, removeExercise } = useLibrary()
     const [clientId, setClientId] = useState(sampleExercisePlan.clientId)
     const [days, setDays] = useState(sampleExercisePlan.days)
     const [dayModal, setDayModal] = useState(false)
     const [exModal, setExModal] = useState(null) // dayId
+    const [libModal, setLibModal] = useState(false) // My Exercises manager
+    const [editing, setEditing] = useState(null) // custom exercise being edited
     const [dayForm] = Form.useForm()
-    const [exForm] = Form.useForm()
-    const [exCat, setExCat] = useState(exerciseCategories[0])
+    const [editForm] = Form.useForm()
 
     const addDay = async () => {
         const v = await dayForm.validateFields()
@@ -39,48 +45,53 @@ export default function ExercisePlans() {
         message.success('Day removed')
     }
 
-    const openExModal = (dayId) => {
-        exForm.resetFields()
-        setExCat(exerciseCategories[0])
-        setExModal(dayId)
-    }
-
-    // Picking a library exercise pre-fills the form (name, cues, video, defaults).
-    const pickLibraryExercise = (name) => {
-        const ex = getExercisesByCategory(exCat).find((x) => x.name === name)
-        if (ex) {
-            exForm.setFieldsValue({
-                name: ex.name,
-                sets: ex.sets,
-                reps: ex.reps,
-                rest: ex.rest && ex.rest !== '-' ? ex.rest : '60s',
-                youtube: ex.video || '',
-                notes: ex.description || '',
-            })
-        }
-    }
-
-    const addExercise = async () => {
-        const v = await exForm.validateFields()
+    const addExerciseToDay = (ex) => {
         setDays((prev) =>
-            prev.map((d) =>
-                d.id === exModal
-                    ? { ...d, exercises: [...d.exercises, { id: `E${exSeq++}`, name: v.name, sets: v.sets, reps: v.reps, rest: v.rest || '60s', youtube: v.youtube || '', notes: v.notes || '' }] }
-                    : d,
-            ),
+            prev.map((d) => (d.id === exModal ? { ...d, exercises: [...d.exercises, { id: `E${exSeq++}`, ...ex }] } : d)),
         )
-        exForm.resetFields()
         setExModal(null)
         message.success('Exercise added')
     }
 
-    const removeExercise = (dayId, exId) => {
+    const removeExerciseFromDay = (dayId, exId) => {
         setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, exercises: d.exercises.filter((e) => e.id !== exId) } : d)))
     }
+
+    // ---- My Exercises manager ----
+    const openEdit = (ex) => {
+        setEditing(ex)
+        editForm.setFieldsValue({
+            name: ex.name,
+            category: ex.category,
+            defaultSets: ex.defaultSets,
+            defaultReps: ex.defaultReps,
+            defaultRest: ex.defaultRest,
+            youtube: ex.youtube,
+            notes: ex.notes,
+        })
+    }
+
+    const saveEdit = async () => {
+        const v = await editForm.validateFields()
+        updateExercise(editing.id, v)
+        setEditing(null)
+        message.success('Exercise updated')
+    }
+
+    const deleteCustom = (ex) =>
+        confirmDelete({
+            title: 'Delete exercise?',
+            content: `Remove "${ex.name}" from your library?`,
+            onOk: () => {
+                removeExercise(ex.id)
+                message.success('Exercise deleted')
+            },
+        })
 
     return (
         <div>
             <PageHeader title="Exercise Plans" subtitle="Organize workouts by training day.">
+                <Button icon={<AppstoreOutlined />} onClick={() => setLibModal(true)}>My exercises</Button>
                 <Button icon={<SaveOutlined />} onClick={() => message.success('Draft saved')}>Save draft</Button>
                 <Button type="primary" icon={<SendOutlined />} onClick={() => message.success('Plan published to client')}>Publish</Button>
             </PageHeader>
@@ -96,11 +107,6 @@ export default function ExercisePlans() {
                 <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} onClick={() => setDayModal(true)}>
                     Add day
                 </Button>
-            </div>
-
-            <div className="app-card mb-4 p-4 text-xs text-text-muted">
-                Add exercises from the master <span className="font-semibold text-text-secondary">Library</span> —
-                pick a category, then an exercise — or type a custom one. Sets, reps and cues pre-fill and stay editable.
             </div>
 
             {days.length === 0 ? (
@@ -121,7 +127,7 @@ export default function ExercisePlans() {
                                     <div className="text-xs text-text-muted">{d.focus}</div>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <Button size="small" icon={<PlusOutlined />} onClick={() => openExModal(d.id)} />
+                                    <Button size="small" icon={<PlusOutlined />} onClick={() => setExModal(d.id)} />
                                     <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeDay(d.id)} />
                                 </div>
                             </div>
@@ -142,7 +148,7 @@ export default function ExercisePlans() {
                                                             <PlayCircleOutlined />
                                                         </a>
                                                     )}
-                                                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeExercise(d.id, ex.id)} />
+                                                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeExerciseFromDay(d.id, ex.id)} />
                                                 </div>
                                             </div>
                                             <div className="mt-1 text-xs text-text-muted">{ex.sets} sets × {ex.reps} · Rest {ex.rest}</div>
@@ -167,42 +173,67 @@ export default function ExercisePlans() {
                 </Form>
             </Modal>
 
-            <Modal title="Add exercise" open={!!exModal} onCancel={() => setExModal(null)} onOk={addExercise} okText="Add exercise" centered>
-                <div className="mt-4 grid grid-cols-2 gap-x-4">
-                    <div className="mb-3">
-                        <label className="mb-1 block text-xs font-semibold text-text-secondary">Library category</label>
-                        <TagSelect
-                            value={exCat}
-                            onChange={(c) => setExCat(c || exerciseCategories[0])}
-                            options={exerciseCategories}
-                            style={{ width: '100%' }}
-                            placeholder="Pick a muscle group, or type your own"
-                        />
+            <ExerciseModal open={!!exModal} onCancel={() => setExModal(null)} onAdd={addExerciseToDay} />
+
+            {/* My Exercises library manager */}
+            <Modal
+                title="My exercises"
+                open={libModal}
+                onCancel={() => setLibModal(false)}
+                footer={null}
+                centered
+                width={560}
+            >
+                <p className="mt-1 text-sm text-text-secondary">Exercises you've created. Edit or remove them anytime.</p>
+                {customExercises.length === 0 ? (
+                    <Empty description="No custom exercises yet" className="py-6" />
+                ) : (
+                    <div className="mt-2 flex flex-col gap-2">
+                        {customExercises.map((ex) => (
+                            <div key={ex.id} className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                                <div>
+                                    <div className="text-sm font-semibold text-text-primary">{ex.name}</div>
+                                    <div className="text-xs text-text-muted">{ex.category} · {ex.defaultSets} × {ex.defaultReps}</div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEdit(ex)} />
+                                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => deleteCustom(ex)} />
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <div className="mb-3">
-                        <label className="mb-1 block text-xs font-semibold text-text-secondary">Library exercise</label>
-                        <Select
-                            placeholder="Pick to pre-fill"
-                            style={{ width: '100%' }}
-                            onChange={pickLibraryExercise}
-                            options={getExercisesByCategory(exCat).map((e) => ({ value: e.name, label: e.name }))}
-                        />
+                )}
+            </Modal>
+
+            {/* Edit custom exercise */}
+            <Modal
+                title="Edit exercise"
+                open={!!editing}
+                onCancel={() => setEditing(null)}
+                onOk={saveEdit}
+                okText="Save changes"
+                centered
+                width={520}
+            >
+                <Form form={editForm} layout="vertical" className="mt-4 builder-input">
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <Form.Item name="name" label="Exercise name" rules={[{ required: true, message: 'Enter a name' }]}>
+                            <Input />
+                        </Form.Item>
+                        <Form.Item name="category" label="Category">
+                            <Select options={exerciseCategories.map((c) => ({ value: c, label: c }))} />
+                        </Form.Item>
                     </div>
-                </div>
-                <Form form={exForm} layout="vertical" className="builder-input">
-                    <Form.Item name="name" label="Exercise name" rules={[{ required: true, message: 'Enter an exercise' }]}>
-                        <Input placeholder="e.g. Bench Press" />
-                    </Form.Item>
                     <div className="grid grid-cols-3 gap-x-4">
-                        <Form.Item name="sets" label="Sets" rules={[{ required: true, message: 'Required' }]}><InputNumber min={1} /></Form.Item>
-                        <Form.Item name="reps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>
-                        <Form.Item name="rest" label="Rest"><Input placeholder="90s" /></Form.Item>
+                        <Form.Item name="defaultSets" label="Sets" rules={[{ required: true, message: 'Required' }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                        <Form.Item name="defaultReps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>
+                        <Form.Item name="defaultRest" label="Rest"><Input placeholder="90s" /></Form.Item>
                     </div>
                     <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                         <Input placeholder="https://youtube.com/watch?v=…" />
                     </Form.Item>
                     <Form.Item name="notes" label="Instructions">
-                        <Input.TextArea rows={3} placeholder="Form cues, tempo, etc." />
+                        <Input.TextArea rows={2} />
                     </Form.Item>
                 </Form>
             </Modal>

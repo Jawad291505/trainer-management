@@ -103,35 +103,36 @@ export const followUps = clients.map((c, i) => {
 })
 
 // ---- Diet plan (builder data for a sample client) ----
-// Started from the Admin "Fat Loss — Standard" General Diet Plan, then customised.
+// Each item references a food from the library by `foodId` and stores a numeric
+// `qty` + `unit`. Macros/gi/gl are derived (and re-derived when qty changes) via
+// utils/nutrition.js, so the values below are illustrative starting points.
 export const sampleDietPlan = {
     clientId: 'CL-2001',
     title: 'Fat Loss — Week 6',
-    source: 'Fat Loss — Standard',
     meals: [
         {
             id: 'M1', name: 'Breakfast', time: '08:00',
             items: [
-                { food: 'Egg whites', qty: '4', cal: 68, protein: 14, carbs: 0, fat: 0 },
-                { food: 'Oats', qty: '50g', cal: 190, protein: 6, carbs: 33, fat: 3 },
-                { food: 'Blueberries', qty: '80g', cal: 45, protein: 1, carbs: 11, fat: 0 },
+                { foodId: 'F-egg-white', food: 'Egg White', qty: 4, unit: 'count', cal: 68, protein: 14.4, carbs: 0.8, fat: 0.4, gi: 0, gl: 0 },
+                { foodId: 'F-oats', food: 'Oats', qty: 50, unit: 'g', cal: 195, protein: 8.5, carbs: 33, fat: 3.5, gi: 55, gl: 18.2 },
+                { foodId: 'F-blueberries', food: 'Blueberries', qty: 80, unit: 'g', cal: 46, protein: 0.6, carbs: 11.2, fat: 0.2, gi: 53, gl: 5.9 },
             ],
             notes: 'Have within 30 min of waking.',
         },
         {
             id: 'M2', name: 'Lunch', time: '13:00',
             items: [
-                { food: 'Grilled chicken', qty: '150g', cal: 248, protein: 46, carbs: 0, fat: 6 },
-                { food: 'Brown rice', qty: '120g', cal: 155, protein: 3, carbs: 33, fat: 1 },
-                { food: 'Mixed greens', qty: '1 bowl', cal: 40, protein: 2, carbs: 6, fat: 1 },
+                { foodId: 'F-chicken-breast', food: 'Chicken Breast', qty: 150, unit: 'g', cal: 248, protein: 46.5, carbs: 0, fat: 5.4, gi: 0, gl: 0 },
+                { foodId: 'F-brown-rice', food: 'Brown Rice (cooked)', qty: 120, unit: 'g', cal: 148, protein: 3.2, carbs: 31.2, fat: 1.2, gi: 68, gl: 21.2 },
+                { foodId: 'F-mixed-greens', food: 'Mixed Greens', qty: 100, unit: 'g', cal: 20, protein: 2, carbs: 3, fat: 0.3, gi: 15, gl: 0.5 },
             ],
             notes: '',
         },
         {
             id: 'M3', name: 'Dinner', time: '19:30',
             items: [
-                { food: 'Salmon', qty: '140g', cal: 280, protein: 39, carbs: 0, fat: 13 },
-                { food: 'Sweet potato', qty: '150g', cal: 129, protein: 2, carbs: 30, fat: 0 },
+                { foodId: 'F-salmon', food: 'Salmon', qty: 140, unit: 'g', cal: 280, protein: 39.2, carbs: 0, fat: 12.6, gi: 0, gl: 0 },
+                { foodId: 'F-sweet-potato', food: 'Sweet Potato', qty: 150, unit: 'g', cal: 129, protein: 2.4, carbs: 30, fat: 0.2, gi: 63, gl: 18.9 },
             ],
             notes: 'Add greens if still hungry.',
         },
@@ -146,10 +147,10 @@ export const sampleExercisePlan = {
         {
             id: 'D1', day: 'Monday', focus: 'Chest & Triceps',
             exercises: [
-                { name: 'Barbell Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://www.youtube.com/watch?v=rT7DgCr-3pg', notes: 'Control the eccentric; elbows ~45°.' },
-                { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://www.youtube.com/watch?v=8iPEnn-ltC8', notes: '' },
-                { name: 'Cable Chest Fly', sets: 3, reps: '12-15', rest: '60s', youtube: 'https://www.youtube.com/watch?v=Iwe6AmxVf7o', notes: 'Squeeze at the midline.' },
-                { name: 'Triceps Rope Pushdown', sets: 3, reps: '12-15', rest: '45s', youtube: 'https://www.youtube.com/watch?v=2-LAMcpzODU', notes: '' },
+                { name: 'Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://youtube.com/watch?v=rT7DgCr-3pg', notes: 'Control the eccentric.' },
+                { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', notes: '' },
+                { name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', youtube: '', notes: 'Squeeze at the top.' },
+                { name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', youtube: '', notes: '' },
             ],
         },
         {

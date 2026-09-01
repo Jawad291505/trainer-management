@@ -1,57 +1,39 @@
 import { useState } from 'react'
-import { Select, Segmented, Button, Modal, Form, Input, InputNumber, Tag, App } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Alert } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
     ClockCircleOutlined,
     SaveOutlined,
     SendOutlined,
+    WarningOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
-import TagSelect from '../../../components/common/TagSelect'
-import { formatAmount, formatQty, scaleFoodMacros } from '../../../utils/foodScale'
 import { clients, sampleDietPlan } from '../../../services/mockData'
+import { useLibrary } from '../../../context/LibraryContext'
 import {
-    generalDietPlans,
-    instantiateGeneralPlan,
-    foodCategories,
-    getFoodsByCategory,
-} from '../../../services/masterData'
+    computeNutrition,
+    glItemLevel,
+    glMealLevel,
+    mealGL,
+    glycemicMeta,
+} from '../../../utils/nutrition'
+import FoodModal from '../components/FoodModal'
+import GlycemicBadge from '../components/GlycemicBadge'
 
 let mealSeq = 100
 
 export default function DietPlans() {
     const { message } = App.useApp()
+    const { foods } = useLibrary()
     const [clientId, setClientId] = useState(sampleDietPlan.clientId)
     const [meals, setMeals] = useState(sampleDietPlan.meals)
-    const [source, setSource] = useState('') // which general plan this was populated from
-    const [generalPlanId, setGeneralPlanId] = useState(undefined)
     const [mealModal, setMealModal] = useState(false)
     const [foodModal, setFoodModal] = useState(null) // mealId
     const [mealForm] = Form.useForm()
-    const [foodForm] = Form.useForm()
-    const [foodCat, setFoodCat] = useState(foodCategories[0])
-    const [foodMode, setFoodMode] = useState('library') // 'library' | 'custom'
-    const [foodBase, setFoodBase] = useState(null) // picked library food, for macro scaling
 
     const openMealModal = () => setMealModal(true)
-
-    // Select a General Diet Plan → copy its meals/foods into this client's plan.
-    // The master template is never modified; the trainer customises the copy.
-    const applyGeneralPlan = (planId) => {
-        setGeneralPlanId(planId)
-        const plan = generalDietPlans.find((p) => p.id === planId)
-        if (!plan) return
-        setMeals(instantiateGeneralPlan(planId, (i) => `M${mealSeq++}_${i}`))
-        setSource(plan.title)
-        message.success(`Loaded "${plan.title}" — review and customise before publishing`)
-    }
-
-    const clearGeneralPlan = () => {
-        setGeneralPlanId(undefined)
-        setSource('')
-    }
 
     const addMeal = async () => {
         const v = await mealForm.validateFields()
@@ -66,60 +48,27 @@ export default function DietPlans() {
         message.success('Meal removed')
     }
 
-    const openFoodModal = (mealId) => {
-        foodForm.resetFields()
-        foodForm.setFieldsValue({ amount: 1, cal: 0, protein: 0, carbs: 0, fat: 0 })
-        setFoodCat(foodCategories[0])
-        setFoodMode('library')
-        setFoodBase(null)
-        setFoodModal(mealId)
-    }
-
-    // Picking a library food pre-fills the form and remembers the base serving,
-    // so the macros can rescale automatically when the quantity is changed.
-    const pickLibraryFood = (name) => {
-        const f = getFoodsByCategory(foodCat).find((x) => x.food === name)
-        if (!f) return
-        setFoodBase(f)
-        foodForm.setFieldsValue({
-            food: f.food,
-            amount: f.amount,
-            unit: f.unit,
-            cal: f.cal,
-            protein: f.protein,
-            carbs: f.carbs,
-            fat: f.fat,
-        })
-    }
-
-    // Rescale macros from the library base serving whenever the amount changes.
-    const onFoodValuesChange = (changed) => {
-        if (!('amount' in changed) || foodMode !== 'library' || !foodBase) return
-        const next = scaleFoodMacros(foodBase, changed.amount)
-        if (next) foodForm.setFieldsValue(next)
-    }
-
-    const addFood = async () => {
-        const v = await foodForm.validateFields()
-        const item = {
-            food: v.food,
-            amount: Number(v.amount) || 0,
-            unit: (v.unit || '').trim(),
-            cal: v.cal || 0,
-            protein: v.protein || 0,
-            carbs: v.carbs || 0,
-            fat: v.fat || 0,
-        }
-        setMeals((prev) =>
-            prev.map((m) =>
-                m.id === foodModal
-                    ? { ...m, items: [...m.items, item] }
-                    : m,
-            ),
-        )
-        foodForm.resetFields()
+    const addFoodToMeal = (item) => {
+        setMeals((prev) => prev.map((m) => (m.id === foodModal ? { ...m, items: [...m.items, item] } : m)))
         setFoodModal(null)
         message.success('Food added')
+    }
+
+    // Changing a food's quantity re-derives its macros + GL automatically.
+    const changeQty = (mealId, idx, qty) => {
+        setMeals((prev) =>
+            prev.map((m) => {
+                if (m.id !== mealId) return m
+                const items = m.items.map((it, i) => {
+                    if (i !== idx) return it
+                    const food = foods.find((f) => f.id === it.foodId)
+                    if (!food) return { ...it, qty }
+                    const n = computeNutrition(food, qty)
+                    return { ...it, qty, ...n }
+                })
+                return { ...m, items }
+            }),
+        )
     }
 
     const removeFood = (mealId, idx) => {
@@ -133,11 +82,16 @@ export default function DietPlans() {
                 acc.protein += it.protein
                 acc.carbs += it.carbs
                 acc.fat += it.fat
+                acc.gl += it.gl || 0
             })
             return acc
         },
-        { cal: 0, protein: 0, carbs: 0, fat: 0 },
+        { cal: 0, protein: 0, carbs: 0, fat: 0, gl: 0 },
     )
+    dayTotals.protein = Math.round(dayTotals.protein)
+    dayTotals.carbs = Math.round(dayTotals.carbs)
+    dayTotals.fat = Math.round(dayTotals.fat)
+    dayTotals.gl = Math.round(dayTotals.gl * 10) / 10
 
     return (
         <div>
@@ -165,51 +119,22 @@ export default function DietPlans() {
                 </Button>
             </div>
 
-            {/* Build options: from a General Plan template, or manually from the Library */}
-            <div className="app-card mb-4 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="min-w-0">
-                        <div className="text-sm font-semibold text-text-primary">Start from a General Diet Plan</div>
-                        <div className="text-xs text-text-muted">
-                            Auto-populates meals, foods and quantities. You can then customise before assigning.
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 sm:ml-auto">
-                        <Select
-                            value={generalPlanId}
-                            onChange={applyGeneralPlan}
-                            placeholder="Select a template…"
-                            style={{ width: 240 }}
-                            options={generalDietPlans.map((p) => ({ value: p.id, label: `${p.title} · ${p.goal}` }))}
-                        />
-                        {source && (
-                            <Button type="text" onClick={clearGeneralPlan}>Clear</Button>
-                        )}
-                    </div>
-                </div>
-                {source ? (
-                    <div className="mt-3">
-                        <Tag bordered={false} color="blue" style={{ borderRadius: 999 }}>
-                            Populated from “{source}” — customise freely
-                        </Tag>
-                    </div>
-                ) : (
-                    <div className="mt-3 text-xs text-text-muted">
-                        Or build manually: use <span className="font-semibold">Add meal</span>, then add foods from the Library.
-                    </div>
-                )}
-            </div>
-
             {/* Daily totals bar */}
-            <div className="app-card mb-4 grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+            <div className="app-card mb-4 grid grid-cols-2 gap-3 p-4 sm:grid-cols-5">
                 {[
                     { label: 'Calories', value: `${dayTotals.cal}` },
                     { label: 'Protein', value: `${dayTotals.protein}g` },
                     { label: 'Carbs', value: `${dayTotals.carbs}g` },
                     { label: 'Fats', value: `${dayTotals.fat}g` },
+                    { label: 'Glycemic Load', value: `${dayTotals.gl}`, level: glMealLevel(dayTotals.gl) },
                 ].map((t) => (
                     <div key={t.label} className="text-center">
-                        <div className="text-lg font-extrabold text-text-primary">{t.value}</div>
+                        <div
+                            className="text-lg font-extrabold"
+                            style={{ color: t.level ? glycemicMeta[t.level].color : 'var(--color-text-primary)' }}
+                        >
+                            {t.value}
+                        </div>
                         <div className="text-[11px] text-text-muted">{t.label}</div>
                     </div>
                 ))}
@@ -219,60 +144,100 @@ export default function DietPlans() {
                 <div className="app-card">
                     <EmptyState
                         title="No meals yet"
-                        description="Start from a General Diet Plan above, or add a meal manually."
+                        description="Start building the plan by adding a meal."
                         action={<Button type="primary" icon={<PlusOutlined />} onClick={openMealModal}>Add meal</Button>}
                     />
                 </div>
             ) : (
                 <div className="flex flex-col gap-4">
-                    {meals.map((m) => (
-                        <div key={m.id} className="app-card p-5">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <div className="font-bold text-text-primary">{m.name}</div>
-                                    <div className="flex items-center gap-1 text-xs text-text-muted"><ClockCircleOutlined /> {m.time}</div>
+                    {meals.map((m) => {
+                        const gl = mealGL(m.items)
+                        const level = glMealLevel(gl)
+                        return (
+                            <div key={m.id} className="app-card p-5">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="font-bold text-text-primary">{m.name}</div>
+                                        <div className="flex items-center gap-1 text-xs text-text-muted"><ClockCircleOutlined /> {m.time}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {m.items.length > 0 && <GlycemicBadge type="Meal GL" value={gl} level={level} />}
+                                        <Button size="small" icon={<PlusOutlined />} onClick={() => setFoodModal(m.id)}>Food</Button>
+                                        <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeMeal(m.id)} />
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <Button size="small" icon={<PlusOutlined />} onClick={() => openFoodModal(m.id)}>Food</Button>
-                                    <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeMeal(m.id)} />
-                                </div>
-                            </div>
 
-                            {m.items.length > 0 && (
-                                <div className="mt-3 overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr style={{ background: 'var(--color-surface-secondary)' }}>
-                                                <th className="px-3 py-2 text-left font-semibold text-text-secondary">Food</th>
-                                                <th className="px-3 py-2 text-left font-semibold text-text-secondary">Qty</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-text-secondary">Cal</th>
-                                                <th className="hidden px-3 py-2 text-right font-semibold text-text-secondary sm:table-cell">P/C/F</th>
-                                                <th className="w-10 px-3 py-2"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {m.items.map((it, idx) => (
-                                                <tr key={idx} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
-                                                    <td className="px-3 py-2 font-medium text-text-primary">{it.food}</td>
-                                                    <td className="px-3 py-2 text-text-secondary">{formatQty(it)}</td>
-                                                    <td className="px-3 py-2 text-right text-text-secondary">{it.cal}</td>
-                                                    <td className="hidden px-3 py-2 text-right text-text-muted sm:table-cell">{it.protein}/{it.carbs}/{it.fat}</td>
-                                                    <td className="px-3 py-2 text-right">
-                                                        <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeFood(m.id, idx)} />
-                                                    </td>
+                                {/* Meal-level GI/GL alert, updates as quantities change */}
+                                {level !== 'low' && (
+                                    <Alert
+                                        className="mt-3"
+                                        type={level === 'high' ? 'error' : 'warning'}
+                                        showIcon
+                                        icon={<WarningOutlined />}
+                                        message={
+                                            level === 'high'
+                                                ? `High glycemic load (${gl}). Consider lower-GI carbs or smaller portions.`
+                                                : `Moderate glycemic load (${gl}). Keep an eye on carb portions.`
+                                        }
+                                    />
+                                )}
+
+                                {m.items.length > 0 && (
+                                    <div className="mt-3 overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr style={{ background: 'var(--color-surface-secondary)' }}>
+                                                    <th className="px-3 py-2 text-left font-semibold text-text-secondary">Food</th>
+                                                    <th className="px-3 py-2 text-left font-semibold text-text-secondary">Qty</th>
+                                                    <th className="px-3 py-2 text-right font-semibold text-text-secondary">Cal</th>
+                                                    <th className="hidden px-3 py-2 text-right font-semibold text-text-secondary sm:table-cell">P/C/F</th>
+                                                    <th className="px-3 py-2 text-right font-semibold text-text-secondary">GI/GL</th>
+                                                    <th className="w-10 px-3 py-2"></th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                            {m.notes && (
-                                <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
-                                    {m.notes}
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                                            </thead>
+                                            <tbody>
+                                                {m.items.map((it, idx) => {
+                                                    const food = foods.find((f) => f.id === it.foodId)
+                                                    const step = food ? food.step : 1
+                                                    return (
+                                                        <tr key={idx} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+                                                            <td className="px-3 py-2 font-medium text-text-primary">{it.food}</td>
+                                                            <td className="px-3 py-2">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <InputNumber
+                                                                        size="small"
+                                                                        min={step}
+                                                                        step={step}
+                                                                        value={it.qty}
+                                                                        onChange={(v) => changeQty(m.id, idx, v || step)}
+                                                                        style={{ width: 78 }}
+                                                                    />
+                                                                    <span className="text-xs text-text-muted">{it.unit === 'count' ? '' : it.unit}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right text-text-secondary">{it.cal}</td>
+                                                            <td className="hidden px-3 py-2 text-right text-text-muted sm:table-cell">{it.protein}/{it.carbs}/{it.fat}</td>
+                                                            <td className="px-3 py-2 text-right">
+                                                                <GlycemicBadge type="GL" value={it.gl || 0} level={glItemLevel(it.gl || 0)} />
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right">
+                                                                <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeFood(m.id, idx)} />
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                                {m.notes && (
+                                    <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+                                        {m.notes}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
                 </div>
             )}
 
@@ -290,72 +255,7 @@ export default function DietPlans() {
                 </Form>
             </Modal>
 
-            <Modal title="Add food" open={!!foodModal} onCancel={() => setFoodModal(null)} onOk={addFood} okText="Add food" centered>
-                <div className="mt-4">
-                    <Segmented
-                        value={foodMode}
-                        onChange={(m) => {
-                            setFoodMode(m)
-                            if (m === 'custom') setFoodBase(null)
-                        }}
-                        options={[
-                            { value: 'library', label: 'From library' },
-                            { value: 'custom', label: 'Custom food' },
-                        ]}
-                    />
-                </div>
-
-                {foodMode === 'library' && (
-                    <div className="mt-3 grid grid-cols-2 gap-x-4">
-                        <div className="mb-3">
-                            <label className="mb-1 block text-xs font-semibold text-text-secondary">Library category</label>
-                            <TagSelect
-                                value={foodCat}
-                                onChange={(c) => setFoodCat(c || foodCategories[0])}
-                                options={foodCategories}
-                                style={{ width: '100%' }}
-                                placeholder="Pick a food group, or type your own"
-                            />
-                        </div>
-                        <div className="mb-3">
-                            <label className="mb-1 block text-xs font-semibold text-text-secondary">Library food</label>
-                            <Select
-                                placeholder="Pick to pre-fill"
-                                style={{ width: '100%' }}
-                                onChange={pickLibraryFood}
-                                options={getFoodsByCategory(foodCat).map((f) => ({ value: f.food, label: f.food }))}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                <Form form={foodForm} layout="vertical" className="builder-input mt-3" onValuesChange={onFoodValuesChange}>
-                    <Form.Item name="food" label="Food" rules={[{ required: true, message: 'Enter a food' }]}>
-                        <Input placeholder="e.g. Grilled chicken" />
-                    </Form.Item>
-                    <div className="grid grid-cols-2 gap-x-4">
-                        <Form.Item
-                            name="amount"
-                            label="Amount"
-                            rules={[{ required: true, message: 'Enter an amount' }]}
-                            extra={
-                                foodMode === 'library' && foodBase
-                                    ? `Macros scale from ${formatAmount(foodBase.amount)} ${foodBase.unit}`
-                                    : undefined
-                            }
-                        >
-                            <InputNumber min={0} step={0.25} style={{ width: '100%' }} />
-                        </Form.Item>
-                        <Form.Item name="unit" label="Unit" rules={[{ required: foodMode === 'custom', message: 'Enter a unit' }]}>
-                            <Input placeholder="e.g. g, cup, medium" disabled={foodMode === 'library'} />
-                        </Form.Item>
-                        <Form.Item name="cal" label="Calories"><InputNumber min={0} /></Form.Item>
-                        <Form.Item name="protein" label="Protein (g)"><InputNumber min={0} /></Form.Item>
-                        <Form.Item name="carbs" label="Carbs (g)"><InputNumber min={0} /></Form.Item>
-                        <Form.Item name="fat" label="Fats (g)"><InputNumber min={0} /></Form.Item>
-                    </div>
-                </Form>
-            </Modal>
+            <FoodModal open={!!foodModal} onCancel={() => setFoodModal(null)} onAdd={addFoodToMeal} />
         </div>
     )
 }
