@@ -1,0 +1,20 @@
+{
+  "_source": "Fit360OS workout-routine reference sheet (TUT + Super Set method notes).",
+  "items": [
+    {
+      "key": "standard",
+      "label": "Standard",
+      "description": "Straight sets — perform the prescribed sets and reps at a normal tempo, resting between sets."
+    },
+    {
+      "key": "tut",
+      "label": "TUT",
+      "description": "TUT is a method in which you will complete 1 REP in 7 seconds — a very slow range of motion. Normally in each exercise you can do 3 sets of 12 reps with moderate weight."
+    },
+    {
+      "key": "superset",
+      "label": "Super Set",
+      "description": "A superset is when you do two or more exercises back-to-back with no rest in between."
+    }
+  ]
+}

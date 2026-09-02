@@ -148,9 +148,9 @@ export const sampleExercisePlan = {
             id: 'D1', day: 'Monday', focus: 'Chest & Triceps',
             exercises: [
                 { name: 'Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://youtube.com/watch?v=rT7DgCr-3pg', notes: 'Control the eccentric.' },
-                { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', notes: '' },
-                { name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', youtube: '', notes: 'Squeeze at the top.' },
-                { name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', youtube: '', notes: '' },
+                { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', technique: 'tut', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', notes: '' },
+                { name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', technique: 'superset', youtube: '', notes: 'Squeeze at the top.' },
+                { name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', technique: 'superset', youtube: '', notes: '' },
             ],
         },
         {

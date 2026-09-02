@@ -16,7 +16,7 @@ import DataTable from '../../../components/tables/DataTable'
 import EmptyState from '../../../components/common/EmptyState'
 import { confirmDelete } from '../../../utils/confirm'
 import { useLibrary } from '../../../context/LibraryContext'
-import { exerciseCategories } from '../../../services/exerciseLibrary'
+import { exerciseCategories, exerciseTechniques, getTechnique } from '../../../services/exerciseLibrary'
 
 // Admin exercise management. Exercises added/edited here feed the shared
 // library that trainers read when building exercise plans.
@@ -28,6 +28,7 @@ export default function Exercises() {
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState(null)
     const [form] = Form.useForm()
+    const technique = Form.useWatch('technique', form)
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -41,12 +42,12 @@ export default function Exercises() {
     const openAdd = () => {
         setEditing(null)
         form.resetFields()
-        form.setFieldsValue({ category: 'Chest', defaultSets: 3, defaultReps: '10', defaultRest: '60s' })
+        form.setFieldsValue({ category: 'Chest', defaultSets: 3, defaultReps: '10', defaultRest: '60s', technique: 'standard' })
         setModalOpen(true)
     }
     const openEdit = (x) => {
         setEditing(x)
-        form.setFieldsValue(x)
+        form.setFieldsValue({ ...x, technique: x.technique || 'standard' })
         setModalOpen(true)
     }
 
@@ -90,7 +91,18 @@ export default function Exercises() {
             dataIndex: 'name',
             render: (_, x) => (
                 <div className="min-w-0">
-                    <div className="truncate font-semibold text-text-primary">{x.name}</div>
+                    <div className="flex items-center gap-2">
+                        <span className="truncate font-semibold text-text-primary">{x.name}</span>
+                        {x.technique && x.technique !== 'standard' && (
+                            <span
+                                className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                                title={getTechnique(x.technique).description}
+                            >
+                                {getTechnique(x.technique).label}
+                            </span>
+                        )}
+                    </div>
                     <div className="text-xs text-text-muted">{x.category}</div>
                 </div>
             ),
@@ -186,6 +198,15 @@ export default function Exercises() {
                         <Form.Item name="defaultReps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>
                         <Form.Item name="defaultRest" label="Rest"><Input placeholder="90s" /></Form.Item>
                     </div>
+                    <Form.Item
+                        name="technique"
+                        label="Technique"
+                        initialValue="standard"
+                        tooltip="How the set is performed"
+                        extra={technique && technique !== 'standard' ? getTechnique(technique).description : null}
+                    >
+                        <Select options={exerciseTechniques.map((t) => ({ value: t.key, label: t.label }))} />
+                    </Form.Item>
                     <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                         <Input placeholder="https://youtube.com/watch?v=…" />
                     </Form.Item>

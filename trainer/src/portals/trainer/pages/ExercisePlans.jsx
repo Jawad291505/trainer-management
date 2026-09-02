@@ -18,6 +18,8 @@ import { useLibrary } from '../../../context/LibraryContext'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
 import { confirmDelete } from '../../../utils/confirm'
 import ExerciseModal from '../components/ExerciseModal'
+import TechniqueField from '../components/TechniqueField'
+import TechniqueTag from '../components/TechniqueTag'
 
 let daySeq = 100
 let exSeq = 100
@@ -68,6 +70,7 @@ export default function ExercisePlans() {
             defaultSets: ex.defaultSets,
             defaultReps: ex.defaultReps,
             defaultRest: ex.defaultRest,
+            technique: ex.technique || 'standard',
             youtube: ex.youtube,
             notes: ex.notes,
         })
@@ -143,7 +146,10 @@ export default function ExercisePlans() {
                                     {d.exercises.map((ex) => (
                                         <div key={ex.id} className="rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
                                             <div className="flex items-center justify-between">
-                                                <span className="text-sm font-semibold text-text-primary">{ex.name}</span>
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
+                                                    <TechniqueTag technique={ex.technique} />
+                                                </span>
                                                 <div className="flex items-center gap-2">
                                                     {ex.youtube && (
                                                         <a href={ex.youtube} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-danger)' }}>
@@ -200,8 +206,11 @@ export default function ExercisePlans() {
                     <div className="mt-2 flex flex-col gap-2">
                         {customExercises.map((ex) => (
                             <div key={ex.id} className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
-                                <div>
-                                    <div className="text-sm font-semibold text-text-primary">{ex.name}</div>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
+                                        <TechniqueTag technique={ex.technique} />
+                                    </div>
                                     <div className="text-xs text-text-muted">{ex.category} · {ex.defaultSets} × {ex.defaultReps}</div>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -239,6 +248,7 @@ export default function ExercisePlans() {
                         <Form.Item name="defaultReps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>
                         <Form.Item name="defaultRest" label="Rest"><Input placeholder="90s" /></Form.Item>
                     </div>
+                    <TechniqueField form={editForm} />
                     <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                         <Input placeholder="https://youtube.com/watch?v=…" />
                     </Form.Item>

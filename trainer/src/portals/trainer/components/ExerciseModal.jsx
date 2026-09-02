@@ -4,6 +4,7 @@ import { ThunderboltOutlined, PlusOutlined, PlayCircleOutlined } from '@ant-desi
 import { useLibrary } from '../../../context/LibraryContext'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
 import ModalTitle from '../../../components/common/ModalTitle'
+import TechniqueField from './TechniqueField'
 
 // Add an exercise to a day: pick a category → an exercise (defaults prefill), or
 // create a brand-new one that can be saved to the trainer's own library.
@@ -41,6 +42,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 sets: exercise.defaultSets,
                 reps: exercise.defaultReps,
                 rest: exercise.defaultRest,
+                technique: exercise.technique || 'standard',
                 notes: exercise.notes,
             })
         }
@@ -56,6 +58,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 sets: v.sets,
                 reps: v.reps,
                 rest: v.rest || '60s',
+                technique: v.technique || exercise.technique || 'standard',
                 youtube: exercise.youtube || '',
                 notes: v.notes || '',
             })
@@ -70,6 +73,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 defaultSets: v.sets,
                 defaultReps: v.reps,
                 defaultRest: v.rest || '60s',
+                technique: v.technique || 'standard',
                 youtube: v.youtube || '',
                 notes: v.notes || '',
             })
@@ -80,6 +84,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
             sets: v.sets,
             reps: v.reps,
             rest: v.rest || '60s',
+            technique: v.technique || 'standard',
             youtube: v.youtube || '',
             notes: v.notes || '',
         })
@@ -185,6 +190,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                         <Input placeholder="90s" />
                                     </Form.Item>
                                 </div>
+                                <TechniqueField form={pickForm} />
                                 <Form.Item name="notes" label="Instructions" className="mb-0">
                                     <Input.TextArea rows={2} placeholder="Form cues, tempo, etc." />
                                 </Form.Item>
@@ -215,6 +221,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                 <Input placeholder="90s" />
                             </Form.Item>
                         </div>
+                        <TechniqueField form={newForm} />
                         <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                             <Input placeholder="https://youtube.com/watch?v=…" />
                         </Form.Item>

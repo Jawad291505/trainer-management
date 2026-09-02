@@ -111,9 +111,9 @@ export const exercisePlan = {
             id: 'D1', day: 'Today', focus: 'Chest & Triceps',
             exercises: [
                 { id: 'E1', name: 'Bench Press', sets: 4, reps: '8-10', rest: '90s', youtube: 'https://youtube.com/watch?v=rT7DgCr-3pg', instructions: 'Control the eccentric, drive through the chest.', done: true },
-                { id: 'E2', name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', instructions: 'Keep a slight arch, full range.', done: true },
-                { id: 'E3', name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', youtube: '', instructions: 'Squeeze at the top for a second.', done: false },
-                { id: 'E4', name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Elbows tucked, full extension.', done: false },
+                { id: 'E2', name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest: '75s', technique: 'tut', youtube: 'https://youtube.com/watch?v=8iPEnn-ltC8', instructions: 'Keep a slight arch, full range.', done: true },
+                { id: 'E3', name: 'Cable Fly', sets: 3, reps: '12-15', rest: '60s', technique: 'superset', youtube: '', instructions: 'Squeeze at the top for a second.', done: false },
+                { id: 'E4', name: 'Rope Pushdown', sets: 3, reps: '12', rest: '60s', technique: 'superset', youtube: '', instructions: 'Elbows tucked, full extension.', done: false },
                 { id: 'E5', name: 'Overhead Extension', sets: 3, reps: '12', rest: '60s', youtube: '', instructions: 'Keep upper arms still.', done: false },
             ],
         },

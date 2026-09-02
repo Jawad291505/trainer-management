@@ -1,4 +1,5 @@
 import { PlayCircleOutlined } from '@ant-design/icons'
+import TechniqueTag from './TechniqueTag'
 
 // Displays a single training day and its exercises.
 export default function ExerciseDayCard({ day }) {
@@ -18,7 +19,10 @@ export default function ExerciseDayCard({ day }) {
                 {day.exercises.map((ex, i) => (
                     <div key={i} className="rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
                         <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-text-primary">{ex.name}</span>
+                            <span className="flex min-w-0 items-center gap-2">
+                                <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
+                                <TechniqueTag technique={ex.technique} />
+                            </span>
                             {ex.youtube && (
                                 <a
                                     href={ex.youtube}

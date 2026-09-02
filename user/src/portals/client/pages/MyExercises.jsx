@@ -4,6 +4,7 @@ import { PlayCircleOutlined, CheckOutlined, CalendarOutlined } from '@ant-design
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import { exercisePlan, trainer } from '../../../services/mockData'
+import { getTechnique } from '../../../services/exerciseLibrary'
 
 export default function MyExercises() {
     // Track completion across all days, keyed by exercise id.
@@ -67,7 +68,18 @@ export default function MyExercises() {
                         <div key={ex.id} className="app-card p-5" style={isDone ? { borderColor: 'var(--color-success)' } : undefined}>
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-text-primary">{ex.name}</div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-bold text-text-primary">{ex.name}</span>
+                                        {ex.technique && ex.technique !== 'standard' && (
+                                            <span
+                                                className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                                style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                                                title={getTechnique(ex.technique).description}
+                                            >
+                                                {getTechnique(ex.technique).label}
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
                                         <span className="rounded px-1.5 py-0.5 font-semibold" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
                                             {ex.sets} sets × {ex.reps}
