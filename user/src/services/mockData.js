@@ -56,8 +56,8 @@ export const dietPlan = {
         {
             id: 'M1', name: 'Breakfast', time: '08:00', taskId: 'T1',
             items: [
-                { foodId: 'F-egg-white', qty: 4 },
-                { foodId: 'F-oats', qty: 50 },
+                { foodId: 'F-egg-white', qty: 132 },
+                { foodId: 'F-oats', qty: 234 },
                 { foodId: 'F-blueberries', qty: 80 },
             ],
             notes: 'Have within 30 min of waking.',
@@ -82,7 +82,7 @@ export const dietPlan = {
         {
             id: 'M4', name: 'Snack', time: '16:00', taskId: null,
             items: [
-                { foodId: 'F-apple', qty: 1 },
+                { foodId: 'F-apple', qty: 120 },
                 { foodId: 'F-peanut-butter', qty: 15 },
             ],
             notes: '',

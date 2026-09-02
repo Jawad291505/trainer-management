@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"Fit360OS_200_Food_Exchange_List \\(1\\).pdf\" \"/c/Users/AWAIS/AppData/Local/Temp/claude/c--Projects-trainer-management/329c0e82-5c8b-4327-9fbe-59c6e511d170/scratchpad/foodlist.pdf\")",
+      "Read(//c/Users/AWAIS/AppData/Local/Temp/claude/c--Projects-trainer-management/329c0e82-5c8b-4327-9fbe-59c6e511d170/scratchpad/**)",
+      "Bash(pdftotext -layout foodlist.pdf foodlist.txt)",
+      "Bash(pdftotext -raw foodlist.pdf -)",
+      "Bash(pdftotext -raw foodlist.pdf foodlist_raw.txt)",
+      "Bash(node \"C:/Users/AWAIS/AppData/Local/Temp/claude/c--Projects-trainer-management/329c0e82-5c8b-4327-9fbe-59c6e511d170/scratchpad/gen.js\")",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'const d=require\\(\"./data/foodLibrary.json\"\\);console.log\\(\"thresholds:\",JSON.stringify\\(d.thresholds\\)\\);console.log\\(\"_source:\",d._source.slice\\(0,80\\)+\"...\"\\);const c={};d.items.forEach\\(i=>c[i.category]=\\(c[i.category]||0\\)+1\\);console.log\\(c\\);console.log\\(\"N/A GI \\(stored 0\\):\",d.items.filter\\(i=>i.gi===0\\).length,\"| N/A GL \\(stored 0\\):\",d.items.filter\\(i=>i.gl===0\\).length\\);console.log\\(\"ml items:\",d.items.filter\\(i=>i.unit===\"ml\"\\).map\\(i=>i.name\\).join\\(\", \"\\)\\);')"
+    ]
+  }
+}

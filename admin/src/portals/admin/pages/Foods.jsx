@@ -42,7 +42,7 @@ export default function Foods() {
     const openAdd = () => {
         setEditing(null)
         form.resetFields()
-        form.setFieldsValue({ category: 'Protein', unit: 'g', base: 100, step: 10, defaultQty: 100, gi: 0 })
+        form.setFieldsValue({ category: foodCategories[0], unit: 'g', base: 100, step: 10, defaultQty: 100, gi: 0 })
         setModalOpen(true)
     }
     const openEdit = (f) => {
