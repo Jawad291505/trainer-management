@@ -9,6 +9,7 @@ import TrainerDetail from '../portals/admin/pages/TrainerDetail'
 import Clients from '../portals/admin/pages/Clients'
 import ClientDetail from '../portals/admin/pages/ClientDetail'
 import Assignments from '../portals/admin/pages/Assignments'
+import Referrals from '../portals/admin/pages/Referrals'
 import Libraries from '../portals/admin/pages/Libraries'
 import Foods from '../portals/admin/pages/Foods'
 import Exercises from '../portals/admin/pages/Exercises'
@@ -32,6 +33,7 @@ export default function AppRoutes() {
                 <Route path="/clients" element={<Clients />} />
                 <Route path="/clients/:id" element={<ClientDetail />} />
                 <Route path="/assignments" element={<Assignments />} />
+                <Route path="/referrals" element={<Referrals />} />
                 <Route path="/libraries" element={<Libraries />} />
                 <Route path="/foods" element={<Foods />} />
                 <Route path="/exercises" element={<Exercises />} />

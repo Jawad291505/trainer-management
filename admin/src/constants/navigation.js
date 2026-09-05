@@ -4,6 +4,7 @@ import {
     IdcardOutlined,
     UsergroupAddOutlined,
     DeploymentUnitOutlined,
+    ShareAltOutlined,
     ReadOutlined,
     AppleOutlined,
     ThunderboltOutlined,
@@ -29,6 +30,7 @@ export const adminNavGroups = [
             { key: '/trainers', label: 'Trainers', icon: IdcardOutlined },
             { key: '/clients', label: 'Clients', icon: UsergroupAddOutlined },
             { key: '/assignments', label: 'Assignments', icon: DeploymentUnitOutlined },
+            { key: '/referrals', label: 'Referrals', icon: ShareAltOutlined },
         ],
     },
     {

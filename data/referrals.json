@@ -1,0 +1,17 @@
+{
+  "note": "Trainer-to-trainer referral registry. Each trainer has ONE auto-generated referral code (issued once, immutable). `referrals` records who redeemed whose code. Admin reads this to track who referred whom; the Trainer app shows a trainer their own code + who referred them + the trainers they have referred. Status: 'joined' = referred trainer signed up, 'pending' = code redeemed but onboarding not finished.",
+  "trainers": [
+    { "id": "TR-1001", "name": "Marcus Bennett", "email": "marcus.bennett@fittrack.io", "code": "MARCUS-K7Q2" },
+    { "id": "TR-1002", "name": "Sofia Alvarez", "email": "sofia.alvarez@fittrack.io", "code": "SOFIA-3XP9" },
+    { "id": "TR-1003", "name": "David Okafor", "email": "david.okafor@fittrack.io", "code": "DAVID-M4R8" },
+    { "id": "TR-1004", "name": "Priya Nair", "email": "priya.nair@fittrack.io", "code": "PRIYA-9WL5" },
+    { "id": "TR-1005", "name": "Liam Fitzgerald", "email": "liam.fitzgerald@fittrack.io", "code": "LIAM-2TC6" },
+    { "id": "TR-1006", "name": "Hana Kimura", "email": "hana.kimura@fittrack.io", "code": "HANA-6BJ1" }
+  ],
+  "referrals": [
+    { "id": "REF-2001", "referrerId": "TR-1001", "refereeId": "TR-1003", "code": "MARCUS-K7Q2", "date": "2026-03-18", "status": "joined" },
+    { "id": "REF-2002", "referrerId": "TR-1001", "refereeId": "TR-1006", "code": "MARCUS-K7Q2", "date": "2026-06-02", "status": "joined" },
+    { "id": "REF-2003", "referrerId": "TR-1002", "refereeId": "TR-1004", "code": "SOFIA-3XP9", "date": "2026-05-11", "status": "joined" },
+    { "id": "REF-2004", "referrerId": "TR-1003", "refereeId": "TR-1005", "code": "DAVID-M4R8", "date": "2026-07-24", "status": "pending" }
+  ]
+}
