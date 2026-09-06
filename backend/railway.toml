@@ -1,0 +1,12 @@
+# Railway service config. In the Railway dashboard set the service "Root Directory"
+# to `backend` so this file and the Dockerfile are found.
+
+[build]
+builder = "dockerfile"
+
+[deploy]
+# Runs once per deploy, before the new version goes live — apply DB migrations here.
+preDeployCommand = "alembic upgrade head"
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
