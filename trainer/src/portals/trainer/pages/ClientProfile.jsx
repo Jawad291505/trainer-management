@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Tabs, Progress, Checkbox, Tag } from 'antd'
+import dayjs from 'dayjs'
+import { Button, Tabs, Progress, Checkbox, Tag, Image, Input, Modal, App } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -8,6 +9,7 @@ import {
     AimOutlined,
     MessageOutlined,
     CalendarOutlined,
+    EditOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -23,6 +25,7 @@ import {
 } from 'recharts'
 import { useTheme } from '../../../context/ThemeContext'
 import { useCorrections } from '../../../context/CorrectionsContext'
+import { useProgressPhotos } from '../../../context/ProgressPhotosContext'
 import StatCard from '../../../components/common/StatCard'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
@@ -40,15 +43,119 @@ import {
     weightProgress,
     correctionAreaLabels,
     correctionTypeLabels,
+    progressPhotoAngleLabels,
 } from '../../../services/mockData'
+
+// Photos one client has shared, with an inline editor for the trainer's per-photo note.
+function PhotosTab({ clientId, clientName }) {
+    const { message } = App.useApp()
+    const { photosForClient, setNote, clearNote } = useProgressPhotos()
+    const groups = photosForClient(clientId)
+    const [editing, setEditing] = useState(null) // { id, current }
+    const [text, setText] = useState('')
+
+    if (groups.length === 0) {
+        return (
+            <div className="app-card">
+                <EmptyState title="No progress photos yet" description={`${clientName} hasn't shared any photos.`} />
+            </div>
+        )
+    }
+
+    const openEditor = (photo) => {
+        setEditing({ id: photo.id, hasNote: !!photo.note })
+        setText(photo.note || '')
+    }
+
+    const save = () => {
+        if (!text.trim()) {
+            if (editing.hasNote) clearNote(editing.id)
+        } else {
+            setNote(editing.id, text)
+        }
+        message.success('Note saved')
+        setEditing(null)
+    }
+
+    return (
+        <div className="flex flex-col gap-6">
+            {groups.map((group) => (
+                <div key={group.date}>
+                    <div className="mb-2 text-sm font-semibold text-text-secondary">
+                        {dayjs(group.date).format('ddd, D MMM YYYY')}
+                    </div>
+                    <Image.PreviewGroup>
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                            {group.items.map((p) => (
+                                <div key={p.id} className="flex flex-col overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
+                                    <div className="bg-black/5" style={{ aspectRatio: '3 / 4' }}>
+                                        <Image
+                                            src={p.dataUrl}
+                                            alt={progressPhotoAngleLabels[p.angle] || 'Progress photo'}
+                                            wrapperClassName="!block h-full w-full"
+                                            className="!h-full !w-full !object-cover"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-2 p-3">
+                                        <Tag bordered={false} style={{ borderRadius: 999, width: 'fit-content' }}>
+                                            {progressPhotoAngleLabels[p.angle] || p.angle}
+                                        </Tag>
+                                        {p.caption && <p className="m-0 text-sm text-text-secondary">{p.caption}</p>}
+                                        {p.note ? (
+                                            <div className="rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
+                                                <span className="font-semibold text-text-secondary">Your note: </span>
+                                                <span className="text-text-secondary">{p.note}</span>
+                                                <button
+                                                    className="mt-1 flex items-center gap-1 text-xs font-semibold text-primary"
+                                                    onClick={() => openEditor(p)}
+                                                >
+                                                    <EditOutlined /> Edit note
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <Button size="small" icon={<EditOutlined />} onClick={() => openEditor(p)}>
+                                                Add note
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Image.PreviewGroup>
+                </div>
+            ))}
+
+            <Modal
+                title="Note on this photo"
+                open={!!editing}
+                onCancel={() => setEditing(null)}
+                onOk={save}
+                okText="Save note"
+                centered
+            >
+                <p className="mb-2 text-sm text-text-secondary">
+                    {clientName} will see this under the photo. Leave it empty to remove the note.
+                </p>
+                <Input.TextArea
+                    rows={4}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="What do you want them to know about this shot?"
+                />
+            </Modal>
+        </div>
+    )
+}
 
 export default function ClientProfile() {
     const { id } = useParams()
     const navigate = useNavigate()
     const { primary } = useTheme()
     const { requests } = useCorrections()
+    const { pendingCountForClient } = useProgressPhotos()
     const client = getClient(id)
     const clientRequests = requests.filter((r) => r.clientId === id)
+    const pendingPhotos = pendingCountForClient(id)
 
     const completion = useMemo(() => {
         const done = clientChecklist.filter((t) => t.done).length
@@ -264,6 +371,11 @@ export default function ClientProfile() {
                         { key: 'diet', label: 'Diet Plan', children: dietTab },
                         { key: 'exercise', label: 'Exercise Plan', children: exerciseTab },
                         { key: 'progress', label: 'Progress', children: progressTab },
+                        {
+                            key: 'photos',
+                            label: `Photos${pendingPhotos ? ` (${pendingPhotos})` : ''}`,
+                            children: <PhotosTab clientId={id} clientName={client.name} />,
+                        },
                         { key: 'followups', label: 'Follow-ups', children: followUpTab },
                         {
                             key: 'requests',

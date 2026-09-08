@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
 import { ScheduleProvider } from './context/ScheduleContext'
 import { CorrectionsProvider } from './context/CorrectionsContext'
+import { ProgressPhotosProvider } from './context/ProgressPhotosContext'
 import App from './App'
 import './styles/global.css'
 
@@ -14,9 +15,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <AuthProvider>
                 <ScheduleProvider>
                     <CorrectionsProvider>
-                        <BrowserRouter>
-                            <App />
-                        </BrowserRouter>
+                        <ProgressPhotosProvider>
+                            <BrowserRouter>
+                                <App />
+                            </BrowserRouter>
+                        </ProgressPhotosProvider>
                     </CorrectionsProvider>
                 </ScheduleProvider>
             </AuthProvider>

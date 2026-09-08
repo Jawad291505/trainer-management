@@ -241,6 +241,56 @@ export const correctionSeed = [
     },
 ]
 
+// ---- Progress photos ----
+export const progressPhotoAngleLabels = {
+    front: 'Front',
+    side: 'Side',
+    back: 'Back',
+    other: 'Other',
+}
+
+// Lightweight placeholder image so the seed carries no binary bulk.
+function poseImage(bg = '#e6e9ef') {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='320' height='420' viewBox='0 0 320 420'><rect width='320' height='420' fill='${bg}'/><g fill='#94a3b8'><circle cx='160' cy='110' r='46'/><rect x='96' y='170' width='128' height='170' rx='40'/><rect x='120' y='330' width='34' height='80' rx='16'/><rect x='166' y='330' width='34' height='80' rx='16'/></g></svg>`
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+export const progressPhotoSeed = [
+    {
+        id: 'PH-seed-1',
+        clientId: currentClient.id,
+        date: '2026-09-01',
+        dataUrl: poseImage('#eef2f7'),
+        angle: 'front',
+        caption: 'Start of week 6, morning, fasted.',
+        note: 'Great definition coming through the shoulders. Keep water high this week and we should see the waist tighten further.',
+        noteAt: '2026-09-02',
+        createdAt: '2026-09-01',
+    },
+    {
+        id: 'PH-seed-2',
+        clientId: currentClient.id,
+        date: '2026-09-01',
+        dataUrl: poseImage('#f2eef7'),
+        angle: 'side',
+        caption: '',
+        note: 'Posture looks much better than last month. Nice work.',
+        noteAt: '2026-09-02',
+        createdAt: '2026-09-01',
+    },
+    {
+        id: 'PH-seed-3',
+        clientId: currentClient.id,
+        date: '2026-09-08',
+        dataUrl: poseImage('#eef7f2'),
+        angle: 'front',
+        caption: 'This morning — feeling leaner.',
+        note: '',
+        noteAt: null,
+        createdAt: '2026-09-08',
+    },
+]
+
 // ---- Notifications ----
 export const notifications = [
     { id: 'N1', type: 'plan', title: 'New exercise plan', desc: 'Marcus updated your Push/Pull/Legs plan.', time: '20m ago', unread: true },

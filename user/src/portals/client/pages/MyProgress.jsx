@@ -13,6 +13,7 @@ import {
 import { useTheme } from '../../../context/ThemeContext'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
+import ProgressPhotos from '../components/ProgressPhotos'
 import StatCard from '../../../components/common/StatCard'
 import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
@@ -114,6 +115,10 @@ export default function MyProgress() {
                         ))}
                     </div>
                 </ChartCard>
+            </div>
+
+            <div className="mt-4">
+                <ProgressPhotos />
             </div>
         </div>
     )

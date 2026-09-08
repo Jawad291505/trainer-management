@@ -364,6 +364,79 @@ export const corrections = [
     },
 ]
 
+// ---- Progress photos ----
+export const progressPhotoAngleLabels = {
+    front: 'Front',
+    side: 'Side',
+    back: 'Back',
+    other: 'Other',
+}
+
+// Lightweight placeholder image so the seed carries no binary bulk.
+function poseImage(bg = '#e6e9ef') {
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='320' height='420' viewBox='0 0 320 420'><rect width='320' height='420' fill='${bg}'/><g fill='#94a3b8'><circle cx='160' cy='110' r='46'/><rect x='96' y='170' width='128' height='170' rx='40'/><rect x='120' y='330' width='34' height='80' rx='16'/><rect x='166' y='330' width='34' height='80' rx='16'/></g></svg>`
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
+// Progress photos clients have shared. `note` is the trainer's feedback on that shot.
+export const progressPhotos = [
+    {
+        id: 'PH-c1-1',
+        clientId: 'CL-2001',
+        date: makeDate(-7),
+        dataUrl: poseImage('#eef2f7'),
+        angle: 'front',
+        caption: 'Start of week 6, morning, fasted.',
+        note: 'Great definition through the shoulders. Keep water high and the waist should tighten further.',
+        noteAt: makeDate(-6),
+        createdAt: makeDate(-7),
+    },
+    {
+        id: 'PH-c1-2',
+        clientId: 'CL-2001',
+        date: makeDate(-7),
+        dataUrl: poseImage('#f2eef7'),
+        angle: 'side',
+        caption: '',
+        note: 'Posture is much better than last month. Nice work.',
+        noteAt: makeDate(-6),
+        createdAt: makeDate(-7),
+    },
+    {
+        id: 'PH-c1-3',
+        clientId: 'CL-2001',
+        date: makeDate(0),
+        dataUrl: poseImage('#eef7f2'),
+        angle: 'front',
+        caption: 'This morning — feeling leaner.',
+        note: '',
+        noteAt: null,
+        createdAt: makeDate(0),
+    },
+    {
+        id: 'PH-c2-1',
+        clientId: 'CL-2002',
+        date: makeDate(-3),
+        dataUrl: poseImage('#f7f1ee'),
+        angle: 'front',
+        caption: 'Post-workout, week 3.',
+        note: '',
+        noteAt: null,
+        createdAt: makeDate(-3),
+    },
+    {
+        id: 'PH-c2-2',
+        clientId: 'CL-2002',
+        date: makeDate(-3),
+        dataUrl: poseImage('#eef2f7'),
+        angle: 'back',
+        caption: 'Back double biceps.',
+        note: '',
+        noteAt: null,
+        createdAt: makeDate(-3),
+    },
+]
+
 // ---- Notifications ----
 export const notifications = [
     { id: 'N1', type: 'message', title: 'New message', desc: 'Noah Carter sent you 3 messages.', time: '10m ago', unread: true },
