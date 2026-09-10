@@ -1,0 +1,27 @@
+// Barrel export for every Mongoose model.
+export { User } from './User.js'
+export { Trainer } from './Trainer.js'
+export { Client } from './Client.js'
+
+export { Food } from './Food.js'
+export { Exercise } from './Exercise.js'
+export { ExerciseTechnique } from './ExerciseTechnique.js'
+export { NutritionConfig } from './NutritionConfig.js'
+export { LibraryCategory } from './LibraryCategory.js'
+
+export { DietPlanTemplate } from './DietPlanTemplate.js'
+export { DietPlan } from './DietPlan.js'
+export { ExercisePlan } from './ExercisePlan.js'
+
+export { Payment } from './Payment.js'
+export { LibraryResource } from './LibraryResource.js'
+export { FollowUp } from './FollowUp.js'
+export { CorrectionRequest } from './CorrectionRequest.js'
+export { ProgressPhoto } from './ProgressPhoto.js'
+export { ScheduleActivity } from './ScheduleActivity.js'
+export { Conversation } from './Conversation.js'
+export { Message } from './Message.js'
+export { Notification } from './Notification.js'
+export { WeightEntry } from './WeightEntry.js'
+export { DailyLog } from './DailyLog.js'
+export { Referral } from './Referral.js'

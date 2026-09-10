@@ -1,0 +1,38 @@
+import { asyncHandler } from '../utils/asyncHandler.js'
+import { getAdminStats, getTrainerStats, getClientCompletion } from '../services/stats.service.js'
+import { Payment } from '../models/index.js'
+
+// GET /api/stats/admin   (admin) — dashboard + payment headline numbers
+export const adminStats = asyncHandler(async (_req, res) => {
+    res.json(await getAdminStats())
+})
+
+// GET /api/stats/admin/revenue-trend   (admin) — monthly paid revenue for the chart
+export const revenueTrend = asyncHandler(async (_req, res) => {
+    const rows = await Payment.aggregate([
+        { $match: { status: 'paid' } },
+        {
+            $group: {
+                _id: { y: { $year: '$date' }, m: { $month: '$date' } },
+                revenue: { $sum: '$amount' },
+            },
+        },
+        { $sort: { '_id.y': 1, '_id.m': 1 } },
+    ])
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    res.json({
+        items: rows.map((r) => ({ month: MONTHS[r._id.m - 1], year: r._id.y, revenue: r.revenue })),
+    })
+})
+
+// GET /api/stats/trainer   (trainer) — trainer dashboard cards
+export const trainerStats = asyncHandler(async (req, res) => {
+    res.json(await getTrainerStats(req.trainer._id))
+})
+
+// GET /api/stats/client/completion?days=7   (client, or trainer/admin via ?client=)
+export const clientCompletion = asyncHandler(async (req, res) => {
+    const clientId = req.user.role === 'client' ? req.client._id : req.query.client
+    const days = Number(req.query.days) || 7
+    res.json(await getClientCompletion(clientId, days))
+})

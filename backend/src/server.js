@@ -1,0 +1,24 @@
+import http from 'node:http'
+import { createApp } from './app.js'
+import { connectDb } from './config/db.js'
+import { env } from './config/env.js'
+import { initRealtime } from './realtime/index.js'
+
+async function main() {
+    await connectDb()
+
+    const app = createApp()
+    const server = http.createServer(app)
+
+    // Attach Socket.IO to the same HTTP server (shares the port).
+    initRealtime(server)
+
+    server.listen(env.port, () => {
+        console.log(`[server] FitTrack API + realtime on http://localhost:${env.port}  (${env.nodeEnv})`)
+    })
+}
+
+main().catch((err) => {
+    console.error('[server] failed to start:', err)
+    process.exit(1)
+})

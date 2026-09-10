@@ -1,0 +1,152 @@
+import { asyncHandler } from '../utils/asyncHandler.js'
+import ApiError from '../utils/ApiError.js'
+import { DietPlan, DietPlanTemplate, Client } from '../models/index.js'
+import { serializeDietPlan } from '../services/dietPlan.service.js'
+import { normalizeMeals } from './dietPlanTemplates.controller.js'
+
+// Ensure the caller may act on `plan`. Trainers are scoped to their own plans;
+// clients to their own; admins unrestricted.
+function assertCanAccess(req, plan) {
+    if (req.user.role === 'admin') return
+    if (req.user.role === 'trainer' && String(plan.trainer) === String(req.trainer?._id)) return
+    if (req.user.role === 'client' && String(plan.client) === String(req.client?._id)) return
+    throw ApiError.forbidden('You cannot access this diet plan')
+}
+
+async function loadPlanOr404(id) {
+    const plan = await DietPlan.findById(id)
+    if (!plan) throw ApiError.notFound('Diet plan not found')
+    return plan
+}
+
+// Verify the trainer owns (is assigned to) the target client.
+async function assertTrainerOwnsClient(req, clientId) {
+    const client = await Client.findById(clientId)
+    if (!client) throw ApiError.notFound('Client not found')
+    if (String(client.trainer) !== String(req.trainer._id)) {
+        throw ApiError.forbidden('That client is not assigned to you')
+    }
+    return client
+}
+
+// GET /api/diet-plans?client=&status=
+export const listDietPlans = asyncHandler(async (req, res) => {
+    const filter = {}
+    if (req.user.role === 'trainer') filter.trainer = req.trainer._id
+    else if (req.user.role === 'client') filter.client = req.client._id
+    if (req.query.client) filter.client = req.query.client
+    if (req.query.status) filter.status = req.query.status
+
+    const plans = await DietPlan.find(filter).sort({ updatedAt: -1 })
+    res.json({ count: plans.length, items: plans })
+})
+
+// GET /api/diet-plans/:id   -> full plan + computed macros / GL / levels
+export const getDietPlan = asyncHandler(async (req, res) => {
+    const plan = await loadPlanOr404(req.params.id)
+    assertCanAccess(req, plan)
+    res.json(await serializeDietPlan(plan))
+})
+
+// GET /api/clients/:clientId/diet-plan  -> the client's current published plan
+// (the client app's "My Diet" screen).
+export const getClientDietPlan = asyncHandler(async (req, res) => {
+    const clientId = req.params.clientId === 'me' ? req.client?._id : req.params.clientId
+    if (!clientId) throw ApiError.badRequest('Unknown client')
+
+    if (req.user.role === 'client' && String(clientId) !== String(req.client._id)) {
+        throw ApiError.forbidden()
+    }
+    if (req.user.role === 'trainer') await assertTrainerOwnsClient(req, clientId)
+
+    const plan = await DietPlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 })
+    if (!plan) throw ApiError.notFound('No published diet plan for this client yet')
+    res.json(await serializeDietPlan(plan))
+})
+
+// POST /api/diet-plans   (trainer)  Body: { clientId, title, meals[] }
+export const createDietPlan = asyncHandler(async (req, res) => {
+    const { clientId, title, meals } = req.body
+    if (!clientId || !title) throw ApiError.badRequest('clientId and title are required')
+    await assertTrainerOwnsClient(req, clientId)
+
+    const plan = await DietPlan.create({
+        client: clientId,
+        trainer: req.trainer._id,
+        title,
+        meals: await normalizeMeals(meals || []),
+        status: 'draft',
+    })
+    res.status(201).json(await serializeDietPlan(plan))
+})
+
+// POST /api/diet-plans/from-template   (trainer)  Body: { clientId, templateId, title? }
+// Copies the template's meals into a fresh client plan (data/README.md rule:
+// the template is never mutated).
+export const createFromTemplate = asyncHandler(async (req, res) => {
+    const { clientId, templateId, title } = req.body
+    if (!clientId || !templateId) throw ApiError.badRequest('clientId and templateId are required')
+    await assertTrainerOwnsClient(req, clientId)
+
+    const tpl = await DietPlanTemplate.findById(templateId)
+    if (!tpl) throw ApiError.notFound('Template not found')
+
+    const plan = await DietPlan.create({
+        client: clientId,
+        trainer: req.trainer._id,
+        title: title || tpl.name,
+        sourceTemplate: tpl._id,
+        status: 'draft',
+        meals: tpl.meals.map((m) => ({
+            name: m.name,
+            time: m.time,
+            notes: m.notes,
+            taskKey: null,
+            items: m.items.map((it) => ({
+                food: it.food,
+                foodCode: it.foodCode,
+                qty: it.qty,
+            })),
+        })),
+    })
+    res.status(201).json(await serializeDietPlan(plan))
+})
+
+// PATCH /api/diet-plans/:id   (trainer)  Body: { title?, meals? }
+export const updateDietPlan = asyncHandler(async (req, res) => {
+    const plan = await loadPlanOr404(req.params.id)
+    assertCanAccess(req, plan)
+    if (req.user.role !== 'trainer') throw ApiError.forbidden('Only the trainer can edit a plan')
+
+    if (req.body.title !== undefined) plan.title = req.body.title
+    if (req.body.meals !== undefined) plan.meals = await normalizeMeals(req.body.meals)
+    await plan.save()
+    res.json(await serializeDietPlan(plan))
+})
+
+// POST /api/diet-plans/:id/publish   (trainer)
+export const publishDietPlan = asyncHandler(async (req, res) => {
+    const plan = await loadPlanOr404(req.params.id)
+    assertCanAccess(req, plan)
+    if (req.user.role !== 'trainer') throw ApiError.forbidden()
+
+    // Only one published plan per client — demote any previous one to 'archived'
+    // by simply flipping it back to draft.
+    await DietPlan.updateMany(
+        { client: plan.client, status: 'published', _id: { $ne: plan._id } },
+        { status: 'draft' },
+    )
+    plan.status = 'published'
+    plan.publishedAt = new Date()
+    await plan.save()
+    res.json(await serializeDietPlan(plan))
+})
+
+// DELETE /api/diet-plans/:id   (trainer)
+export const deleteDietPlan = asyncHandler(async (req, res) => {
+    const plan = await loadPlanOr404(req.params.id)
+    assertCanAccess(req, plan)
+    if (req.user.role !== 'trainer') throw ApiError.forbidden()
+    await plan.deleteOne()
+    res.json({ ok: true })
+})

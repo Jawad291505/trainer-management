@@ -8,7 +8,16 @@
       "Bash(pdftotext -raw foodlist.pdf foodlist_raw.txt)",
       "Bash(node \"C:/Users/AWAIS/AppData/Local/Temp/claude/c--Projects-trainer-management/329c0e82-5c8b-4327-9fbe-59c6e511d170/scratchpad/gen.js\")",
       "Bash(node -e ' *)",
-      "Bash(node -e 'const d=require\\(\"./data/foodLibrary.json\"\\);console.log\\(\"thresholds:\",JSON.stringify\\(d.thresholds\\)\\);console.log\\(\"_source:\",d._source.slice\\(0,80\\)+\"...\"\\);const c={};d.items.forEach\\(i=>c[i.category]=\\(c[i.category]||0\\)+1\\);console.log\\(c\\);console.log\\(\"N/A GI \\(stored 0\\):\",d.items.filter\\(i=>i.gi===0\\).length,\"| N/A GL \\(stored 0\\):\",d.items.filter\\(i=>i.gl===0\\).length\\);console.log\\(\"ml items:\",d.items.filter\\(i=>i.unit===\"ml\"\\).map\\(i=>i.name\\).join\\(\", \"\\)\\);')"
+      "Bash(node -e 'const d=require\\(\"./data/foodLibrary.json\"\\);console.log\\(\"thresholds:\",JSON.stringify\\(d.thresholds\\)\\);console.log\\(\"_source:\",d._source.slice\\(0,80\\)+\"...\"\\);const c={};d.items.forEach\\(i=>c[i.category]=\\(c[i.category]||0\\)+1\\);console.log\\(c\\);console.log\\(\"N/A GI \\(stored 0\\):\",d.items.filter\\(i=>i.gi===0\\).length,\"| N/A GL \\(stored 0\\):\",d.items.filter\\(i=>i.gl===0\\).length\\);console.log\\(\"ml items:\",d.items.filter\\(i=>i.unit===\"ml\"\\).map\\(i=>i.name\\).join\\(\", \"\\)\\);')",
+      "Bash(node -e \"import\\('./src/app.js'\\).then\\(m=>{const app=m.createApp\\(\\);console.log\\('app.js OK, routes mounted'\\)}\\).catch\\(e=>{console.error\\('LOAD ERROR:',e\\);process.exit\\(1\\)}\\)\")",
+      "Bash(node -e \"import\\('mongoose'\\).then\\(async m=>{try{await m.default.connect\\('mongodb://127.0.0.1:27017/fittrack',{serverSelectionTimeoutMS:3000}\\);console.log\\('MONGO OK'\\);await m.default.disconnect\\(\\)}catch\\(e\\){console.log\\('MONGO UNAVAILABLE:',e.message\\)}}\\)\")",
+      "Bash(cp C:/Users/AWAIS/AppData/Local/Temp/claude/c--Projects-trainer-management/1bb7d11b-71ca-4b38-9440-83ad39e1f60e/scratchpad/smoke.mjs C:/Projects/trainer-management/backend/_smoke.mjs)",
+      "Bash(node _smoke.mjs)",
+      "Bash(rm -f _smoke.mjs)",
+      "Bash(npm uninstall *)",
+      "Bash(git -C C:/Projects/trainer-management status --porcelain)",
+      "Bash(powershell -NoProfile -Command \"Get-Service -Name 'MongoDB*' -ErrorAction SilentlyContinue | Select-Object Name,Status,StartType | Format-Table -AutoSize; Get-Command mongod -ErrorAction SilentlyContinue | Select-Object Source; Test-NetConnection -ComputerName 127.0.0.1 -Port 27017 -InformationLevel Quiet\")",
+      "Bash(nslookup -type=SRV _mongodb._tcp.cluster0.rqqrux2.mongodb.net)"
     ]
   }
 }
