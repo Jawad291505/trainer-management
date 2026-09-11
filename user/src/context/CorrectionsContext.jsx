@@ -1,60 +1,27 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { correctionSeed } from '../services/mockData'
+import { api } from '../services/api'
 
 const CorrectionsContext = createContext(null)
-const STORAGE_KEY = 'fittrack.client.corrections'
-
-function readStored() {
-    if (typeof window === 'undefined') return [...correctionSeed]
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY)
-        if (!raw) return [...correctionSeed]
-        const parsed = JSON.parse(raw)
-        return Array.isArray(parsed) ? parsed : [...correctionSeed]
-    } catch {
-        return [...correctionSeed]
-    }
-}
 
 export function CorrectionsProvider({ children }) {
-    const [requests, setRequests] = useState(readStored)
+    const [requests, setRequests] = useState([])
 
     useEffect(() => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(requests))
-        } catch {
-            /* storage unavailable — keep working in-memory */
-        }
-    }, [requests])
-
-    // values: { area, item, type, note }
-    const addRequest = useCallback((values) => {
-        const entry = {
-            id: `RQ-${Date.now()}`,
-            area: values.area,
-            item: (values.item || '').trim(),
-            type: values.type,
-            note: values.note.trim(),
-            status: 'open',
-            reply: '',
-            createdAt: new Date().toISOString().slice(0, 10),
-            resolvedAt: null,
-        }
-        setRequests((prev) => [entry, ...prev])
-        return entry
+        api.get('/corrections').then((res) => setRequests(res.items || [])).catch(() => { })
     }, [])
 
-    const cancelRequest = useCallback((id) => {
-        setRequests((prev) => prev.filter((r) => r.id !== id))
+    const addRequest = useCallback(async (data) => {
+        const created = await api.post('/corrections', data)
+        setRequests((prev) => [created, ...prev])
+        return created
     }, [])
 
-    const openCount = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
+    const cancelRequest = useCallback(async (id) => {
+        await api.delete(`/corrections/${id}`)
+        setRequests((prev) => prev.filter((r) => (r._id || r.id) !== id))
+    }, [])
 
-    const value = useMemo(
-        () => ({ requests, addRequest, cancelRequest, openCount }),
-        [requests, addRequest, cancelRequest, openCount],
-    )
-
+    const value = useMemo(() => ({ requests, addRequest, cancelRequest }), [requests, addRequest, cancelRequest])
     return <CorrectionsContext.Provider value={value}>{children}</CorrectionsContext.Provider>
 }
 

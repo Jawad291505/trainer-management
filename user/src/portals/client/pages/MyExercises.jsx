@@ -1,49 +1,62 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Progress, Segmented } from 'antd'
 import { PlayCircleOutlined, CheckOutlined, CalendarOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
-import { exercisePlan, trainer } from '../../../services/mockData'
+import { useAuth } from '../../../context/AuthContext'
+import { api } from '../../../services/api'
 import { getTechnique } from '../../../services/exerciseLibrary'
 
 export default function MyExercises() {
-    // Track completion across all days, keyed by exercise id.
-    const [done, setDone] = useState(() => {
-        const seed = {}
-        exercisePlan.days.forEach((d) => d.exercises.forEach((e) => (seed[e.id] = !!e.done)))
-        return seed
-    })
-    const [activeDay, setActiveDay] = useState(exercisePlan.todayId)
+    const { client } = useAuth()
+    const [exercisePlan, setExercisePlan] = useState(null)
+    const [done, setDone] = useState({})
+
+    useEffect(() => {
+        if (!client) return
+        api.get(`/clients/${client._id || client.id}/exercise-plan`).then((plan) => {
+            setExercisePlan(plan)
+            const seed = {}
+                ; (plan?.days || []).forEach((d) => (d.exercises || []).forEach((e) => (seed[e._id || e.id] = !!e.done)))
+            setDone(seed)
+        }).catch(() => { })
+    }, [client])
+    const [activeDay, setActiveDay] = useState(null)
+
+    const days = exercisePlan?.days || []
+    const todayId = exercisePlan?.todayDayId || days[0]?._id || days[0]?.id || null
+
+    useEffect(() => { if (todayId && !activeDay) setActiveDay(todayId) }, [todayId, activeDay])
 
     const day = useMemo(
-        () => exercisePlan.days.find((d) => d.id === activeDay) || exercisePlan.days[0],
-        [activeDay],
+        () => days.find((d) => (d._id || d.id) === activeDay) || days[0] || { exercises: [] },
+        [activeDay, days],
     )
 
-    const exercises = day.exercises
-    const completed = exercises.filter((e) => done[e.id]).length
+    const exercises = day?.exercises || []
+    const completed = exercises.filter((e) => done[e._id || e.id]).length
     const pct = exercises.length ? Math.round((completed / exercises.length) * 100) : 0
 
     const toggle = (id) => setDone((prev) => ({ ...prev, [id]: !prev[id] }))
 
-    const dayOptions = exercisePlan.days.map((d) => ({
-        label: d.id === exercisePlan.todayId ? `${d.focus} · Today` : d.focus,
-        value: d.id,
+    const dayOptions = days.map((d) => ({
+        label: (d._id || d.id) === todayId ? `${d.focus} · Today` : d.focus,
+        value: d._id || d.id,
     }))
 
     return (
         <div>
-            <PageHeader title="My Exercise Plan" subtitle={exercisePlan.title}>
+            <PageHeader title="My Exercise Plan" subtitle={exercisePlan?.title || 'No plan assigned'}>
                 <RequestCorrection area="exercise" items={exercises.map((e) => e.name)} />
             </PageHeader>
 
             {/* Trainer attribution */}
             <div className="mb-4 flex items-center gap-2 text-xs text-text-muted">
                 <span>
-                    Assigned by <span className="font-semibold text-text-secondary">{trainer.name}</span>
+                    Assigned by <span className="font-semibold text-text-secondary">your trainer</span>
                 </span>
                 <span className="h-1 w-1 rounded-full" style={{ background: 'var(--color-border-strong)' }} />
-                <span>Updated {exercisePlan.updatedAt}</span>
+                <span>Updated {exercisePlan?.updatedAt ? new Date(exercisePlan.updatedAt).toLocaleDateString('en-CA') : '—'}</span>
             </div>
 
             {/* Day switcher */}

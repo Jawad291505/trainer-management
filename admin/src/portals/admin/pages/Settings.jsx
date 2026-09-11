@@ -3,6 +3,8 @@ import { Form, Input, Switch, Button, App, Tabs, Modal } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
 import ThemePicker from '../../../components/common/ThemePicker'
 import UserAvatar from '../../../components/common/UserAvatar'
+import { useAuth } from '../../../context/AuthContext'
+import { api } from '../../../services/api'
 
 function ChangePhotoModal({ open, onClose }) {
     const { message } = App.useApp()
@@ -28,32 +30,38 @@ function ChangePhotoModal({ open, onClose }) {
 
 function ProfileTab() {
     const { message } = App.useApp()
+    const { user, refreshUser } = useAuth()
     const [photoOpen, setPhotoOpen] = useState(false)
+    const [saving, setSaving] = useState(false)
     return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="app-card p-5 lg:col-span-1">
                 <div className="flex flex-col items-center text-center">
-                    <UserAvatar name="Alexandra Reed" color="var(--color-primary)" size={84} />
-                    <div className="mt-3 text-lg font-bold text-text-primary">Alexandra Reed</div>
+                    <UserAvatar name={user?.name || 'Admin'} color={user?.avatarColor || 'var(--color-primary)'} size={84} />
+                    <div className="mt-3 text-lg font-bold text-text-primary">{user?.name || 'Admin'}</div>
                     <div className="text-sm text-text-muted">Super Admin</div>
-                    <Button className="mt-4" block onClick={() => setPhotoOpen(true)}>
-                        Change photo
-                    </Button>
                 </div>
-                <ChangePhotoModal open={photoOpen} onClose={() => setPhotoOpen(false)} />
             </div>
             <div className="app-card p-5 lg:col-span-2">
                 <Form
                     layout="vertical"
-                    initialValues={{ name: 'Alexandra Reed', email: 'alex.reed@fittrack.io', phone: '+1 (555) 018-2245' }}
-                    onFinish={() => message.success('Profile saved')}
+                    initialValues={{ name: user?.name, email: user?.email, phone: user?.phone || '' }}
+                    onFinish={async (v) => {
+                        setSaving(true)
+                        try {
+                            await api.patch('/auth/me', { name: v.name, phone: v.phone })
+                            await refreshUser()
+                            message.success('Profile saved')
+                        } catch (err) { message.error(err.message) }
+                        finally { setSaving(false) }
+                    }}
                 >
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                         <Form.Item name="name" label="Full name" rules={[{ required: true }]}>
                             <Input />
                         </Form.Item>
                         <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
-                            <Input />
+                            <Input disabled />
                         </Form.Item>
                         <Form.Item name="phone" label="Phone">
                             <Input />
@@ -62,7 +70,7 @@ function ProfileTab() {
                             <Input disabled defaultValue="Super Admin" value="Super Admin" />
                         </Form.Item>
                     </div>
-                    <Button type="primary" htmlType="submit">
+                    <Button type="primary" htmlType="submit" loading={saving}>
                         Save changes
                     </Button>
                 </Form>

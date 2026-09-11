@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Spin } from 'antd'
 import AppLayout from '../layouts/AppLayout'
 import Login from '../pages/Login'
 import { useAuth } from '../context/AuthContext'
@@ -15,7 +16,11 @@ import Settings from '../portals/client/pages/Settings'
 import NotFound from '../pages/NotFound'
 
 export default function AppRoutes() {
-    const { authed } = useAuth()
+    const { authed, loading } = useAuth()
+
+    if (loading) {
+        return <div className="flex min-h-screen items-center justify-center"><Spin size="large" /></div>
+    }
 
     return (
         <Routes>

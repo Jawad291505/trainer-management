@@ -1,10 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Segmented, Button, Modal, Form, Input, Select, TimePicker, App } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import PageHeader from '../../../components/common/PageHeader'
+import { api } from '../../../services/api'
 import ScheduleTimeline from '../components/ScheduleTimeline'
-import { activityTypes, clients } from '../../../services/mockData'
+
+const activityTypes = {
+    workout: { label: 'Workout', color: 'var(--color-primary)' },
+    consultation: { label: 'Consultation', color: 'var(--color-info)' },
+    followup: { label: 'Follow-up', color: 'var(--color-warning)' },
+    meal: { label: 'Meal plan review', color: 'var(--color-success)' },
+    break: { label: 'Break', color: 'var(--color-text-muted)' },
+}
 import { useSchedule, WEEK_DAYS } from '../../../context/ScheduleContext'
 
 const DAY_OPTIONS = [
@@ -20,6 +28,11 @@ export default function Schedule() {
     const [open, setOpen] = useState(false)
     const [form] = Form.useForm()
     const { today, week, addActivity, removeActivity } = useSchedule()
+    const [clients, setClients] = useState([])
+
+    useEffect(() => {
+        api.get('/clients').then((res) => setClients(res.items || [])).catch(() => { })
+    }, [])
 
     const openModal = () => {
         form.setFieldsValue({ type: 'workout', day: 'today', time: null, title: '', clientId: undefined, notes: '' })

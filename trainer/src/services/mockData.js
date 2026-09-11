@@ -194,14 +194,14 @@ export const weeklyCompletion = [
 ]
 
 export const weightProgress = [
-    { week: 'W1', weight: 72 },
-    { week: 'W2', weight: 71.2 },
-    { week: 'W3', weight: 70.6 },
-    { week: 'W4', weight: 70.1 },
-    { week: 'W5', weight: 69.3 },
-    { week: 'W6', weight: 68.6 },
-    { week: 'W7', weight: 68.1 },
-    { week: 'W8', weight: 67.4 },
+    { week: 'W1', weight: 72, source: 'trainer' },
+    { week: 'W2', weight: 71.2, source: 'client' },
+    { week: 'W3', weight: 70.6, source: 'client' },
+    { week: 'W4', weight: 70.1, source: 'trainer' },
+    { week: 'W5', weight: 69.3, source: 'client' },
+    { week: 'W6', weight: 68.6, source: 'client' },
+    { week: 'W7', weight: 68.1, source: 'client' },
+    { week: 'W8', weight: 67.4, source: 'client' },
 ]
 
 // ---- Chat ----

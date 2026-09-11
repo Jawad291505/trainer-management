@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Segmented, Button, App } from 'antd'
 import {
     CreditCardOutlined,
@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
-import { notifications as seed } from '../../../services/mockData'
+import { api } from '../../../services/api'
 
 const ICONS = {
     payment: CreditCardOutlined,
@@ -20,8 +20,12 @@ const ICONS = {
 
 export default function NotificationsPage() {
     const { message } = App.useApp()
-    const [data, setData] = useState(seed)
+    const [data, setData] = useState([])
     const [filter, setFilter] = useState('all')
+
+    useEffect(() => {
+        api.get('/notifications').then((res) => setData(res.items || [])).catch(() => { })
+    }, [])
 
     const filtered = data.filter((n) => (filter === 'all' ? true : filter === 'unread' ? n.unread : !n.unread))
 

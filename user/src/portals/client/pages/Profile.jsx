@@ -3,11 +3,31 @@ import { Form, Input, InputNumber, Button, App, Select, Modal } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatCard from '../../../components/common/StatCard'
-import { currentClient, trainer, clientGoals } from '../../../services/mockData'
+import { useAuth } from '../../../context/AuthContext'
+
+const clientGoals = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
 
 export default function Profile() {
     const { message } = App.useApp()
+    const { user, client, refreshUser } = useAuth()
     const [photoOpen, setPhotoOpen] = useState(false)
+
+    const currentClient = {
+        name: user?.name || 'Client',
+        email: user?.email || '',
+        avatarColor: user?.avatarColor || '#047857',
+        goal: client?.goal || 'Fat Loss',
+        plan: client?.plan || 'Standard',
+        startWeight: client?.startWeight || 0,
+        weight: client?.weight || 0,
+        target: client?.target || 0,
+    }
+    const trainerInfo = client?.trainer
+    const trainer = {
+        name: trainerInfo?.user?.name || 'Not assigned',
+        avatarColor: trainerInfo?.user?.avatarColor || '#0b2545',
+        specialization: trainerInfo?.specialization || '',
+    }
     const [photoUrl, setPhotoUrl] = useState('')
 
     return (

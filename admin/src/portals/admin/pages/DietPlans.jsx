@@ -45,22 +45,30 @@ export default function DietPlans() {
     const { dietPlans, addDietPlan, updateDietPlan, removeDietPlan } = useLibrary()
     const [editingId, setEditingId] = useState(null)
 
-    const editing = dietPlans.find((p) => p.id === editingId) || null
+    const editing = dietPlans.find((p) => (p._id || p.id) === editingId) || null
     const atMax = dietPlans.length >= MAX_DIET_PLANS
 
-    const createPlan = () => {
+    const createPlan = async () => {
         if (atMax) return
-        const id = addDietPlan({ name: 'New template', goal: dietGoals[0], description: '', meals: [] })
-        setEditingId(id)
+        try {
+            const id = await addDietPlan({ name: 'New template', goal: dietGoals[0], description: '', meals: [] })
+            setEditingId(id)
+        } catch (err) {
+            message.error(err.message || 'Failed to create template')
+        }
     }
 
     const deletePlan = (p) =>
         confirmDelete({
             title: 'Delete template?',
             content: `Remove the "${p.name}" diet-plan template? Client plans already built from it are not affected.`,
-            onOk: () => {
-                removeDietPlan(p.id)
-                message.success('Template deleted')
+            onOk: async () => {
+                try {
+                    await removeDietPlan(p._id || p.id)
+                    message.success('Template deleted')
+                } catch (err) {
+                    message.error(err.message || 'Failed to delete')
+                }
             },
         })
 
@@ -69,10 +77,14 @@ export default function DietPlans() {
             <PlanEditor
                 key={editing.id}
                 plan={editing}
-                onSave={(patch) => {
-                    updateDietPlan(editing.id, patch)
-                    message.success('Template saved')
-                    setEditingId(null)
+                onSave={async (patch) => {
+                    try {
+                        await updateDietPlan(editing._id || editing.id, patch)
+                        message.success('Template saved')
+                        setEditingId(null)
+                    } catch (err) {
+                        message.error(err.message || 'Failed to save')
+                    }
                 }}
                 onBack={() => setEditingId(null)}
             />
@@ -111,15 +123,16 @@ export default function DietPlans() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     {dietPlans.map((p) => {
                         const t = planTotals(p.meals)
+                        const pid = p._id || p.id
                         return (
-                            <div key={p.id} className="app-card flex flex-col p-5">
+                            <div key={pid} className="app-card flex flex-col p-5">
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <div className="font-bold text-text-primary">{p.name}</div>
                                         <Tag bordered={false} style={{ borderRadius: 999, marginTop: 4 }}>{p.goal}</Tag>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                        <Button size="small" icon={<EditOutlined />} onClick={() => setEditingId(p.id)}>Edit</Button>
+                                        <Button size="small" icon={<EditOutlined />} onClick={() => setEditingId(pid)}>Edit</Button>
                                         <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => deletePlan(p)} />
                                     </div>
                                 </div>

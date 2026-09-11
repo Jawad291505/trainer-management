@@ -1,59 +1,21 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { corrections as seed } from '../services/mockData'
+import { api } from '../services/api'
 
 const CorrectionsContext = createContext(null)
-const STORAGE_KEY = 'fittrack.trainer.corrections'
-
-function readStored() {
-    if (typeof window === 'undefined') return [...seed]
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY)
-        if (!raw) return [...seed]
-        const parsed = JSON.parse(raw)
-        return Array.isArray(parsed) ? parsed : [...seed]
-    } catch {
-        return [...seed]
-    }
-}
-
-const today = () => new Date().toISOString().slice(0, 10)
 
 export function CorrectionsProvider({ children }) {
-    const [requests, setRequests] = useState(readStored)
+    const [requests, setRequests] = useState([])
 
     useEffect(() => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(requests))
-        } catch {
-            /* storage unavailable — keep working in-memory */
-        }
-    }, [requests])
-
-    const resolve = useCallback((id, reply) => {
-        setRequests((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, status: 'resolved', reply: reply.trim(), resolvedAt: today() } : r)),
-        )
+        api.get('/corrections').then((res) => setRequests(res.items || [])).catch(() => { })
     }, [])
 
-    const decline = useCallback((id, reply) => {
-        setRequests((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, status: 'declined', reply: reply.trim(), resolvedAt: today() } : r)),
-        )
+    const respond = useCallback(async (id, reply, status = 'resolved') => {
+        const updated = await api.patch(`/corrections/${id}`, { reply, status })
+        setRequests((prev) => prev.map((r) => ((r._id || r.id) === id ? updated : r)))
     }, [])
 
-    const reopen = useCallback((id) => {
-        setRequests((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, status: 'open', reply: '', resolvedAt: null } : r)),
-        )
-    }, [])
-
-    const openCount = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
-
-    const value = useMemo(
-        () => ({ requests, resolve, decline, reopen, openCount }),
-        [requests, resolve, decline, reopen, openCount],
-    )
-
+    const value = useMemo(() => ({ requests, respond }), [requests, respond])
     return <CorrectionsContext.Provider value={value}>{children}</CorrectionsContext.Provider>
 }
 

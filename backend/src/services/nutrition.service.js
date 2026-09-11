@@ -41,6 +41,13 @@ export function computeNutrition(food, qty) {
 // (utils/nutrition.js -> formatQty)
 export function formatQty(food, qty) {
     if (food.unit === 'count') return `${qty}`
+    if (food.servingWeight && food.serving && qty > 0) {
+        const units = qty / food.servingWeight
+        if (Number.isInteger(units) || Math.abs(units - Math.round(units)) < 0.01) {
+            const n = Math.round(units)
+            return `${n} × ${food.serving} (${qty}${food.unit})`
+        }
+    }
     return `${qty}${food.unit}`
 }
 

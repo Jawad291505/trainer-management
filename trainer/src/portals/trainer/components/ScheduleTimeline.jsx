@@ -1,6 +1,14 @@
 import { CheckCircleFilled, SyncOutlined, ClockCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import { Button, Popconfirm } from 'antd'
-import { activityTypes, getClient } from '../../../services/mockData'
+
+const activityTypes = {
+    workout: { label: 'Workout', color: 'var(--color-primary)' },
+    consultation: { label: 'Consultation', color: 'var(--color-info)' },
+    followup: { label: 'Follow-up', color: 'var(--color-warning)' },
+    meal: { label: 'Meal plan review', color: 'var(--color-success)' },
+    break: { label: 'Break', color: 'var(--color-text-muted)' },
+}
+const getClient = () => null
 
 const STATUS = {
     completed: { icon: <CheckCircleFilled />, color: 'var(--color-success)', label: 'Completed' },

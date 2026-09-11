@@ -1,85 +1,38 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { progressPhotoSeed } from '../services/mockData'
-import { fileToResizedDataUrl } from '../utils/image'
+import { api } from '../services/api'
 
 const ProgressPhotosContext = createContext(null)
-const STORAGE_KEY = 'fittrack.client.progressPhotos'
-
-function readStored() {
-    if (typeof window === 'undefined') return [...progressPhotoSeed]
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY)
-        if (!raw) return [...progressPhotoSeed]
-        const parsed = JSON.parse(raw)
-        return Array.isArray(parsed) ? parsed : [...progressPhotoSeed]
-    } catch {
-        return [...progressPhotoSeed]
-    }
-}
-
-const today = () => new Date().toISOString().slice(0, 10)
-const newId = () => `PH-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
 export function ProgressPhotosProvider({ children }) {
-    const [photos, setPhotos] = useState(readStored)
+    const [photos, setPhotos] = useState([])
 
     useEffect(() => {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(photos))
-        } catch {
-            /* storage full or unavailable — keep working in-memory */
-        }
-    }, [photos])
-
-    // rows: [{ file, angle, caption }]  — files are resized before storing.
-    const addPhotos = useCallback(async (rows, { date } = {}) => {
-        const stamp = date || today()
-        const entries = []
-        for (const row of rows) {
-            if (!row?.file) continue
-            const dataUrl = await fileToResizedDataUrl(row.file)
-            entries.push({
-                id: newId(),
-                date: stamp,
-                dataUrl,
-                angle: row.angle || 'other',
-                caption: (row.caption || '').trim(),
-                note: '',
-                noteAt: null,
-                createdAt: today(),
-            })
-        }
-        if (entries.length) setPhotos((prev) => [...entries, ...prev])
-        return entries.length
+        api.get('/progress-photos').then((res) => setPhotos(res.items || [])).catch(() => { })
     }, [])
 
-    const updateCaption = useCallback((id, caption) => {
-        setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, caption: caption.trim() } : p)))
+    const addPhoto = useCallback(async (data) => {
+        const created = await api.post('/progress-photos', data)
+        setPhotos((prev) => [created, ...prev])
+        return created
     }, [])
 
-    const removePhoto = useCallback((id) => {
-        setPhotos((prev) => prev.filter((p) => p.id !== id))
+    const deletePhoto = useCallback(async (id) => {
+        await api.delete(`/progress-photos/${id}`)
+        setPhotos((prev) => prev.filter((p) => (p._id || p.id) !== id))
     }, [])
 
-    // Newest date first; photos within a day keep insertion order (newest first).
-    const photosByDate = useMemo(() => {
+    // Group photos by date for display
+    const groupedPhotos = useMemo(() => {
         const groups = new Map()
-        for (const p of photos) {
-            if (!groups.has(p.date)) groups.set(p.date, [])
-            groups.get(p.date).push(p)
-        }
-        return [...groups.entries()]
-            .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-            .map(([date, items]) => ({ date, items }))
+        photos.forEach((p) => {
+            const d = (p.date || p.createdAt || '').slice(0, 10)
+            if (!groups.has(d)) groups.set(d, { date: d, items: [] })
+            groups.get(d).items.push(p)
+        })
+        return [...groups.values()].sort((a, b) => b.date.localeCompare(a.date))
     }, [photos])
 
-    const withNotesCount = useMemo(() => photos.filter((p) => p.note).length, [photos])
-
-    const value = useMemo(
-        () => ({ photos, photosByDate, withNotesCount, addPhotos, updateCaption, removePhoto }),
-        [photos, photosByDate, withNotesCount, addPhotos, updateCaption, removePhoto],
-    )
-
+    const value = useMemo(() => ({ photos, groupedPhotos, addPhoto, deletePhoto }), [photos, groupedPhotos, addPhoto, deletePhoto])
     return <ProgressPhotosContext.Provider value={value}>{children}</ProgressPhotosContext.Provider>
 }
 

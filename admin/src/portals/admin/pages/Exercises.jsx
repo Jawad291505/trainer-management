@@ -53,23 +53,31 @@ export default function Exercises() {
 
     const save = async () => {
         const v = await form.validateFields()
-        if (editing) {
-            updateExercise(editing.id, v)
-            message.success('Exercise updated')
-        } else {
-            addExercise(v)
-            message.success('Exercise added')
+        try {
+            if (editing) {
+                await updateExercise(editing.id, v)
+                message.success('Exercise updated')
+            } else {
+                await addExercise(v)
+                message.success('Exercise added')
+            }
+            setModalOpen(false)
+        } catch (err) {
+            message.error(err.message || 'Failed to save')
         }
-        setModalOpen(false)
     }
 
     const remove = (x) =>
         confirmDelete({
             title: 'Delete exercise?',
             content: `Remove "${x.name}" from the library?`,
-            onOk: () => {
-                removeExercise(x.id)
-                message.success('Exercise deleted')
+            onOk: async () => {
+                try {
+                    await removeExercise(x.id)
+                    message.success('Exercise deleted')
+                } catch (err) {
+                    message.error(err.message || 'Failed to delete')
+                }
             },
         })
 

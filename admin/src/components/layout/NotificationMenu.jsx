@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
     CreditCardOutlined,
@@ -5,7 +6,7 @@ import {
     WarningOutlined,
     ReadOutlined,
 } from '@ant-design/icons'
-import { notifications } from '../../services/mockData'
+import { api } from '../../services/api'
 
 const ICONS = {
     payment: CreditCardOutlined,
@@ -17,6 +18,12 @@ const ICONS = {
 // Content for the header notification dropdown.
 export default function NotificationMenu({ onClose }) {
     const navigate = useNavigate()
+    const [notifications, setNotifications] = useState([])
+
+    useEffect(() => {
+        api.get('/notifications').then((res) => setNotifications(res.items || [])).catch(() => { })
+    }, [])
+
     const unread = notifications.filter((n) => n.unread).length
 
     return (

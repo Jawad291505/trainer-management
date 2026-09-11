@@ -14,7 +14,9 @@ import StatusBadge from '../../../components/common/StatusBadge'
 import EmptyState from '../../../components/common/EmptyState'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { useCorrections } from '../../../context/CorrectionsContext'
-import { correctionAreaLabels, correctionTypeLabels } from '../../../services/mockData'
+
+const correctionAreaLabels = { diet: 'Diet plan', exercise: 'Exercise plan', progress: 'Progress / weigh-in', general: 'General' }
+const correctionTypeLabels = { swap: 'Swap / substitute', 'too-hard': 'Too difficult', injury: 'Injury / pain', 'wrong-data': 'Wrong data', other: 'Other' }
 
 const BUCKETS = [
     { key: 'open', label: 'Open' },

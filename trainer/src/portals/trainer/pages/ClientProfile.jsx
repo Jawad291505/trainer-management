@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { Button, Tabs, Progress, Checkbox, Tag, Image, Input, Modal, App } from 'antd'
@@ -34,17 +34,11 @@ import ChartTooltip from '../../../components/charts/ChartTooltip'
 import EmptyState from '../../../components/common/EmptyState'
 import MealCard from '../components/MealCard'
 import ExerciseDayCard from '../components/ExerciseDayCard'
-import {
-    getClient,
-    sampleDietPlan,
-    sampleExercisePlan,
-    clientChecklist,
-    weeklyCompletion,
-    weightProgress,
-    correctionAreaLabels,
-    correctionTypeLabels,
-    progressPhotoAngleLabels,
-} from '../../../services/mockData'
+import { api } from '../../../services/api'
+
+const correctionAreaLabels = { diet: 'Diet plan', exercise: 'Exercise plan', progress: 'Progress / weigh-in', general: 'General' }
+const correctionTypeLabels = { swap: 'Swap / substitute', 'too-hard': 'Too difficult', injury: 'Injury / pain', 'wrong-data': 'Wrong data', other: 'Other' }
+const progressPhotoAngleLabels = { front: 'Front', side: 'Side', back: 'Back', other: 'Other' }
 
 // Photos one client has shared, with an inline editor for the trainer's per-photo note.
 function PhotosTab({ clientId, clientName }) {
@@ -153,16 +147,32 @@ export default function ClientProfile() {
     const { primary } = useTheme()
     const { requests } = useCorrections()
     const { pendingCountForClient } = useProgressPhotos()
-    const client = getClient(id)
-    const clientRequests = requests.filter((r) => r.clientId === id)
+    const [clientData, setClientData] = useState(null)
+    const [weightData, setWeightData] = useState([])
+    const [dietPlan, setDietPlan] = useState(null)
+    const [exercisePlan, setExercisePlan] = useState(null)
+    const clientRequests = requests.filter((r) => r.clientId === id || String(r.client) === id)
     const pendingPhotos = pendingCountForClient(id)
 
-    const completion = useMemo(() => {
-        const done = clientChecklist.filter((t) => t.done).length
-        return Math.round((done / clientChecklist.length) * 100)
-    }, [])
+    useEffect(() => {
+        async function load() {
+            try {
+                const c = await api.get(`/clients/${id}`)
+                setClientData(c)
+                try {
+                    const w = await api.get(`/progress/weight?client=${id}`)
+                    setWeightData((w.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
+                } catch { /* */ }
+                try { const dp = await api.get(`/clients/${id}/diet-plan`); if (dp) setDietPlan(dp) } catch { /* */ }
+                try { const ep = await api.get(`/clients/${id}/exercise-plan`); if (ep) setExercisePlan(ep) } catch { /* */ }
+            } catch { /* */ }
+        }
+        load()
+    }, [id])
 
-    if (!client) {
+    const completion = 0
+
+    if (!clientData) {
         return (
             <div className="app-card">
                 <EmptyState
@@ -173,6 +183,9 @@ export default function ClientProfile() {
             </div>
         )
     }
+
+    // Alias for all below references
+    const client = clientData
 
     const overview = (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -199,14 +212,54 @@ export default function ClientProfile() {
             <div className="lg:col-span-2">
                 <ChartCard title="Weight Progress" subtitle="Last 8 weeks (kg)">
                     <ResponsiveContainer width="100%" height={260}>
-                        <LineChart data={weightProgress} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                        <LineChart data={weightData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                             <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                             <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={44} />
-                            <Tooltip content={<ChartTooltip />} />
-                            <Line type="monotone" dataKey="weight" name="Weight" stroke={primary} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                            <Tooltip
+                                content={({ active, payload, label }) => {
+                                    if (!active || !payload?.length) return null
+                                    const d = payload[0].payload
+                                    return (
+                                        <div className="rounded-lg border px-3 py-2 shadow-sm" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                                            <div className="text-xs font-semibold text-text-primary">{label}: {d.weight} kg</div>
+                                            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-text-muted">
+                                                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: d.source === 'client' ? 'var(--color-info)' : primary }} />
+                                                {d.source === 'client' ? 'Logged by client' : 'Logged by you'}
+                                            </div>
+                                        </div>
+                                    )
+                                }}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="weight"
+                                name="Weight"
+                                stroke={primary}
+                                strokeWidth={2.5}
+                                dot={(props) => {
+                                    const { cx, cy, payload } = props
+                                    const isClient = payload.source === 'client'
+                                    return (
+                                        <circle
+                                            key={props.key}
+                                            cx={cx}
+                                            cy={cy}
+                                            r={isClient ? 4 : 3}
+                                            fill={isClient ? 'var(--color-info)' : primary}
+                                            stroke="#fff"
+                                            strokeWidth={isClient ? 2 : 1}
+                                        />
+                                    )
+                                }}
+                                activeDot={{ r: 6 }}
+                            />
                         </LineChart>
                     </ResponsiveContainer>
+                    <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-text-muted">
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: 'var(--color-info)' }} /> Client logged</span>
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: primary }} /> Trainer logged</span>
+                    </div>
                 </ChartCard>
             </div>
         </div>
@@ -215,11 +268,11 @@ export default function ClientProfile() {
     const dietTab = (
         <div>
             <div className="mb-4 flex items-center justify-between">
-                <h3 className="section-title m-0">{sampleDietPlan.title}</h3>
+                <h3 className="section-title m-0">{dietPlan?.title || 'No diet plan'}</h3>
                 <Button type="primary" onClick={() => navigate('/diet-plans')}>Edit plan</Button>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {sampleDietPlan.meals.map((m) => (
+                {(dietPlan?.meals || []).map((m) => (
                     <MealCard key={m.id} meal={m} />
                 ))}
             </div>
@@ -229,11 +282,11 @@ export default function ClientProfile() {
     const exerciseTab = (
         <div>
             <div className="mb-4 flex items-center justify-between">
-                <h3 className="section-title m-0">{sampleExercisePlan.title}</h3>
+                <h3 className="section-title m-0">{exercisePlan?.title || 'No exercise plan'}</h3>
                 <Button type="primary" onClick={() => navigate('/exercise-plans')}>Edit plan</Button>
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                {sampleExercisePlan.days.map((d) => (
+                {(exercisePlan?.days || []).map((d) => (
                     <ExerciseDayCard key={d.id} day={d} />
                 ))}
             </div>
@@ -244,13 +297,13 @@ export default function ClientProfile() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ChartCard title="Weekly Completion" subtitle="Daily activity completion (%)">
                 <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={weeklyCompletion} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                    <BarChart data={[]} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                         <XAxis dataKey="day" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={40} />
                         <Tooltip cursor={{ fill: 'var(--color-surface-secondary)' }} content={<ChartTooltip formatter={(v) => `${v}%`} />} />
                         <Bar dataKey="pct" name="Completion" radius={[6, 6, 0, 0]} maxBarSize={40}>
-                            {weeklyCompletion.map((e, i) => (
+                            {[].map((e, i) => (
                                 <Cell key={i} fill={e.pct >= 80 ? 'var(--color-success)' : e.pct >= 60 ? primary : 'var(--color-warning)'} />
                             ))}
                         </Bar>
@@ -263,7 +316,7 @@ export default function ClientProfile() {
                     <Progress percent={completion} strokeColor="var(--color-primary)" />
                 </div>
                 <div className="flex flex-col gap-2">
-                    {clientChecklist.map((t) => (
+                    {[].map((t) => (
                         <div key={t.id} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: 'var(--color-surface-secondary)' }}>
                             <Checkbox checked={t.done} disabled />
                             <span className={`text-sm ${t.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{t.label}</span>

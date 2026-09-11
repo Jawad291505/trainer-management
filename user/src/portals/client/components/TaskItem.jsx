@@ -4,7 +4,15 @@ import {
     ThunderboltOutlined,
     ClockCircleOutlined,
 } from '@ant-design/icons'
-import { activityColors } from '../../../services/mockData'
+const activityColors = {
+    meal: 'var(--color-success)',
+    workout: 'var(--color-primary)',
+    walk: 'var(--color-info)',
+    followup: 'var(--color-warning)',
+    checkin: 'var(--color-warning)',
+    sleep: '#7c3aed',
+    water: 'var(--color-info)',
+}
 
 const TYPE_ICON = {
     meal: CoffeeOutlined,

@@ -8,7 +8,11 @@ import {
 } from '@ant-design/icons'
 import { Button, Modal, Form, Input, Select, TimePicker, DatePicker, App } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
-import { activityColors } from '../../../services/mockData'
+
+const activityColors = {
+    meal: 'var(--color-success)', workout: 'var(--color-primary)', walk: 'var(--color-info)',
+    followup: 'var(--color-warning)', checkin: 'var(--color-warning)', sleep: '#7c3aed', water: 'var(--color-info)',
+}
 import { useSchedule } from '../../../context/ScheduleContext'
 
 const TYPE_OPTIONS = Object.keys(activityColors).map((k) => ({

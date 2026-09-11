@@ -53,23 +53,31 @@ export default function Foods() {
 
     const save = async () => {
         const v = await form.validateFields()
-        if (editing) {
-            updateFood(editing.id, v)
-            message.success('Food updated')
-        } else {
-            addFood(v)
-            message.success('Food added')
+        try {
+            if (editing) {
+                await updateFood(editing.id, v)
+                message.success('Food updated')
+            } else {
+                await addFood(v)
+                message.success('Food added')
+            }
+            setModalOpen(false)
+        } catch (err) {
+            message.error(err.message || 'Failed to save')
         }
-        setModalOpen(false)
     }
 
     const remove = (f) =>
         confirmDelete({
             title: 'Delete food?',
             content: `Remove "${f.name}" from the library?`,
-            onOk: () => {
-                removeFood(f.id)
-                message.success('Food deleted')
+            onOk: async () => {
+                try {
+                    await removeFood(f.id)
+                    message.success('Food deleted')
+                } catch (err) {
+                    message.error(err.message || 'Failed to delete')
+                }
             },
         })
 
@@ -110,6 +118,14 @@ export default function Foods() {
             render: (_, f) => <span className="text-text-muted">{f.protein}/{f.carbs}/{f.fat}</span>,
         },
         { title: 'GI', dataIndex: 'gi', width: 70, render: (v) => <span className="text-text-secondary">{v}</span> },
+        {
+            title: 'Serving',
+            key: 'serving',
+            width: 140,
+            render: (_, f) => f.serving && f.servingWeight
+                ? <span className="text-text-secondary">{f.serving} ({f.servingWeight}g)</span>
+                : <span className="text-text-muted">—</span>,
+        },
         {
             title: '',
             key: 'actions',
@@ -192,6 +208,19 @@ export default function Foods() {
                         </Form.Item>
                         <Form.Item name="defaultQty" label="Default quantity" rules={[{ required: true }]}>
                             <InputNumber min={1} style={{ width: '100%' }} />
+                        </Form.Item>
+                    </div>
+
+                    <Divider className="my-2" plain>
+                        <span className="text-xs text-text-muted">Serving (for "add by unit" in diet plans)</span>
+                    </Divider>
+
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <Form.Item name="serving" label="Serving label" tooltip="e.g. '1 large egg', '1 slice', '1 medium'. Leave empty if not applicable.">
+                            <Input placeholder="e.g. 1 large egg" />
+                        </Form.Item>
+                        <Form.Item name="servingWeight" label="Grams per serving" tooltip="How many grams one unit weighs. Trainers can then add '2 eggs' instead of '100g'.">
+                            <InputNumber min={1} max={2000} style={{ width: '100%' }} placeholder="e.g. 50" />
                         </Form.Item>
                     </div>
 

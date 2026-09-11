@@ -15,7 +15,8 @@ import {
 import { CameraOutlined, UploadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import EmptyState from '../../../components/common/EmptyState'
 import { useProgressPhotos } from '../../../context/ProgressPhotosContext'
-import { progressPhotoAngleLabels } from '../../../services/mockData'
+
+const progressPhotoAngleLabels = { front: 'Front', side: 'Side', back: 'Back', other: 'Other' }
 
 const ANGLE_OPTIONS = Object.entries(progressPhotoAngleLabels).map(([value, label]) => ({ value, label }))
 const DEFAULT_ANGLES = ['front', 'side', 'back']

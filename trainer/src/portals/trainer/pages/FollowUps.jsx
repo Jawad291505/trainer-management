@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Segmented, Button, App, Modal, Form, Select, DatePicker, Input } from 'antd'
 import dayjs from 'dayjs'
@@ -13,7 +13,7 @@ import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import EmptyState from '../../../components/common/EmptyState'
 import UserAvatar from '../../../components/common/UserAvatar'
-import { followUps as seed, clients } from '../../../services/mockData'
+import { api } from '../../../services/api'
 
 const BUCKETS = [
     { key: 'today', label: 'Due Today' },
@@ -25,9 +25,17 @@ const BUCKETS = [
 export default function FollowUps() {
     const { message } = App.useApp()
     const navigate = useNavigate()
-    const [data, setData] = useState(seed)
+    const [data, setData] = useState([])
+    const [clientList, setClientList] = useState([])
     const [active, setActive] = useState('today')
     const [open, setOpen] = useState(false)
+
+    useEffect(() => {
+        Promise.all([api.get('/followups'), api.get('/clients')]).then(([f, c]) => {
+            setData(f.items || [])
+            setClientList(c.items || [])
+        }).catch(() => { })
+    }, [])
     const [form] = Form.useForm()
 
     const openModal = () => {
@@ -37,7 +45,7 @@ export default function FollowUps() {
 
     const createFollowUp = async () => {
         const v = await form.validateFields()
-        const client = clients.find((c) => c.id === v.clientId)
+        const client = clientList.find((c) => c.id === v.clientId)
         const diff = v.date.startOf('day').diff(dayjs().startOf('day'), 'day')
         const bucket = diff < 0 ? 'overdue' : diff === 0 ? 'today' : 'upcoming'
         setData((prev) => [
@@ -149,7 +157,7 @@ export default function FollowUps() {
                             showSearch
                             optionFilterProp="label"
                             placeholder="Select a client"
-                            options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                            options={clientList.map((c) => ({ value: c.id, label: c.name }))}
                         />
                     </Form.Item>
                     <Form.Item name="date" label="Date" rules={[{ required: true, message: 'Pick a date' }]}>

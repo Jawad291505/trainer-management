@@ -28,6 +28,14 @@ export function computeGL(gi, carbGrams) {
 
 export function formatQty(food, qty) {
     if (!food || food.unit === 'count') return `${qty}`
+    // If the food has a serving unit and qty is a clean multiple, show it
+    if (food.servingWeight && food.serving && qty > 0) {
+        const units = qty / food.servingWeight
+        if (Number.isInteger(units) || Math.abs(units - Math.round(units)) < 0.01) {
+            const n = Math.round(units)
+            return `${n} × ${food.serving} (${qty}${food.unit})`
+        }
+    }
     return `${qty}${food.unit}`
 }
 

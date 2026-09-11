@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Select, Segmented, Button, Modal, Form, Input, App, Dropdown } from 'antd'
 import {
     PlusOutlined,
@@ -21,7 +21,9 @@ import DataTable from '../../../components/tables/DataTable'
 import StatusBadge from '../../../components/common/StatusBadge'
 import EmptyState from '../../../components/common/EmptyState'
 import { confirmDelete } from '../../../utils/confirm'
-import { libraryResources as seed, libraryCategories } from '../../../services/mockData'
+import { api } from '../../../services/api'
+
+const LIBRARY_CATEGORIES = ['Workout Guides', 'Nutrition Guides', 'Exercise Videos', 'Documents', 'Educational Resources']
 
 const CAT_ICON = {
     'Workout Guides': ReadOutlined,
@@ -33,7 +35,12 @@ const CAT_ICON = {
 
 export default function Libraries() {
     const { message } = App.useApp()
-    const [data, setData] = useState(seed)
+    const [data, setData] = useState([])
+
+    useEffect(() => {
+        api.get('/resources').then((res) => setData(res.items || [])).catch(() => { })
+    }, [])
+
     const [search, setSearch] = useState('')
     const [category, setCategory] = useState('all')
     const [view, setView] = useState('grid')
@@ -63,26 +70,34 @@ export default function Libraries() {
 
     const save = async () => {
         const values = await form.validateFields()
-        if (editing) {
-            setData((prev) => prev.map((r) => (r.id === editing.id ? { ...r, ...values } : r)))
-            message.success('Resource updated')
-        } else {
-            setData((prev) => [
-                { id: `LB-${Date.now()}`, status: 'active', updated: new Date().toISOString().slice(0, 10), ...values },
-                ...prev,
-            ])
-            message.success('Resource added')
+        try {
+            if (editing) {
+                const updated = await api.patch(`/resources/${editing._id || editing.id}`, values)
+                setData((prev) => prev.map((r) => ((r._id || r.id) === (editing._id || editing.id) ? updated : r)))
+                message.success('Resource updated')
+            } else {
+                const created = await api.post('/resources', values)
+                setData((prev) => [created, ...prev])
+                message.success('Resource added')
+            }
+            setModalOpen(false)
+        } catch (err) {
+            message.error(err.message)
         }
-        setModalOpen(false)
     }
 
     const remove = (r) =>
         confirmDelete({
             title: 'Delete resource?',
             content: `Remove "${r.title}" from the library?`,
-            onOk: () => {
-                setData((prev) => prev.filter((x) => x.id !== r.id))
-                message.success('Resource deleted')
+            onOk: async () => {
+                try {
+                    await api.delete(`/resources/${r._id || r.id}`)
+                    setData((prev) => prev.filter((x) => (x._id || x.id) !== (r._id || r.id)))
+                    message.success('Resource deleted')
+                } catch (err) {
+                    message.error(err.message)
+                }
             },
         })
 
@@ -94,13 +109,20 @@ export default function Libraries() {
             { type: 'divider' },
             { key: 'delete', icon: <DeleteOutlined />, label: 'Delete', danger: true },
         ],
-        onClick: ({ key }) => {
+        onClick: async ({ key }) => {
             if (key === 'open') window.open(r.url, '_blank', 'noopener,noreferrer')
             else if (key === 'edit') openEdit(r)
             else if (key === 'delete') remove(r)
             else if (key === 'toggle') {
-                setData((prev) => prev.map((x) => (x.id === r.id ? { ...x, status: x.status === 'active' ? 'inactive' : 'active' } : x)))
-                message.success('Status updated')
+                const rid = r._id || r.id
+                const next = r.status === 'active' ? 'inactive' : 'active'
+                try {
+                    const updated = await api.patch(`/resources/${rid}`, { status: next })
+                    setData((prev) => prev.map((x) => ((x._id || x.id) === rid ? updated : x)))
+                    message.success('Status updated')
+                } catch (err) {
+                    message.error(err.message)
+                }
             }
         },
     })
@@ -126,7 +148,7 @@ export default function Libraries() {
         },
         { title: 'Category', dataIndex: 'category', width: 180, render: (c) => <span className="text-text-secondary">{c}</span> },
         { title: 'Status', dataIndex: 'status', width: 120, render: (s) => <StatusBadge status={s} /> },
-        { title: 'Updated', dataIndex: 'updated', width: 120, render: (d) => <span className="text-text-muted">{d}</span> },
+        { title: 'Updated', dataIndex: 'updatedAt', width: 120, render: (d) => <span className="text-text-muted">{d ? new Date(d).toLocaleDateString('en-CA') : '—'}</span> },
         {
             title: '',
             key: 'actions',
@@ -154,7 +176,7 @@ export default function Libraries() {
                     value={category}
                     onChange={setCategory}
                     style={{ width: 210 }}
-                    options={[{ value: 'all', label: 'All categories' }, ...libraryCategories.map((c) => ({ value: c, label: c }))]}
+                    options={[{ value: 'all', label: 'All categories' }, ...LIBRARY_CATEGORIES.map((c) => ({ value: c, label: c }))]}
                 />
                 <div className="sm:ml-auto">
                     <Segmented
@@ -177,13 +199,14 @@ export default function Libraries() {
                     />
                 </div>
             ) : view === 'table' ? (
-                <DataTable columns={columns} dataSource={filtered} pageSize={8} scrollX={800} />
+                <DataTable columns={columns} dataSource={filtered} pageSize={8} scrollX={800} rowKey={(r) => r._id || r.id} />
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {filtered.map((r) => {
                         const Icon = CAT_ICON[r.category] || ReadOutlined
+                        const rid = r._id || r.id
                         return (
-                            <div key={r.id} className="app-card app-card-hover animate-rise flex flex-col p-5">
+                            <div key={rid} className="app-card app-card-hover animate-rise flex flex-col p-5">
                                 <div className="flex items-start justify-between">
                                     <div className="flex h-11 w-11 items-center justify-center rounded-xl text-lg" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
                                         <Icon />
@@ -227,7 +250,7 @@ export default function Libraries() {
                         <Input placeholder="e.g. Full Body Strength Program" />
                     </Form.Item>
                     <Form.Item name="category" label="Category" rules={[{ required: true, message: 'Select a category' }]}>
-                        <Select options={libraryCategories.map((c) => ({ value: c, label: c }))} placeholder="Select category" />
+                        <Select options={LIBRARY_CATEGORIES.map((c) => ({ value: c, label: c }))} placeholder="Select category" />
                     </Form.Item>
                     <Form.Item name="description" label="Description">
                         <Input.TextArea rows={2} placeholder="Short description of the resource" />

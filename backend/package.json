@@ -9,7 +9,8 @@
     "dev": "node --watch src/server.js",
     "seed": "node src/seeders/seed.js",
     "seed:master": "node src/seeders/seed.js --only=master",
-    "seed:demo": "node src/seeders/seed.js --only=demo"
+    "seed:demo": "node src/seeders/seed.js --only=demo",
+    "seed:users": "node src/seeders/seedUsers.js"
   },
   "engines": {
     "node": ">=18"

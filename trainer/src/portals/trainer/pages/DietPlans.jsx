@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Select, Button, Modal, Form, Input, InputNumber, Tag, App, Alert } from 'antd'
 import {
     PlusOutlined,
@@ -12,7 +12,7 @@ import {
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
 import ModalTitle from '../../../components/common/ModalTitle'
-import { clients, sampleDietPlan } from '../../../services/mockData'
+import { api } from '../../../services/api'
 import { dietPlanSeed as dietPlanTemplates } from '../../../services/dietPlans'
 import { useLibrary } from '../../../context/LibraryContext'
 import {
@@ -30,8 +30,17 @@ let mealSeq = 100
 export default function DietPlans() {
     const { message } = App.useApp()
     const { foods } = useLibrary()
-    const [clientId, setClientId] = useState(sampleDietPlan.clientId)
-    const [meals, setMeals] = useState(sampleDietPlan.meals)
+    const [clientId, setClientId] = useState(null)
+    const [clientList, setClientList] = useState([])
+    const [meals, setMeals] = useState([])
+
+    useEffect(() => {
+        api.get('/clients').then((res) => {
+            const items = res.items || []
+            setClientList(items)
+            if (items.length > 0) setClientId(items[0].id)
+        }).catch(() => { })
+    }, [])
     const [templateId, setTemplateId] = useState(undefined)
     const [templateName, setTemplateName] = useState('')
     const [mealModal, setMealModal] = useState(false)
@@ -135,7 +144,7 @@ export default function DietPlans() {
                     value={clientId}
                     onChange={setClientId}
                     style={{ width: 240 }}
-                    options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                    options={clientList.map((c) => ({ value: c.id, label: c.name }))}
                 />
                 <span
                     className="rounded-full px-2.5 py-1 text-xs font-semibold"

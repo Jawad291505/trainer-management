@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Select, Button, App, Modal, Form, Input, InputNumber } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
@@ -6,20 +6,34 @@ import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import EmptyState from '../../../components/common/EmptyState'
+import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import TrainerCard from '../components/TrainerCard'
 import { confirmDelete } from '../../../utils/confirm'
-import { trainers as seed } from '../../../services/mockData'
+import { api } from '../../../services/api'
 
 export default function Trainers() {
     const { message } = App.useApp()
     const navigate = useNavigate()
-    const [data, setData] = useState(seed)
+    const [data, setData] = useState([])
+    const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
-    const [editing, setEditing] = useState(null) // trainer record, or 'new', or null
+    const [editing, setEditing] = useState(null)
+    const [saving, setSaving] = useState(false)
     const [form] = Form.useForm()
 
-    const AVATAR_COLORS = ['#0b2545', '#7c3aed', '#047857', '#be123c', '#b45309', '#0f766e', '#2563eb']
+    const fetchTrainers = async () => {
+        try {
+            const res = await api.get('/trainers')
+            setData(res.items || [])
+        } catch (err) {
+            message.error('Failed to load trainers')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchTrainers() }, [])
 
     const openCreate = () => {
         setEditing('new')
@@ -38,43 +52,35 @@ export default function Trainers() {
 
     const saveTrainer = async () => {
         const v = await form.validateFields()
-        if (editing === 'new') {
-            setData((prev) => [
-                {
-                    id: `TR-${Date.now()}`,
-                    name: v.name,
-                    email: v.email,
-                    specialization: v.specialization,
-                    status: v.status,
-                    capacity: v.capacity,
-                    clients: 0,
-                    joinDate: new Date().toISOString().slice(0, 10),
-                    rating: 0,
-                    revenue: 0,
-                    avatarColor: AVATAR_COLORS[prev.length % AVATAR_COLORS.length],
-                },
-                ...prev,
-            ])
-            message.success(`${v.name} created`)
-        } else {
-            setData((prev) => prev.map((t) => (t.id === editing.id ? { ...t, ...v } : t)))
-            message.success('Trainer updated')
+        setSaving(true)
+        try {
+            if (editing === 'new') {
+                const created = await api.post('/trainers', v)
+                setData((prev) => [created, ...prev])
+                message.success(`${v.name} created`)
+            } else {
+                const updated = await api.patch(`/trainers/${editing.id}`, v)
+                setData((prev) => prev.map((t) => (t.id === editing.id ? updated : t)))
+                message.success('Trainer updated')
+            }
+            setEditing(null)
+        } catch (err) {
+            message.error(err.message)
+        } finally {
+            setSaving(false)
         }
-        setEditing(null)
     }
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
         return data.filter((t) => {
-            const matchQ = !q || t.name.toLowerCase().includes(q) || t.specialization.toLowerCase().includes(q)
+            const matchQ = !q || t.name?.toLowerCase().includes(q) || t.specialization?.toLowerCase().includes(q)
             const matchS = status === 'all' || t.status === status
             return matchQ && matchS
         })
     }, [data, search, status])
 
-    const update = (id, patch) => setData((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
-
-    const handleAction = (key, trainer) => {
+    const handleAction = async (key, trainer) => {
         switch (key) {
             case 'view':
                 navigate(`/trainers/${trainer.id}`)
@@ -83,29 +89,39 @@ export default function Trainers() {
                 openEdit(trainer)
                 break
             case 'increase':
-                update(trainer.id, { capacity: trainer.capacity + 1 })
-                message.success(`Capacity increased to ${trainer.capacity + 1}`)
+                try {
+                    const res = await api.patch(`/trainers/${trainer.id}/capacity`, { delta: 1 })
+                    setData((prev) => prev.map((t) => (t.id === trainer.id ? res : t)))
+                    message.success(`Capacity increased to ${res.capacity}`)
+                } catch (err) { message.error(err.message) }
                 break
             case 'decrease':
-                if (trainer.capacity <= trainer.clients) {
-                    message.warning('Capacity cannot be below current client count')
-                } else {
-                    update(trainer.id, { capacity: trainer.capacity - 1 })
-                    message.success(`Capacity decreased to ${trainer.capacity - 1}`)
-                }
+                try {
+                    const res = await api.patch(`/trainers/${trainer.id}/capacity`, { delta: -1 })
+                    setData((prev) => prev.map((t) => (t.id === trainer.id ? res : t)))
+                    message.success(`Capacity decreased to ${res.capacity}`)
+                } catch (err) { message.error(err.message) }
                 break
-            case 'toggle':
-                update(trainer.id, { status: trainer.status === 'active' ? 'inactive' : 'active' })
-                message.success(`${trainer.name} ${trainer.status === 'active' ? 'deactivated' : 'activated'}`)
+            case 'toggle': {
+                const next = trainer.status === 'active' ? 'inactive' : 'active'
+                try {
+                    const res = await api.patch(`/trainers/${trainer.id}`, { status: next })
+                    setData((prev) => prev.map((t) => (t.id === trainer.id ? res : t)))
+                    message.success(`${trainer.name} ${next === 'active' ? 'activated' : 'deactivated'}`)
+                } catch (err) { message.error(err.message) }
                 break
+            }
             case 'delete':
                 confirmDelete({
                     title: 'Delete trainer?',
                     content: `This will remove ${trainer.name} and unassign their clients.`,
                     okText: 'Delete trainer',
-                    onOk: () => {
-                        setData((prev) => prev.filter((t) => t.id !== trainer.id))
-                        message.success('Trainer deleted')
+                    onOk: async () => {
+                        try {
+                            await api.delete(`/trainers/${trainer.id}`)
+                            setData((prev) => prev.filter((t) => t.id !== trainer.id))
+                            message.success('Trainer deleted')
+                        } catch (err) { message.error(err.message) }
                     },
                 })
                 break
@@ -113,6 +129,8 @@ export default function Trainers() {
                 message.info(`${key} — ${trainer.name}`)
         }
     }
+
+    if (loading) return <LoadingSkeleton />
 
     return (
         <div>
@@ -154,6 +172,7 @@ export default function Trainers() {
                 onCancel={() => setEditing(null)}
                 onOk={saveTrainer}
                 okText={editing === 'new' ? 'Create' : 'Save changes'}
+                confirmLoading={saving}
                 centered
             >
                 <Form form={form} layout="vertical" className="mt-4">

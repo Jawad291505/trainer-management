@@ -48,6 +48,31 @@ export async function getAdminStats() {
     const trainers = await Trainer.find({}, 'user').populate('user', 'name')
     const nameById = new Map(trainers.map((t) => [String(t._id), t.user?.name?.split(' ')[0] || 'Trainer']))
 
+    // Monthly client growth (last 8 months) — counts clients by joinDate month.
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const now = new Date()
+    const eightMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 7, 1)
+    const clientGrowthAgg = await Client.aggregate([
+        { $match: { joinDate: { $gte: eightMonthsAgo } } },
+        { $group: { _id: { y: { $year: '$joinDate' }, m: { $month: '$joinDate' } }, clients: { $sum: 1 } } },
+        { $sort: { '_id.y': 1, '_id.m': 1 } },
+    ])
+    const trainerGrowthAgg = await User.aggregate([
+        { $match: { role: 'trainer', joinDate: { $gte: eightMonthsAgo } } },
+        { $group: { _id: { y: { $year: '$joinDate' }, m: { $month: '$joinDate' } }, trainers: { $sum: 1 } } },
+        { $sort: { '_id.y': 1, '_id.m': 1 } },
+    ])
+    // Build a filled array for all 8 months
+    const clientGrowth = []
+    for (let i = 7; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const y = d.getFullYear()
+        const m = d.getMonth() + 1
+        const cRow = clientGrowthAgg.find((r) => r._id.y === y && r._id.m === m)
+        const tRow = trainerGrowthAgg.find((r) => r._id.y === y && r._id.m === m)
+        clientGrowth.push({ month: MONTHS[m - 1], clients: cRow?.clients || 0, trainers: tRow?.trainers || 0 })
+    }
+
     return {
         totalClients,
         activeClients,
@@ -74,6 +99,7 @@ export async function getAdminStats() {
             name: nameById.get(String(row._id)) || 'Trainer',
             value: row.value,
         })),
+        clientGrowth,
     }
 }
 

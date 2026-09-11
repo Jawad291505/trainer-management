@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Progress, Input, Alert } from 'antd'
 import {
   ClockCircleOutlined,
@@ -10,26 +10,39 @@ import {
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import GlycemicBadge from '../components/GlycemicBadge'
-import { dietPlan, trainer } from '../../../services/mockData'
+import { useAuth } from '../../../context/AuthContext'
+import { api } from '../../../services/api'
 import { getFood } from '../../../services/foodLibrary'
 import { computeNutrition, formatQty, glMealLevel } from '../../../utils/nutrition'
 
-// Resolve a plan item against the shared food library and derive its live
-// macros + GI/GL from the chosen quantity.
+// Use the pre-computed nutrition from the API response, or fall back to local resolution
 function resolveItem(it) {
-  const food = getFood(it.foodId)
+  // If the API already pre-computed this item (from serializeDietPlan), use it
+  if (it.name && it.qtyLabel && it.cal !== undefined) {
+    return { label: it.name, qtyLabel: it.qtyLabel, cal: it.cal, protein: it.protein, carbs: it.carbs, fat: it.fat, gi: it.gi, gl: it.gl }
+  }
+  // Fallback: resolve locally
+  const food = getFood(it.foodId || it.foodCode)
   if (!food) {
-    return { label: it.food || 'Food', qtyLabel: `${it.qty ?? ''}`, cal: 0, protein: 0, carbs: 0, fat: 0, gi: 0, gl: 0 }
+    return { label: it.food || it.name || 'Food', qtyLabel: `${it.qty ?? ''}`, cal: 0, protein: 0, carbs: 0, fat: 0, gi: 0, gl: 0 }
   }
   const n = computeNutrition(food, it.qty)
   return { label: food.name, qtyLabel: formatQty(food, it.qty), ...n }
 }
 
 export default function MyDiet() {
+  const { client } = useAuth()
+  const [dietPlan, setDietPlan] = useState(null)
+
+  useEffect(() => {
+    if (!client) return
+    api.get(`/clients/${client._id || client.id}/diet-plan`).then(setDietPlan).catch(() => { })
+  }, [client])
+
   // Precompute resolved items + per-meal macro/GL totals once.
   const meals = useMemo(
     () =>
-      dietPlan.meals.map((m) => {
+      (dietPlan?.meals || []).map((m) => {
         const items = m.items.map(resolveItem)
         const totals = items.reduce(
           (acc, it) => ({
@@ -117,17 +130,17 @@ export default function MyDiet() {
 
   return (
     <div>
-      <PageHeader title="My Diet Plan" subtitle={dietPlan.title}>
-        <RequestCorrection area="diet" items={dietPlan.meals.map((m) => `${m.name} — ${m.time}`)} />
+      <PageHeader title="My Diet Plan" subtitle={dietPlan?.title || 'No diet plan assigned'}>
+        <RequestCorrection area="diet" items={(dietPlan?.meals || []).map((m) => `${m.name} — ${m.time}`)} />
       </PageHeader>
 
       {/* Trainer attribution — makes the plan feel assigned, not generic */}
       <div className="mb-4 flex items-center gap-2 text-xs text-text-muted">
         <span>
-          Assigned by <span className="font-semibold text-text-secondary">{trainer.name}</span>
+          Assigned by <span className="font-semibold text-text-secondary">your trainer</span>
         </span>
         <span className="h-1 w-1 rounded-full" style={{ background: 'var(--color-border-strong)' }} />
-        <span>Updated {dietPlan.updatedAt}</span>
+        <span>Updated {dietPlan?.updatedAt ? new Date(dietPlan.updatedAt).toLocaleDateString('en-CA') : '—'}</span>
       </div>
 
       {/* Overall summary */}

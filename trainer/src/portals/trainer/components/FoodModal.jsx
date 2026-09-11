@@ -143,88 +143,7 @@ export default function FoodModal({ open, onCancel, onAdd }) {
                             Pick a food to set the quantity and see its nutrition.
                         </div>
                     ) : (
-                        <div className="mt-4 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)' }}>
-                            {/* header: name + category / GI · GL */}
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                    <div className="font-bold text-text-primary">{food.name}</div>
-                                    <span
-                                        className="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                                        style={{ background: 'var(--color-surface-secondary)', color: 'var(--color-text-secondary)' }}
-                                    >
-                                        {food.category}
-                                    </span>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-1.5">
-                                    <GlycemicBadge type="GI" value={nutrition.gi} level={giLevel(nutrition.gi)} />
-                                    <GlycemicBadge type="GL" value={nutrition.gl} level={glItemLevel(nutrition.gl)} />
-                                </div>
-                            </div>
-
-                            {/* quantity */}
-                            <div className="mt-4 flex items-end gap-3">
-                                <div className="flex-1">
-                                    <span className="field-label">Quantity{unitLabel ? ` (${unitLabel})` : ''}</span>
-                                    <InputNumber
-                                        min={food.step}
-                                        step={food.step}
-                                        value={qty}
-                                        onChange={(v) => setQty(v || 0)}
-                                        addonAfter={food.unit === 'count' ? null : food.unit}
-                                        style={{ width: '100%' }}
-                                    />
-                                </div>
-                                <div className="pb-1.5 text-sm font-semibold text-text-secondary">
-                                    {formatQty(food, qty)}
-                                </div>
-                            </div>
-
-                            {/* quick picks */}
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                {[1, 2, 3, 4].map((mult) => {
-                                    const q = food.unit === 'count' ? mult : food.step * mult
-                                    const active = qty === q
-                                    return (
-                                        <button
-                                            key={mult}
-                                            type="button"
-                                            onClick={() => setQty(q)}
-                                            className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors"
-                                            style={{
-                                                background: active ? 'var(--color-primary)' : 'var(--color-surface-secondary)',
-                                                color: active ? '#fff' : 'var(--color-text-secondary)',
-                                            }}
-                                        >
-                                            {formatQty(food, q)}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-
-                            {/* macros */}
-                            <div
-                                className="mt-4 grid grid-cols-4 gap-2 rounded-xl p-3 text-center"
-                                style={{ background: 'var(--color-surface-secondary)' }}
-                            >
-                                {[
-                                    { label: 'Calories', value: nutrition.cal },
-                                    { label: 'Protein', value: `${nutrition.protein}g` },
-                                    { label: 'Carbs', value: `${nutrition.carbs}g` },
-                                    { label: 'Fats', value: `${nutrition.fat}g` },
-                                ].map((m) => (
-                                    <div key={m.label}>
-                                        <div className="text-lg font-extrabold text-text-primary">{m.value}</div>
-                                        <div className="text-[11px] text-text-muted">{m.label}</div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {glItemLevel(nutrition.gl) === 'high' && (
-                                <div className="mt-2 text-xs font-medium" style={{ color: glycemicMeta.high.color }}>
-                                    High glycemic load — consider a lower-GI carb or a smaller portion.
-                                </div>
-                            )}
-                        </div>
+                        <FoodQuantityCard food={food} qty={qty} setQty={setQty} nutrition={nutrition} />
                     )}
                 </div>
             ) : (
@@ -268,5 +187,144 @@ export default function FoodModal({ open, onCancel, onAdd }) {
                 </Form>
             )}
         </Modal>
+    )
+}
+
+
+// Quantity card with "grams / units" toggle for foods that have servingWeight
+function FoodQuantityCard({ food, qty, setQty, nutrition }) {
+    const hasServing = food.servingWeight && food.servingWeight > 0
+    const [inputMode, setInputMode] = useState('grams') // 'grams' | 'units'
+
+    // When switching to units, snap to nearest whole unit
+    const unitCount = hasServing ? Math.max(1, Math.round(qty / food.servingWeight)) : 1
+    const servingLabel = food.serving || '1 unit'
+
+    const handleModeChange = (mode) => {
+        setInputMode(mode)
+        if (mode === 'units' && hasServing) {
+            // Snap qty to nearest whole serving
+            const units = Math.max(1, Math.round(qty / food.servingWeight))
+            setQty(units * food.servingWeight)
+        }
+    }
+
+    const handleUnitChange = (units) => {
+        if (!units || units < 1) return
+        setQty(Math.round(units * food.servingWeight))
+    }
+
+    return (
+        <div className="mt-4 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="font-bold text-text-primary">{food.name}</div>
+                    <div className="mt-1 flex items-center gap-2">
+                        <span className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--color-surface-secondary)', color: 'var(--color-text-secondary)' }}>
+                            {food.category}
+                        </span>
+                        {hasServing && (
+                            <span className="text-[11px] text-text-muted">{servingLabel} = {food.servingWeight}g</span>
+                        )}
+                    </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                    <GlycemicBadge type="GI" value={nutrition.gi} level={giLevel(nutrition.gi)} />
+                    <GlycemicBadge type="GL" value={nutrition.gl} level={glItemLevel(nutrition.gl)} />
+                </div>
+            </div>
+
+            {/* Mode toggle: grams vs units */}
+            {hasServing && (
+                <div className="mt-3">
+                    <Segmented
+                        size="small"
+                        value={inputMode}
+                        onChange={handleModeChange}
+                        options={[
+                            { value: 'grams', label: `In ${food.unit}` },
+                            { value: 'units', label: `In units (${servingLabel})` },
+                        ]}
+                    />
+                </div>
+            )}
+
+            <div className="mt-3 flex items-end gap-3">
+                {inputMode === 'units' && hasServing ? (
+                    <div className="flex-1">
+                        <span className="field-label">How many ({servingLabel})</span>
+                        <InputNumber
+                            min={1}
+                            step={1}
+                            value={unitCount}
+                            onChange={handleUnitChange}
+                            addonAfter={servingLabel}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                ) : (
+                    <div className="flex-1">
+                        <span className="field-label">Quantity ({food.unit})</span>
+                        <InputNumber
+                            min={food.step}
+                            step={food.step}
+                            value={qty}
+                            onChange={(v) => setQty(v || 0)}
+                            addonAfter={food.unit === 'count' ? null : food.unit}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                )}
+                <div className="pb-1.5 text-sm font-semibold text-text-secondary">
+                    {inputMode === 'units' && hasServing
+                        ? `${unitCount} × ${servingLabel} = ${qty}${food.unit}`
+                        : formatQty(food, qty)}
+                </div>
+            </div>
+
+            {/* Quick picks */}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+                {inputMode === 'units' && hasServing
+                    ? [1, 2, 3, 4].map((n) => {
+                        const q = n * food.servingWeight
+                        const active = qty === q
+                        return (
+                            <button key={n} type="button" onClick={() => setQty(q)} className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors" style={{ background: active ? 'var(--color-primary)' : 'var(--color-surface-secondary)', color: active ? '#fff' : 'var(--color-text-secondary)' }}>
+                                {n} {servingLabel}
+                            </button>
+                        )
+                    })
+                    : [1, 2, 3, 4].map((mult) => {
+                        const q = food.unit === 'count' ? mult : food.step * mult
+                        const active = qty === q
+                        return (
+                            <button key={mult} type="button" onClick={() => setQty(q)} className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors" style={{ background: active ? 'var(--color-primary)' : 'var(--color-surface-secondary)', color: active ? '#fff' : 'var(--color-text-secondary)' }}>
+                                {formatQty(food, q)}
+                            </button>
+                        )
+                    })}
+            </div>
+
+            {/* Macros */}
+            <div className="mt-4 grid grid-cols-4 gap-2 rounded-xl p-3 text-center" style={{ background: 'var(--color-surface-secondary)' }}>
+                {[
+                    { label: 'Calories', value: nutrition.cal },
+                    { label: 'Protein', value: `${nutrition.protein}g` },
+                    { label: 'Carbs', value: `${nutrition.carbs}g` },
+                    { label: 'Fats', value: `${nutrition.fat}g` },
+                ].map((m) => (
+                    <div key={m.label}>
+                        <div className="text-lg font-extrabold text-text-primary">{m.value}</div>
+                        <div className="text-[11px] text-text-muted">{m.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            {glItemLevel(nutrition.gl) === 'high' && (
+                <div className="mt-2 text-xs font-medium" style={{ color: glycemicMeta.high.color }}>
+                    High glycemic load — consider a lower-GI carb or a smaller portion.
+                </div>
+            )}
+        </div>
     )
 }

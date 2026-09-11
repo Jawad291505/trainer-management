@@ -15,21 +15,17 @@ import UserAvatar from '../common/UserAvatar'
 import NotificationMenu from './NotificationMenu'
 import ThemePicker from '../common/ThemePicker'
 import { useAuth } from '../../context/AuthContext'
-import { notifications, clients, trainers } from '../../services/mockData'
 
-// Flat searchable index of the platform's key entities.
-const SEARCH_INDEX = [
-    ...trainers.map((t) => ({ value: `trainer:${t.id}`, label: t.name, sub: t.specialization, path: `/trainers/${t.id}` })),
-    ...clients.map((c) => ({ value: `client:${c.id}`, label: c.name, sub: `${c.goal} · ${c.trainerName}`, path: `/clients/${c.id}` })),
-]
+// Search index will be built dynamically when data is available
+const SEARCH_INDEX = []
 
 export default function Header({ collapsed, onToggle, onOpenMobile }) {
     const navigate = useNavigate()
-    const { logout } = useAuth()
+    const { logout, user } = useAuth()
     const [notifOpen, setNotifOpen] = useState(false)
     const [query, setQuery] = useState('')
 
-    const unread = notifications.filter((n) => n.unread).length
+    const unread = 0
 
     const searchOptions = useMemo(() => {
         const q = query.trim().toLowerCase()
@@ -144,9 +140,9 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
                     placement="bottomRight"
                 >
                     <button className="ml-1 flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface-secondary">
-                        <UserAvatar name="Alexandra Reed" color="var(--color-primary)" size={34} />
+                        <UserAvatar name={user?.name || 'Admin'} color={user?.avatarColor || 'var(--color-primary)'} size={34} />
                         <div className="hidden text-left leading-tight lg:block">
-                            <div className="text-sm font-bold text-text-primary">Alexandra Reed</div>
+                            <div className="text-sm font-bold text-text-primary">{user?.name || 'Admin'}</div>
                             <div className="text-[11px] text-text-muted">Super Admin</div>
                         </div>
                     </button>

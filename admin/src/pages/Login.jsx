@@ -19,7 +19,8 @@ const CONFIG = {
         'Assignments and capacity at a glance',
         'Payments, plans and content libraries',
     ],
-    demoEmail: 'alexandra.reed@fittrack.io',
+    demoEmail: 'admin@fit360.com',
+    demoPassword: 'Fit360@123abc',
 }
 
 function Brand({ className = '' }) {
@@ -36,24 +37,31 @@ export default function Login() {
     const { message } = App.useApp()
     const navigate = useNavigate()
     const { login } = useAuth()
-    const [mode, setMode] = useState('signin') // 'signin' | 'signup'
     const [loading, setLoading] = useState(false)
     const [form] = Form.useForm()
 
     const submit = async () => {
+        let values
         try {
-            await form.validateFields()
+            values = await form.validateFields()
         } catch {
             return
         }
         setLoading(true)
-        setTimeout(() => {
-            login()
+        try {
+            const user = await login(values.email, values.password)
+            if (user.role !== 'admin') {
+                message.error('This portal is for admins only')
+                setLoading(false)
+                return
+            }
             navigate('/', { replace: true })
-        }, 550)
+        } catch (err) {
+            message.error(err.message || 'Login failed')
+        } finally {
+            setLoading(false)
+        }
     }
-
-    const isSignin = mode === 'signin'
 
     return (
         <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
@@ -98,12 +106,10 @@ export default function Login() {
                     </div>
 
                     <h2 className="text-2xl font-extrabold tracking-tight text-text-primary">
-                        {isSignin ? 'Welcome back' : 'Create your account'}
+                        Welcome back
                     </h2>
                     <p className="mt-1.5 text-sm text-text-secondary">
-                        {isSignin
-                            ? 'Sign in to continue to your dashboard.'
-                            : 'Get started in less than a minute.'}
+                        Sign in to continue to your dashboard.
                     </p>
 
                     <Form
@@ -111,19 +117,9 @@ export default function Login() {
                         layout="vertical"
                         requiredMark={false}
                         className="mt-8"
-                        initialValues={{ email: CONFIG.demoEmail, password: 'demo1234', remember: true }}
+                        initialValues={{ email: CONFIG.demoEmail, password: CONFIG.demoPassword, remember: true }}
                         onFinish={submit}
                     >
-                        {!isSignin && (
-                            <Form.Item
-                                name="name"
-                                label="Full name"
-                                rules={[{ required: true, message: 'Enter your name' }]}
-                            >
-                                <Input size="large" prefix={<UserOutlined />} placeholder="Jane Doe" />
-                            </Form.Item>
-                        )}
-
                         <Form.Item
                             name="email"
                             label="Email"
@@ -143,20 +139,11 @@ export default function Login() {
                             <Input.Password size="large" prefix={<LockOutlined />} placeholder="••••••••" />
                         </Form.Item>
 
-                        {isSignin && (
-                            <div className="mb-5 flex items-center justify-between">
-                                <Form.Item name="remember" valuePropName="checked" noStyle>
-                                    <Checkbox>Remember me</Checkbox>
-                                </Form.Item>
-                                <button
-                                    type="button"
-                                    className="text-sm font-semibold text-primary"
-                                    onClick={() => message.info('Password reset link sent (demo).')}
-                                >
-                                    Forgot password?
-                                </button>
-                            </div>
-                        )}
+                        <div className="mb-5 flex items-center justify-between">
+                            <Form.Item name="remember" valuePropName="checked" noStyle>
+                                <Checkbox>Remember me</Checkbox>
+                            </Form.Item>
+                        </div>
 
                         <Button
                             type="primary"
@@ -167,23 +154,9 @@ export default function Login() {
                             iconPosition="end"
                             icon={loading ? undefined : <ArrowRightOutlined />}
                         >
-                            {isSignin ? 'Sign in' : 'Create account'}
+                            Sign in
                         </Button>
                     </Form>
-
-                    <p className="mt-6 text-center text-sm text-text-secondary">
-                        {isSignin ? "Don't have an account? " : 'Already have an account? '}
-                        <button
-                            type="button"
-                            className="font-semibold text-primary"
-                            onClick={() => {
-                                setMode(isSignin ? 'signup' : 'signin')
-                                form.resetFields(['name'])
-                            }}
-                        >
-                            {isSignin ? 'Create one' : 'Sign in'}
-                        </button>
-                    </p>
                 </div>
             </div>
         </div>

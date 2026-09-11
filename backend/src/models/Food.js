@@ -33,6 +33,7 @@ const foodSchema = new mongoose.Schema(
         step: { type: Number, default: 10 },
         defaultQty: { type: Number, default: 100 },
         serving: { type: String, default: '' }, // human label e.g. "1/2 cup"
+        servingWeight: { type: Number, default: null }, // grams per 1 serving unit (e.g. 50 for 1 egg)
 
         gi: { type: Number, default: 0, min: 0 },
         gl: { type: Number, default: 0, min: 0 },

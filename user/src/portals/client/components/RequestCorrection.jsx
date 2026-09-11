@@ -2,7 +2,14 @@ import { useState } from 'react'
 import { Button, Modal, Form, Input, Select, App } from 'antd'
 import { EditOutlined } from '@ant-design/icons'
 import { useCorrections } from '../../../context/CorrectionsContext'
-import { correctionTypeOptions } from '../../../services/mockData'
+
+const correctionTypeOptions = [
+    { value: 'swap', label: 'Swap / substitute' },
+    { value: 'too-hard', label: 'Too difficult' },
+    { value: 'injury', label: 'Injury / pain' },
+    { value: 'wrong-data', label: 'Wrong data' },
+    { value: 'other', label: 'Other' },
+]
 
 // Drop-in "Request a correction" button + modal for the client's plan pages.
 // `area` is one of diet | exercise | progress | general.

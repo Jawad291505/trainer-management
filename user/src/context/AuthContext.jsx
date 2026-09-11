@@ -1,39 +1,45 @@
-import { createContext, useContext, useCallback, useMemo, useState } from 'react'
+import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
+import { api, getToken, setToken } from '../services/api'
 
 const AuthContext = createContext(null)
-const STORAGE_KEY = 'fittrack.client.auth'
 
-// Lightweight demo auth — no backend. Persists a signed-in flag so a refresh
-// keeps you in the app; the login screen accepts the prefilled demo details.
 export function AuthProvider({ children }) {
-    const [authed, setAuthed] = useState(() => {
-        if (typeof window === 'undefined') return false
-        try {
-            return localStorage.getItem(STORAGE_KEY) === '1'
-        } catch {
-            return false
-        }
-    })
+    const [user, setUser] = useState(null)
+    const [loading, setLoading] = useState(true)
 
-    const login = useCallback(() => {
-        try {
-            localStorage.setItem(STORAGE_KEY, '1')
-        } catch {
-            /* ignore */
-        }
-        setAuthed(true)
+    useEffect(() => {
+        const token = getToken()
+        if (!token) { setLoading(false); return }
+        api.get('/auth/me')
+            .then((data) => setUser(data.user))
+            .catch(() => setToken(null))
+            .finally(() => setLoading(false))
+    }, [])
+
+    const login = useCallback(async (email, password) => {
+        const data = await api.post('/auth/login', { email, password })
+        setToken(data.token)
+        setUser(data.user)
+        return data.user
     }, [])
 
     const logout = useCallback(() => {
-        try {
-            localStorage.removeItem(STORAGE_KEY)
-        } catch {
-            /* ignore */
-        }
-        setAuthed(false)
+        setToken(null)
+        setUser(null)
     }, [])
 
-    const value = useMemo(() => ({ authed, login, logout }), [authed, login, logout])
+    const refreshUser = useCallback(async () => {
+        const data = await api.get('/auth/me')
+        setUser(data.user)
+    }, [])
+
+    const authed = !!user
+    const client = user?.client || null
+
+    const value = useMemo(
+        () => ({ authed, user, client, loading, login, logout, refreshUser }),
+        [authed, user, client, loading, login, logout, refreshUser],
+    )
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

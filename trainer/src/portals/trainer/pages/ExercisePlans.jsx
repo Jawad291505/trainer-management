@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Select, Button, Modal, Form, Input, InputNumber, App, Empty } from 'antd'
 import {
     PlusOutlined,
@@ -13,7 +13,7 @@ import {
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
 import ModalTitle from '../../../components/common/ModalTitle'
-import { clients, sampleExercisePlan } from '../../../services/mockData'
+import { api } from '../../../services/api'
 import { useLibrary } from '../../../context/LibraryContext'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
 import { confirmDelete } from '../../../utils/confirm'
@@ -27,8 +27,17 @@ let exSeq = 100
 export default function ExercisePlans() {
     const { message } = App.useApp()
     const { customExercises, updateExercise, removeExercise } = useLibrary()
-    const [clientId, setClientId] = useState(sampleExercisePlan.clientId)
-    const [days, setDays] = useState(sampleExercisePlan.days)
+    const [clientId, setClientId] = useState(null)
+    const [clientList, setClientList] = useState([])
+    const [days, setDays] = useState([])
+
+    useEffect(() => {
+        api.get('/clients').then((res) => {
+            const items = res.items || []
+            setClientList(items)
+            if (items.length > 0) setClientId(items[0].id)
+        }).catch(() => { })
+    }, [])
     const [dayModal, setDayModal] = useState(false)
     const [exModal, setExModal] = useState(null) // dayId
     const [libModal, setLibModal] = useState(false) // My Exercises manager
@@ -107,7 +116,7 @@ export default function ExercisePlans() {
                     value={clientId}
                     onChange={setClientId}
                     style={{ width: 240 }}
-                    options={clients.map((c) => ({ value: c.id, label: c.name }))}
+                    options={clientList.map((c) => ({ value: c.id, label: c.name }))}
                 />
                 <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} onClick={() => setDayModal(true)}>
                     Add day
