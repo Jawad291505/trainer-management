@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Progress, Input, Alert } from 'antd'
+import { useEffect, useMemo, useState, useCallback } from 'react'
+import { Progress, Input, Alert, Button, Modal, App } from 'antd'
 import {
   ClockCircleOutlined,
   CheckOutlined,
   WarningFilled,
   CoffeeOutlined,
   FireOutlined,
+  PlusOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import GlycemicBadge from '../components/GlycemicBadge'
+import PageSpin from '../../../components/common/PageSpin'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { getFood } from '../../../services/foodLibrary'
@@ -31,12 +34,31 @@ function resolveItem(it) {
 }
 
 export default function MyDiet() {
+  const { message } = App.useApp()
   const { client } = useAuth()
   const [dietPlan, setDietPlan] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [cheats, setCheats] = useState({}) // { [mealId]: { on, note, items } }
+  const [cheatModal, setCheatModal] = useState(null) // mealId being edited
+  const [cheatNote, setCheatNote] = useState('')
+  const [cheatItems, setCheatItems] = useState([''])
 
   useEffect(() => {
     if (!client) return
-    api.get(`/clients/${client._id || client.id}/diet-plan`).then(setDietPlan).catch(() => { })
+    Promise.all([
+      api.get(`/clients/${client._id || client.id}/diet-plan`),
+      api.get('/progress/daily').catch(() => null),
+    ]).then(([plan, daily]) => {
+      setDietPlan(plan)
+      // Hydrate cheats from today's daily log
+      if (daily?.cheats?.length) {
+        const loaded = {}
+        daily.cheats.forEach((c) => {
+          loaded[String(c.mealId)] = { on: true, note: c.note || '', items: c.items || [] }
+        })
+        setCheats(loaded)
+      }
+    }).catch(() => { }).finally(() => setLoading(false))
   }, [client])
 
   // Precompute resolved items + per-meal macro/GL totals once.
@@ -56,35 +78,92 @@ export default function MyDiet() {
         )
         return { ...m, resolved: items, totals }
       }),
-    [],
+    [dietPlan],
   )
 
   // Per-item completion, keyed by `${mealId}:${index}`.
-  const [checked, setChecked] = useState(() => {
-    const seed = {}
-    meals.forEach((m) => {
-      const preset = m.taskId === 'T1' || m.taskId === 'T4'
-      m.resolved.forEach((_, i) => {
-        seed[`${m.id}:${i}`] = preset
-      })
-    })
-    return seed
-  })
+  const [checked, setChecked] = useState({})
 
-  // Cheat state per meal: { [mealId]: { on, note } }
-  const [cheats, setCheats] = useState({})
+  // Hydrate checked state from daily log meal tasks
+  useEffect(() => {
+    if (!dietPlan) return
+    api.get('/progress/daily').then((daily) => {
+      if (!daily?.tasks) return
+      const mealTasks = {}
+      daily.tasks.filter((t) => t.type === 'meal').forEach((t) => {
+        mealTasks[String(t.mealId)] = t.done
+      })
+      // If a meal task is done, mark all its items as checked
+      const seed = {}
+      meals.forEach((m) => {
+        const mealDone = mealTasks[String(m._id || m.id)] || false
+        m.resolved.forEach((_, i) => {
+          seed[`${m.id}:${i}`] = mealDone
+        })
+      })
+      setChecked(seed)
+    }).catch(() => { })
+  }, [dietPlan, meals])
+
+  // Cheat state per meal: { [mealId]: { on, note, items } }
   const isCheat = (mealId) => !!cheats[mealId]?.on
 
-  const toggleItem = (mealId, idx) => {
-    if (isCheat(mealId)) return
-    setChecked((prev) => ({ ...prev, [`${mealId}:${idx}`]: !prev[`${mealId}:${idx}`] }))
+  const openCheatModal = (mealId, mealName) => {
+    const existing = cheats[mealId]
+    setCheatNote(existing?.note || '')
+    setCheatItems(existing?.items?.length ? [...existing.items] : [''])
+    setCheatModal({ id: mealId, name: mealName })
   }
 
-  const toggleCheat = (mealId) =>
-    setCheats((prev) => ({ ...prev, [mealId]: { on: !prev[mealId]?.on, note: prev[mealId]?.note || '' } }))
+  const saveCheat = async () => {
+    if (!cheatModal) return
+    const mealId = cheatModal.id
+    const items = cheatItems.filter((s) => s.trim())
+    try {
+      await api.post('/progress/daily/cheat', {
+        mealId,
+        mealName: cheatModal.name,
+        note: cheatNote,
+        items,
+      })
+      setCheats((prev) => ({ ...prev, [mealId]: { on: true, note: cheatNote, items } }))
+      message.success('Cheat meal logged')
+    } catch (err) {
+      message.error(err.message || 'Failed to save')
+    }
+    setCheatModal(null)
+  }
 
-  const setCheatNote = (mealId, note) =>
-    setCheats((prev) => ({ ...prev, [mealId]: { ...prev[mealId], note } }))
+  const revertCheat = async (mealId) => {
+    try {
+      await api.delete(`/progress/daily/cheat/${mealId}`)
+      setCheats((prev) => { const n = { ...prev }; delete n[mealId]; return n })
+      message.success('Back on plan')
+    } catch (err) {
+      message.error(err.message || 'Failed to revert')
+    }
+  }
+
+  const toggleItem = async (mealId, idx) => {
+    if (isCheat(mealId)) return
+    const key = `${mealId}:${idx}`
+    const newVal = !checked[key]
+    const next = { ...checked, [key]: newVal }
+    setChecked(next)
+
+    // Check if all items in this meal are now done
+    const meal = meals.find((m) => (m._id || m.id) === mealId || m.id === mealId)
+    if (!meal) return
+    const allDone = meal.resolved.every((_, i) => next[`${mealId}:${i}`])
+    const wasDone = meal.resolved.every((_, i) => i === idx ? checked[key] : checked[`${mealId}:${i}`])
+
+    // Only call backend when meal completion state changes (all done or was all done)
+    if (allDone !== wasDone) {
+      try {
+        await api.patch('/progress/daily', { taskKey: `meal:${mealId}`, done: allDone })
+      } catch { /* */ }
+    }
+  }
 
   const mealProgress = (meal) => {
     const done = meal.resolved.filter((_, i) => checked[`${meal.id}:${i}`]).length
@@ -127,6 +206,8 @@ export default function MyDiet() {
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cheats, meals])
+
+  if (loading) return <PageSpin />
 
   return (
     <div>
@@ -293,18 +374,31 @@ export default function MyDiet() {
                 })}
               </div>
 
-              {/* Cheat note */}
+              {/* Cheat details */}
               {cheat && (
-                <div className="mt-3">
+                <div className="mt-3 rounded-xl p-3" style={{ background: 'var(--color-warning-soft)' }}>
                   <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--color-warning)' }}>
-                    <WarningFilled /> Marked as a cheat meal
+                    <WarningFilled /> Cheat meal logged
                   </div>
-                  <Input
-                    value={cheats[meal.id]?.note || ''}
-                    onChange={(e) => setCheatNote(meal.id, e.target.value)}
-                    placeholder="Optional: what did you have instead?"
-                    variant="filled"
-                  />
+                  {cheats[meal.id]?.note && (
+                    <div className="text-sm text-text-secondary">{cheats[meal.id].note}</div>
+                  )}
+                  {cheats[meal.id]?.items?.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {cheats[meal.id].items.map((item, i) => (
+                        <span key={i} className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: 'var(--color-surface)', color: 'var(--color-text-secondary)' }}>
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => openCheatModal(meal.id, meal.name)}
+                    className="mt-2 text-xs font-semibold"
+                    style={{ color: 'var(--color-warning)' }}
+                  >
+                    Edit what you ate
+                  </button>
                 </div>
               )}
 
@@ -316,7 +410,7 @@ export default function MyDiet() {
 
               {/* Cheat toggle */}
               <button
-                onClick={() => toggleCheat(meal.id)}
+                onClick={() => cheat ? revertCheat(meal.id) : openCheatModal(meal.id, meal.name)}
                 className="mt-3 flex items-center gap-1.5 text-xs font-semibold transition-colors"
                 style={{ color: cheat ? 'var(--color-text-muted)' : 'var(--color-warning)' }}
               >
@@ -326,6 +420,63 @@ export default function MyDiet() {
           )
         })}
       </div>
+
+      {/* Cheat meal modal */}
+      <Modal
+        title={`Cheat meal — ${cheatModal?.name || ''}`}
+        open={!!cheatModal}
+        onCancel={() => setCheatModal(null)}
+        onOk={saveCheat}
+        okText="Save cheat meal"
+        centered
+        width={480}
+      >
+        <p className="mt-0 mb-3 text-sm text-text-secondary">
+          Let your trainer know what you had instead. This helps them adjust your plan.
+        </p>
+        <div className="mb-3">
+          <label className="mb-1 block text-sm font-medium text-text-secondary">What did you eat?</label>
+          {cheatItems.map((item, i) => (
+            <div key={i} className="mb-2 flex items-center gap-2">
+              <Input
+                value={item}
+                onChange={(e) => {
+                  const next = [...cheatItems]
+                  next[i] = e.target.value
+                  setCheatItems(next)
+                }}
+                placeholder={`e.g. ${i === 0 ? 'Pizza' : 'Soda'}`}
+              />
+              {cheatItems.length > 1 && (
+                <Button
+                  size="small"
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => setCheatItems((prev) => prev.filter((_, j) => j !== i))}
+                />
+              )}
+            </div>
+          ))}
+          <Button
+            type="dashed"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={() => setCheatItems((prev) => [...prev, ''])}
+          >
+            Add item
+          </Button>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text-secondary">Note (optional)</label>
+          <Input.TextArea
+            rows={2}
+            value={cheatNote}
+            onChange={(e) => setCheatNote(e.target.value)}
+            placeholder="e.g. Birthday dinner, couldn't resist the cake"
+          />
+        </div>
+      </Modal>
     </div>
   )
 }

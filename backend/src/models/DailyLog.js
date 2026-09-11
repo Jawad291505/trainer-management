@@ -23,11 +23,22 @@ const taskSchema = new mongoose.Schema(
     { _id: false },
 )
 
+const cheatSchema = new mongoose.Schema(
+    {
+        mealId: { type: mongoose.Schema.Types.ObjectId, required: true }, // which planned meal was skipped
+        mealName: { type: String, default: '' },
+        note: { type: String, default: '' }, // free-text: "Had pizza instead"
+        items: { type: [String], default: [] }, // quick list of what they ate
+    },
+    { _id: true },
+)
+
 const dailyLogSchema = new mongoose.Schema(
     {
         client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true, index: true },
         date: { type: Date, required: true }, // normalised to 00:00 local
         tasks: { type: [taskSchema], default: [] },
+        cheats: { type: [cheatSchema], default: [] },
     },
     { timestamps: true },
 )

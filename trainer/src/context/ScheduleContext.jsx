@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../services/api'
+import { api, getToken } from '../services/api'
 
 const ScheduleContext = createContext(null)
 export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -9,6 +9,7 @@ export function ScheduleProvider({ children }) {
     const [week, setWeek] = useState(Object.fromEntries(WEEK_DAYS.map((d) => [d, []])))
 
     useEffect(() => {
+        if (!getToken()) return
         api.get('/schedule').then((res) => {
             setToday(res.today || [])
             setWeek(res.week || Object.fromEntries(WEEK_DAYS.map((d) => [d, []])))
@@ -17,7 +18,15 @@ export function ScheduleProvider({ children }) {
 
     const addActivity = useCallback(async (activity) => {
         try {
-            const created = await api.post('/schedule', activity)
+            const payload = {
+                title: activity.title,
+                type: activity.type,
+                scope: activity.day,          // 'today' | 'Mon'..'Sun'
+                time: activity.time,
+                notes: activity.notes,
+                client: activity.clientId,     // optional
+            }
+            const created = await api.post('/schedule', payload)
             if (activity.day === 'today') {
                 setToday((prev) => [...prev, created])
             } else {

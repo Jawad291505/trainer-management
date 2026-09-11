@@ -25,6 +25,12 @@ const clientSchema = new mongoose.Schema(
         // 0-100 goal-completion percentage shown on every client card / table.
         progress: { type: Number, default: 0, min: 0, max: 100 },
 
+        // Daily water intake target in litres, set by the trainer.
+        waterGoal: { type: Number, default: 2, min: 0 },
+
+        // Daily sleep target in hours, set by the trainer.
+        sleepGoal: { type: Number, default: 8, min: 0 },
+
         joinDate: { type: Date, default: Date.now },
         lastFollowUp: { type: Date, default: null },
         nextFollowUp: { type: Date, default: null },

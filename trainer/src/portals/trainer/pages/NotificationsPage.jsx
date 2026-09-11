@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
+import PageSpin from '../../../components/common/PageSpin'
 import { api } from '../../../services/api'
 
 const ICONS = {
@@ -22,9 +23,10 @@ export default function NotificationsPage() {
     const { message } = App.useApp()
     const [data, setData] = useState([])
     const [filter, setFilter] = useState('all')
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        api.get('/notifications').then((res) => setData(res.items || [])).catch(() => { })
+        api.get('/notifications').then((res) => setData(res.items || [])).catch(() => { }).finally(() => setLoading(false))
     }, [])
 
     const filtered = data.filter((n) => (filter === 'all' ? true : filter === 'unread' ? n.unread : !n.unread))
@@ -33,6 +35,8 @@ export default function NotificationsPage() {
         setData((prev) => prev.map((n) => ({ ...n, unread: false })))
         message.success('All marked as read')
     }
+
+    if (loading) return <PageSpin />
 
     return (
         <div>

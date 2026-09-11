@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../services/api'
+import { api, getToken } from '../services/api'
 
 const LibraryContext = createContext(null)
 
@@ -8,6 +8,7 @@ export function LibraryProvider({ children }) {
     const [exercises, setExercises] = useState([])
 
     useEffect(() => {
+        if (!getToken()) return
         Promise.all([api.get('/foods'), api.get('/exercises')]).then(([f, e]) => {
             setFoods(f.items || [])
             setExercises(e.items || [])
@@ -17,6 +18,7 @@ export function LibraryProvider({ children }) {
     const addFood = useCallback(async (food) => {
         const created = await api.post('/foods', food)
         setFoods((prev) => [created, ...prev])
+        return created
     }, [])
     const updateFood = useCallback(async (id, patch) => {
         const updated = await api.patch(`/foods/${id}`, patch)
@@ -30,6 +32,7 @@ export function LibraryProvider({ children }) {
     const addExercise = useCallback(async (ex) => {
         const created = await api.post('/exercises', ex)
         setExercises((prev) => [created, ...prev])
+        return created
     }, [])
     const updateExercise = useCallback(async (id, patch) => {
         const updated = await api.patch(`/exercises/${id}`, patch)

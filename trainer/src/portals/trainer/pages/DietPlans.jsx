@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, Tag, App, Alert } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, Tag, App, Alert, Spin } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -13,7 +13,6 @@ import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
 import ModalTitle from '../../../components/common/ModalTitle'
 import { api } from '../../../services/api'
-import { dietPlanSeed as dietPlanTemplates } from '../../../services/dietPlans'
 import { useLibrary } from '../../../context/LibraryContext'
 import {
     computeNutrition,
@@ -33,6 +32,11 @@ export default function DietPlans() {
     const [clientId, setClientId] = useState(null)
     const [clientList, setClientList] = useState([])
     const [meals, setMeals] = useState([])
+    const [planId, setPlanId] = useState(null)
+    const [saving, setSaving] = useState(false)
+    const [publishing, setPublishing] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [templates, setTemplates] = useState([])
 
     useEffect(() => {
         api.get('/clients').then((res) => {
@@ -40,7 +44,49 @@ export default function DietPlans() {
             setClientList(items)
             if (items.length > 0) setClientId(items[0].id)
         }).catch(() => { })
+        api.get('/diet-plan-templates').then((res) => {
+            setTemplates(res.items || [])
+        }).catch(() => { })
     }, [])
+
+    // Load existing diet plan for selected client
+    useEffect(() => {
+        if (!clientId) return
+        setLoading(true)
+        setPlanId(null)
+        setMeals([])
+        setTemplateName('')
+        setTemplateId(undefined)
+        api.get(`/diet-plans?client=${clientId}`).then(async (res) => {
+            const plans = res.items || []
+            const plan = plans.find((p) => p.status === 'draft') || plans[0]
+            if (!plan) return
+            // Fetch the full plan with computed nutrition
+            const full = await api.get(`/diet-plans/${plan._id || plan.id}`)
+            setPlanId(full._id || full.id)
+            setTemplateName(full.title || '')
+            const loaded = (full.meals || []).map((m, mi) => ({
+                id: m.id || `M${mi}`,
+                name: m.name,
+                time: m.time || '',
+                notes: m.notes || '',
+                items: (m.items || []).map((it) => ({
+                    foodId: it.foodId,
+                    foodCode: it.foodCode,
+                    food: it.name || '',
+                    qty: it.qty,
+                    unit: it.unit || 'g',
+                    cal: it.cal || 0,
+                    protein: Math.round((it.protein || 0) * 10) / 10,
+                    carbs: Math.round((it.carbs || 0) * 10) / 10,
+                    fat: Math.round((it.fat || 0) * 10) / 10,
+                    gl: it.gl || 0,
+                    gi: it.gi || 0,
+                })),
+            }))
+            setMeals(loaded)
+        }).catch(() => { }).finally(() => setLoading(false))
+    }, [clientId])
     const [templateId, setTemplateId] = useState(undefined)
     const [templateName, setTemplateName] = useState('')
     const [mealModal, setMealModal] = useState(false)
@@ -49,23 +95,39 @@ export default function DietPlans() {
 
     const openMealModal = () => setMealModal(true)
 
-    // Apply an admin diet-plan template: copy its meals/foods into this client's
-    // plan. The template is never modified; the trainer customises the copy.
-    const applyTemplate = (id) => {
+    // Apply an admin diet-plan template via API
+    const applyTemplate = async (id) => {
+        if (!clientId) { message.warning('Select a client first'); return }
         setTemplateId(id)
-        const tpl = dietPlanTemplates.find((p) => p.id === id)
-        if (!tpl) return
-        setMeals(
-            tpl.meals.map((m) => ({
-                id: `M${mealSeq++}`,
+        try {
+            const plan = await api.post('/diet-plans/from-template', { clientId, templateId: id })
+            setPlanId(plan._id || plan.id)
+            const planMeals = (plan.meals || []).map((m) => ({
+                id: m._id || `M${mealSeq++}`,
                 name: m.name,
                 time: m.time,
                 notes: m.notes || '',
-                items: m.items.map((it) => ({ ...it })),
-            })),
-        )
-        setTemplateName(tpl.name)
-        message.success(`Loaded "${tpl.name}" — review and customise before publishing`)
+                items: (m.items || []).map((it) => ({
+                    foodId: it.food,
+                    foodCode: it.foodCode,
+                    food: it.food_name || it.name || '',
+                    qty: it.qty,
+                    unit: it.unit || 'g',
+                    cal: it.cal || 0,
+                    protein: it.protein || 0,
+                    carbs: it.carbs || 0,
+                    fat: it.fat || 0,
+                    gl: it.gl || 0,
+                    gi: it.gi || 0,
+                })),
+            }))
+            setMeals(planMeals)
+            const tpl = templates.find((p) => (p._id || p.id) === id)
+            setTemplateName(tpl?.name || 'Template')
+            message.success(`Loaded "${tpl?.name || 'template'}" — review and customise before publishing`)
+        } catch (err) {
+            message.error(err.message || 'Failed to load template')
+        }
     }
 
     const clearTemplate = () => {
@@ -113,6 +175,69 @@ export default function DietPlans() {
         setMeals((prev) => prev.map((m) => (m.id === mealId ? { ...m, items: m.items.filter((_, i) => i !== idx) } : m)))
     }
 
+    // Build the meals payload for the API
+    const buildMealsPayload = () =>
+        meals.map((m) => ({
+            name: m.name,
+            time: m.time,
+            notes: m.notes || '',
+            items: m.items.map((it) => ({
+                foodCode: it.foodCode,
+                food_name: it.food,
+                qty: it.qty,
+                unit: it.unit,
+            })),
+        }))
+
+    const saveDraft = async () => {
+        if (!clientId) { message.warning('Select a client first'); return }
+        if (meals.length === 0) { message.warning('Add at least one meal'); return }
+        setSaving(true)
+        try {
+            if (planId) {
+                await api.patch(`/diet-plans/${planId}`, { meals: buildMealsPayload() })
+            } else {
+                const plan = await api.post('/diet-plans', {
+                    clientId,
+                    title: templateName || 'Custom Diet Plan',
+                    meals: buildMealsPayload(),
+                })
+                setPlanId(plan._id || plan.id)
+            }
+            message.success('Draft saved')
+        } catch (err) {
+            message.error(err.message || 'Failed to save draft')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const publishPlan = async () => {
+        if (!clientId) { message.warning('Select a client first'); return }
+        if (meals.length === 0) { message.warning('Add at least one meal'); return }
+        setPublishing(true)
+        try {
+            let id = planId
+            if (!id) {
+                const plan = await api.post('/diet-plans', {
+                    clientId,
+                    title: templateName || 'Custom Diet Plan',
+                    meals: buildMealsPayload(),
+                })
+                id = plan._id || plan.id
+                setPlanId(id)
+            } else {
+                await api.patch(`/diet-plans/${id}`, { meals: buildMealsPayload() })
+            }
+            await api.post(`/diet-plans/${id}/publish`)
+            message.success('Plan published to client')
+        } catch (err) {
+            message.error(err.message || 'Failed to publish plan')
+        } finally {
+            setPublishing(false)
+        }
+    }
+
     const dayTotals = meals.reduce(
         (acc, m) => {
             m.items.forEach((it) => {
@@ -134,8 +259,8 @@ export default function DietPlans() {
     return (
         <div>
             <PageHeader title="Diet Plans" subtitle="Build and publish customized meal plans.">
-                <Button icon={<SaveOutlined />} onClick={() => message.success('Draft saved')}>Save draft</Button>
-                <Button type="primary" icon={<SendOutlined />} onClick={() => message.success('Plan published to client')}>Publish</Button>
+                <Button icon={<SaveOutlined />} loading={saving} onClick={saveDraft}>Save draft</Button>
+                <Button type="primary" icon={<SendOutlined />} loading={publishing} onClick={publishPlan}>Publish</Button>
             </PageHeader>
 
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -172,7 +297,7 @@ export default function DietPlans() {
                             onChange={applyTemplate}
                             placeholder="Select a template…"
                             style={{ width: 240 }}
-                            options={dietPlanTemplates.map((p) => ({ value: p.id, label: `${p.name} · ${p.goal}` }))}
+                            options={templates.map((p) => ({ value: p._id || p.id, label: `${p.name}${p.goal ? ` · ${p.goal}` : ''}` }))}
                         />
                         {templateName && <Button type="text" onClick={clearTemplate}>Clear</Button>}
                     </div>
@@ -207,7 +332,9 @@ export default function DietPlans() {
                 ))}
             </div>
 
-            {meals.length === 0 ? (
+            {loading ? (
+                <div className="flex justify-center py-16"><Spin size="large" /></div>
+            ) : meals.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No meals yet"

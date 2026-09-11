@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../services/api'
+import { api, getToken } from '../services/api'
 
 // Admin-managed food & exercise libraries + diet-plan templates.
 // All CRUD goes through the backend API.
@@ -14,6 +14,7 @@ export function LibraryProvider({ children }) {
 
     useEffect(() => {
         async function load() {
+            if (!getToken()) { setLoading(false); return }
             try {
                 const [f, e, d] = await Promise.all([
                     api.get('/foods'),

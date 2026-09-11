@@ -13,8 +13,8 @@ const CONFIG = {
         'Log progress and stay accountable',
         'Message your trainer anytime',
     ],
-    demoEmail: 'client@fit360.com',
-    demoPassword: 'Fit360@123abc',
+    demoEmail: 'emma.thompson@gmail.com',
+    demoPassword: 'demo1234',
 }
 
 function Brand({ className = '' }) {

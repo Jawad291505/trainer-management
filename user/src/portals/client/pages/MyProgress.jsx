@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Modal, InputNumber, DatePicker, App } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Button, Modal, InputNumber, DatePicker, Segmented, App } from 'antd'
+import { PlusOutlined, CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import {
+    ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis,
+    CartesianGrid, Tooltip, Cell,
+} from 'recharts'
 import { useTheme } from '../../../context/ThemeContext'
 import { useAuth } from '../../../context/AuthContext'
 import PageHeader from '../../../components/common/PageHeader'
@@ -23,10 +26,31 @@ export default function MyProgress() {
     const [loading, setLoading] = useState(true)
     const [weightEntries, setWeightEntries] = useState([])
     const [completion, setCompletion] = useState(null)
+    const [habitHistory, setHabitHistory] = useState([])
+    const [habitGoals, setHabitGoals] = useState({ waterGoal: 2, sleepGoal: 8 })
+    const [habitDays, setHabitDays] = useState(14)
     const [modalOpen, setModalOpen] = useState(false)
     const [newWeight, setNewWeight] = useState(null)
     const [newDate, setNewDate] = useState(dayjs())
     const [saving, setSaving] = useState(false)
+
+    const loadHabits = async (days) => {
+        try {
+            const h = await api.get(`/progress/daily/history?days=${days}`)
+            setHabitHistory(
+                (h.history || []).map((d) => ({
+                    date: dayjs(d.date).format('DD MMM'),
+                    completionPct: d.completionPct,
+                    water: d.water,
+                    sleep: d.sleep,
+                    workout: d.workout,
+                    mealsDone: d.mealsDone,
+                    mealsTotal: d.mealsTotal,
+                })),
+            )
+            if (h.goals) setHabitGoals(h.goals)
+        } catch { /* */ }
+    }
 
     useEffect(() => {
         async function load() {
@@ -37,6 +61,7 @@ export default function MyProgress() {
                 ])
                 setWeightEntries((w.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
                 if (c) setCompletion(c)
+                await loadHabits(14)
             } catch { /* */ }
             finally { setLoading(false) }
         }
@@ -71,6 +96,23 @@ export default function MyProgress() {
     if (loading) return <LoadingSkeleton />
 
     const weeklyAvg = completion?.weeklyAveragePct ?? 0
+
+    // Habit streak stats
+    const habitStats = useMemo(() => {
+        const waterDone = habitHistory.filter((d) => d.water).length
+        const sleepDone = habitHistory.filter((d) => d.sleep).length
+        const workoutDone = habitHistory.filter((d) => d.workout).length
+        const total = habitHistory.length || 1
+        return {
+            waterPct: Math.round((waterDone / total) * 100),
+            sleepPct: Math.round((sleepDone / total) * 100),
+            workoutPct: Math.round((workoutDone / total) * 100),
+            waterDone,
+            sleepDone,
+            workoutDone,
+            total: habitHistory.length,
+        }
+    }, [habitHistory])
 
     return (
         <div>
@@ -110,6 +152,84 @@ export default function MyProgress() {
             </div>
 
             <div className="mt-4"><ProgressPhotos /></div>
+
+            {/* Daily Habit Tracking */}
+            <div className="mt-6">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="section-title m-0">Daily Habits</h3>
+                    <Segmented
+                        value={habitDays}
+                        onChange={(v) => { setHabitDays(v); loadHabits(v) }}
+                        options={[
+                            { value: 7, label: '7 days' },
+                            { value: 14, label: '14 days' },
+                            { value: 30, label: '30 days' },
+                        ]}
+                    />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="app-card flex flex-col items-center p-5">
+                        <ProgressRing value={habitStats.waterPct} size={100} sublabel="water" />
+                        <div className="mt-3 text-center">
+                            <div className="text-sm font-bold text-text-primary">{habitStats.waterDone}/{habitStats.total} days</div>
+                            <div className="text-xs text-text-muted">Goal: {habitGoals.waterGoal}L / day</div>
+                        </div>
+                    </div>
+                    <div className="app-card flex flex-col items-center p-5">
+                        <ProgressRing value={habitStats.sleepPct} size={100} sublabel="sleep" />
+                        <div className="mt-3 text-center">
+                            <div className="text-sm font-bold text-text-primary">{habitStats.sleepDone}/{habitStats.total} days</div>
+                            <div className="text-xs text-text-muted">Goal: {habitGoals.sleepGoal}h / night</div>
+                        </div>
+                    </div>
+                    <div className="app-card flex flex-col items-center p-5">
+                        <ProgressRing value={habitStats.workoutPct} size={100} sublabel="workout" />
+                        <div className="mt-3 text-center">
+                            <div className="text-sm font-bold text-text-primary">{habitStats.workoutDone}/{habitStats.total} days</div>
+                            <div className="text-xs text-text-muted">Completed workouts</div>
+                        </div>
+                    </div>
+                </div>
+
+                {habitHistory.length > 0 && (
+                    <ChartCard className="mt-4" title="Daily Completion" subtitle={`Last ${habitDays} days (%)`}>
+                        <ResponsiveContainer width="100%" height={240}>
+                            <BarChart data={habitHistory} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                                <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                                <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={36} />
+                                <Tooltip
+                                    content={({ active, payload, label }) => {
+                                        if (!active || !payload?.length) return null
+                                        const d = payload[0].payload
+                                        return (
+                                            <div className="rounded-lg border px-3 py-2 shadow-sm" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                                                <div className="text-xs font-semibold text-text-primary">{label} — {d.completionPct}%</div>
+                                                <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-text-muted">
+                                                    <span>{d.water ? '✅' : '❌'} Water</span>
+                                                    <span>{d.sleep ? '✅' : '❌'} Sleep</span>
+                                                    <span>{d.workout ? '✅' : '❌'} Workout</span>
+                                                    <span>🍽️ Meals: {d.mealsDone}/{d.mealsTotal}</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    }}
+                                />
+                                <Bar dataKey="completionPct" name="Completion" radius={[4, 4, 0, 0]}>
+                                    {habitHistory.map((entry, i) => (
+                                        <Cell
+                                            key={i}
+                                            fill={entry.completionPct >= 80 ? 'var(--color-success)' : entry.completionPct >= 50 ? 'var(--color-warning)' : 'var(--color-error)'}
+                                            fillOpacity={0.85}
+                                        />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </ChartCard>
+                )}
+            </div>
 
             <Modal title="Log Your Weight" open={modalOpen} onCancel={() => { setModalOpen(false); setNewWeight(null); setNewDate(dayjs()) }} onOk={handleLogWeight} okText="Save" okButtonProps={{ loading: saving, disabled: !newWeight }} centered destroyOnHidden>
                 <p className="mb-4 text-sm text-text-secondary">Record today's weight so your trainer can track your journey.</p>

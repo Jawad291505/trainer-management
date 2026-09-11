@@ -3,22 +3,24 @@ import { Input, Button, Badge } from 'antd'
 import { SendOutlined, ArrowLeftOutlined, SearchOutlined } from '@ant-design/icons'
 import UserAvatar from '../../../components/common/UserAvatar'
 import EmptyState from '../../../components/common/EmptyState'
+import PageSpin from '../../../components/common/PageSpin'
 import { api } from '../../../services/api'
 import { getSocket } from '../../../services/socket'
 
 export default function Messages() {
     const [conversations, setConversations] = useState([])
-    const [activeId, setActiveId] = useState(null) // conversationId
+    const [activeId, setActiveId] = useState(null)
     const [search, setSearch] = useState('')
     const [drafts, setDrafts] = useState({})
     const [messages, setMessages] = useState([])
     const [typing, setTyping] = useState(null)
+    const [loading, setLoading] = useState(true)
     const endRef = useRef(null)
     const socketRef = useRef(null)
 
     // Load conversation list
     useEffect(() => {
-        api.get('/conversations').then((res) => setConversations(res.items || [])).catch(() => { })
+        api.get('/conversations').then((res) => setConversations(res.items || [])).catch(() => { }).finally(() => setLoading(false))
     }, [])
 
     // Connect socket
@@ -112,6 +114,8 @@ export default function Messages() {
         const dt = new Date(d)
         return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
+
+    if (loading) return <PageSpin />
 
     return (
         <div className="chat-shell flex" style={{ height: 'calc(100vh - 190px)', minHeight: 480 }}>

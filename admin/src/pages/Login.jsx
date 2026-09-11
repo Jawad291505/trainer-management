@@ -19,8 +19,8 @@ const CONFIG = {
         'Assignments and capacity at a glance',
         'Payments, plans and content libraries',
     ],
-    demoEmail: 'admin@fit360.com',
-    demoPassword: 'Fit360@123abc',
+    demoEmail: 'alexandra.reed@fittrack.io',
+    demoPassword: 'demo1234',
 }
 
 function Brand({ className = '' }) {

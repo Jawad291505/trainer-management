@@ -13,6 +13,7 @@ import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import EmptyState from '../../../components/common/EmptyState'
 import UserAvatar from '../../../components/common/UserAvatar'
+import PageSpin from '../../../components/common/PageSpin'
 import { api } from '../../../services/api'
 
 const BUCKETS = [
@@ -29,12 +30,13 @@ export default function FollowUps() {
     const [clientList, setClientList] = useState([])
     const [active, setActive] = useState('today')
     const [open, setOpen] = useState(false)
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         Promise.all([api.get('/followups'), api.get('/clients')]).then(([f, c]) => {
             setData(f.items || [])
             setClientList(c.items || [])
-        }).catch(() => { })
+        }).catch(() => { }).finally(() => setLoading(false))
     }, [])
     const [form] = Form.useForm()
 
@@ -78,13 +80,15 @@ export default function FollowUps() {
         message.success('Follow-up completed')
     }
 
+    if (loading) return <PageSpin />
+
     return (
         <div>
             <PageHeader title="Follow-ups" subtitle="Stay on top of client check-ins.">
                 <Button type="primary" icon={<PlusOutlined />} onClick={openModal}>
                     New follow-up
                 </Button>
-            </PageHeader>
+            </PageHeader >
 
             <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <StatCard label="Due Today" value={counts.today} accent="var(--color-info)" />
@@ -101,47 +105,49 @@ export default function FollowUps() {
                 />
             </div>
 
-            {list.length === 0 ? (
-                <div className="app-card">
-                    <EmptyState title="Nothing here" description="No follow-ups in this bucket." />
-                </div>
-            ) : (
-                <div className="flex flex-col gap-3">
-                    {list.map((f) => {
-                        const overdue = f.bucket === 'overdue'
-                        const done = f.bucket === 'completed'
-                        return (
-                            <div
-                                key={f.id}
-                                className="app-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
-                                style={overdue ? { borderLeft: '3px solid var(--color-danger)' } : undefined}
-                            >
-                                <button className="flex flex-1 items-center gap-3 text-left" onClick={() => navigate(`/clients/${f.clientId}`)}>
-                                    <UserAvatar name={f.clientName} color={f.avatarColor} size={42} />
-                                    <div className="min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <span className="truncate font-semibold text-text-primary transition-colors hover:text-primary">{f.clientName}</span>
-                                            {overdue && <WarningFilled style={{ color: 'var(--color-danger)', fontSize: 12 }} />}
+            {
+                list.length === 0 ? (
+                    <div className="app-card">
+                        <EmptyState title="Nothing here" description="No follow-ups in this bucket." />
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {list.map((f) => {
+                            const overdue = f.bucket === 'overdue'
+                            const done = f.bucket === 'completed'
+                            return (
+                                <div
+                                    key={f.id}
+                                    className="app-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
+                                    style={overdue ? { borderLeft: '3px solid var(--color-danger)' } : undefined}
+                                >
+                                    <button className="flex flex-1 items-center gap-3 text-left" onClick={() => navigate(`/clients/${f.clientId}`)}>
+                                        <UserAvatar name={f.clientName} color={f.avatarColor} size={42} />
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="truncate font-semibold text-text-primary transition-colors hover:text-primary">{f.clientName}</span>
+                                                {overdue && <WarningFilled style={{ color: 'var(--color-danger)', fontSize: 12 }} />}
+                                            </div>
+                                            <div className="text-xs text-text-muted">{f.goal} · {f.note}</div>
                                         </div>
-                                        <div className="text-xs text-text-muted">{f.goal} · {f.note}</div>
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex items-center gap-1.5 text-xs" style={{ color: overdue ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+                                            <CalendarOutlined /> {f.date}
+                                        </span>
+                                        <Button size="small" icon={<MessageOutlined />} onClick={() => navigate('/messages')} />
+                                        {!done && (
+                                            <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => complete(f.id)}>
+                                                Complete
+                                            </Button>
+                                        )}
                                     </div>
-                                </button>
-                                <div className="flex items-center gap-2">
-                                    <span className="flex items-center gap-1.5 text-xs" style={{ color: overdue ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
-                                        <CalendarOutlined /> {f.date}
-                                    </span>
-                                    <Button size="small" icon={<MessageOutlined />} onClick={() => navigate('/messages')} />
-                                    {!done && (
-                                        <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => complete(f.id)}>
-                                            Complete
-                                        </Button>
-                                    )}
                                 </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
+                            )
+                        })}
+                    </div>
+                )
+            }
 
             <Modal
                 title="New follow-up"
@@ -168,6 +174,6 @@ export default function FollowUps() {
                     </Form.Item>
                 </Form>
             </Modal>
-        </div>
+        </div >
     )
 }

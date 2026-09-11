@@ -3,6 +3,7 @@ import { Progress, Segmented } from 'antd'
 import { PlayCircleOutlined, CheckOutlined, CalendarOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
+import PageSpin from '../../../components/common/PageSpin'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { getTechnique } from '../../../services/exerciseLibrary'
@@ -11,6 +12,10 @@ export default function MyExercises() {
     const { client } = useAuth()
     const [exercisePlan, setExercisePlan] = useState(null)
     const [done, setDone] = useState({})
+    const [loading, setLoading] = useState(true)
+    const [toggling, setToggling] = useState(null)
+
+    const planId = exercisePlan?._id || exercisePlan?.id
 
     useEffect(() => {
         if (!client) return
@@ -19,7 +24,7 @@ export default function MyExercises() {
             const seed = {}
                 ; (plan?.days || []).forEach((d) => (d.exercises || []).forEach((e) => (seed[e._id || e.id] = !!e.done)))
             setDone(seed)
-        }).catch(() => { })
+        }).catch(() => { }).finally(() => setLoading(false))
     }, [client])
     const [activeDay, setActiveDay] = useState(null)
 
@@ -37,12 +42,27 @@ export default function MyExercises() {
     const completed = exercises.filter((e) => done[e._id || e.id]).length
     const pct = exercises.length ? Math.round((completed / exercises.length) * 100) : 0
 
-    const toggle = (id) => setDone((prev) => ({ ...prev, [id]: !prev[id] }))
+    const toggle = async (exId) => {
+        if (!planId || toggling) return
+        const newVal = !done[exId]
+        setToggling(exId)
+        setDone((prev) => ({ ...prev, [exId]: newVal }))
+        try {
+            await api.patch(`/exercise-plans/${planId}/exercises/${exId}`, { done: newVal })
+        } catch {
+            // Revert on failure
+            setDone((prev) => ({ ...prev, [exId]: !newVal }))
+        } finally {
+            setToggling(null)
+        }
+    }
 
     const dayOptions = days.map((d) => ({
         label: (d._id || d.id) === todayId ? `${d.focus} · Today` : d.focus,
         value: d._id || d.id,
     }))
+
+    if (loading) return <PageSpin />
 
     return (
         <div>
@@ -76,9 +96,10 @@ export default function MyExercises() {
 
             <div className="flex flex-col gap-3">
                 {exercises.map((ex) => {
-                    const isDone = done[ex.id]
+                    const exId = ex._id || ex.id
+                    const isDone = done[exId]
                     return (
-                        <div key={ex.id} className="app-card p-5" style={isDone ? { borderColor: 'var(--color-success)' } : undefined}>
+                        <div key={exId} className="app-card p-5" style={isDone ? { borderColor: 'var(--color-success)' } : undefined}>
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
@@ -114,11 +135,13 @@ export default function MyExercises() {
                                 </div>
                             </div>
                             <button
-                                onClick={() => toggle(ex.id)}
+                                onClick={() => toggle(exId)}
+                                disabled={toggling === exId}
                                 className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition-all"
                                 style={{
                                     background: isDone ? 'var(--color-success)' : 'var(--color-primary)',
                                     color: '#fff',
+                                    opacity: toggling === exId ? 0.7 : 1,
                                 }}
                             >
                                 <CheckOutlined /> {isDone ? 'Completed' : 'Mark as complete'}

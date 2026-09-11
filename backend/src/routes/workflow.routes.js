@@ -14,6 +14,7 @@ import {
 } from '../controllers/schedule.controller.js'
 import {
     listWeight, addWeight, getDailyLog, setTask,
+    logCheat, removeCheat, updateCheat, dailyHistory,
 } from '../controllers/progress.controller.js'
 
 const router = Router()
@@ -46,7 +47,11 @@ router.delete('/schedule/:id', authorize('trainer', 'client'), deleteActivity)
 // ---- Progress: weight journey + daily checklist ----
 router.get('/progress/weight', listWeight)
 router.post('/progress/weight', authorize('trainer', 'client'), addWeight)
+router.get('/progress/daily/history', dailyHistory)
 router.get('/progress/daily', getDailyLog)
 router.patch('/progress/daily', authorize('client'), setTask)
+router.post('/progress/daily/cheat', authorize('client'), logCheat)
+router.patch('/progress/daily/cheat/:mealId', authorize('client'), updateCheat)
+router.delete('/progress/daily/cheat/:mealId', authorize('client'), removeCheat)
 
 export default router

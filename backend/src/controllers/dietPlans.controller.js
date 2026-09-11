@@ -60,8 +60,10 @@ export const getClientDietPlan = asyncHandler(async (req, res) => {
     if (req.user.role === 'trainer') await assertTrainerOwnsClient(req, clientId)
 
     const plan = await DietPlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 })
-    if (!plan) throw ApiError.notFound('No published diet plan for this client yet')
-    res.json(await serializeDietPlan(plan))
+    const fallback = plan ? null : await DietPlan.findOne({ client: clientId }).sort({ updatedAt: -1 })
+    const result = plan || fallback
+    if (!result) throw ApiError.notFound('No diet plan for this client yet')
+    res.json(await serializeDietPlan(result))
 })
 
 // POST /api/diet-plans   (trainer)  Body: { clientId, title, meals[] }

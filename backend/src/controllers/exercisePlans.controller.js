@@ -1,6 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
-import { ExercisePlan, Exercise, Client } from '../models/index.js'
+import { ExercisePlan, Exercise, Client, DailyLog } from '../models/index.js'
 import { summarizeExercisePlan } from '../services/exercisePlan.service.js'
 
 function assertCanAccess(req, plan) {
@@ -79,8 +79,10 @@ export const getClientExercisePlan = asyncHandler(async (req, res) => {
     if (req.user.role === 'trainer') await assertTrainerOwnsClient(req, clientId)
 
     const plan = await ExercisePlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 })
-    if (!plan) throw ApiError.notFound('No published exercise plan for this client yet')
-    res.json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
+    const fallback = plan ? null : await ExercisePlan.findOne({ client: clientId }).sort({ updatedAt: -1 })
+    const result = plan || fallback
+    if (!result) throw ApiError.notFound('No exercise plan for this client yet')
+    res.json({ ...result.toObject(), ...summarizeExercisePlan(result) })
 })
 
 // POST /api/exercise-plans  (trainer)  Body: { clientId, title, days[], todayDayId? }
@@ -118,16 +120,35 @@ export const setExerciseDone = asyncHandler(async (req, res) => {
     assertCanAccess(req, plan)
 
     let found = false
+    let matchedDay = null
     for (const day of plan.days) {
         const ex = day.exercises.id(req.params.exId)
         if (ex) {
             ex.done = req.body.done ?? !ex.done
             found = true
+            matchedDay = day
             break
         }
     }
     if (!found) throw ApiError.notFound('Exercise not found in plan')
     await plan.save()
+
+    // Sync daily log workout task when all exercises in the day are completed
+    if (matchedDay && req.user.role === 'client') {
+        const allDone = matchedDay.exercises.every((e) => e.done)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const log = await DailyLog.findOne({ client: plan.client, date: today })
+        if (log) {
+            const workoutTask = log.tasks.find((t) => t.key === `workout:${matchedDay._id}`)
+            if (workoutTask && workoutTask.done !== allDone) {
+                workoutTask.done = allDone
+                await log.save()
+                await Client.updateOne({ _id: plan.client }, { progress: log.completionPct })
+            }
+        }
+    }
+
     res.json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
 })
 

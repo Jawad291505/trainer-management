@@ -53,7 +53,8 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
             if (!exercise) return
             const v = await pickForm.validateFields()
             onAdd({
-                exerciseId: exercise.id,
+                exerciseId: exercise.id || exercise._id,
+                exerciseCode: exercise.code,
                 name: exercise.name,
                 sets: v.sets,
                 reps: v.reps,
@@ -67,7 +68,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
         const v = await newForm.validateFields()
         let created = null
         if (v.saveToLibrary) {
-            created = addExercise({
+            created = await addExercise({
                 name: v.name,
                 category: v.category || exerciseCategories[0],
                 defaultSets: v.sets,
@@ -79,7 +80,8 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
             })
         }
         onAdd({
-            exerciseId: created ? created.id : null,
+            exerciseId: created ? (created._id || created.id) : null,
+            exerciseCode: created?.code || undefined,
             name: v.name,
             sets: v.sets,
             reps: v.reps,

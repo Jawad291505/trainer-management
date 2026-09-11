@@ -1,6 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
-import { User, Trainer, Client } from '../models/index.js'
+import { User, Trainer, Client, DailyLog } from '../models/index.js'
 import { hashPassword } from '../utils/password.js'
 import { env } from '../config/env.js'
 
@@ -22,6 +22,8 @@ function flatten(client) {
         startWeight: client.startWeight,
         weight: client.weight,
         target: client.target,
+        waterGoal: client.waterGoal,
+        sleepGoal: client.sleepGoal,
         trainerId: t ? String(t._id || t) : null,
         trainerName: t?.user?.name || null,
         joinDate: client.joinDate,
@@ -119,11 +121,13 @@ export const updateClient = asyncHandler(async (req, res) => {
     if (!client) throw ApiError.notFound('Client not found')
 
     const isSelf = req.user.role === 'client' && String(client._id) === String(req.client._id)
-    if (req.user.role !== 'admin' && !isSelf) throw ApiError.forbidden()
+    const isTrainer = req.user.role === 'trainer' && req.trainer && String(client.trainer) === String(req.trainer._id)
+    if (req.user.role !== 'admin' && !isSelf && !isTrainer) throw ApiError.forbidden()
 
     const selfFields = ['goal', 'startWeight', 'weight', 'target']
-    const adminFields = [...selfFields, 'plan', 'status', 'progress']
-    const allowed = req.user.role === 'admin' ? adminFields : selfFields
+    const trainerFields = [...selfFields, 'waterGoal', 'sleepGoal']
+    const adminFields = [...trainerFields, 'plan', 'status', 'progress']
+    const allowed = req.user.role === 'admin' ? adminFields : isTrainer ? trainerFields : selfFields
     for (const k of allowed) if (req.body[k] !== undefined) client[k] = req.body[k]
 
     if (req.user.role === 'admin' && client.user) {
@@ -134,6 +138,25 @@ export const updateClient = asyncHandler(async (req, res) => {
         await client.user.save()
     }
     await client.save()
+
+    // Sync today's daily log if water or sleep goal changed
+    if (req.body.waterGoal !== undefined || req.body.sleepGoal !== undefined) {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const log = await DailyLog.findOne({ client: client._id, date: today })
+        if (log) {
+            if (req.body.waterGoal !== undefined) {
+                const waterTask = log.tasks.find((t) => t.key === 'water')
+                if (waterTask) waterTask.label = `Drink ${req.body.waterGoal}L water`
+            }
+            if (req.body.sleepGoal !== undefined) {
+                const sleepTask = log.tasks.find((t) => t.key === 'sleep')
+                if (sleepTask) sleepTask.label = `${req.body.sleepGoal} hours sleep`
+            }
+            await log.save()
+        }
+    }
+
     res.json(flatten(await client.populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })))
 })
 

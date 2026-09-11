@@ -55,7 +55,7 @@ export default function FoodModal({ open, onCancel, onAdd }) {
     const handleOk = async () => {
         if (mode === 'custom') {
             const v = await customForm.validateFields()
-            const created = addFood({
+            const created = await addFood({
                 name: v.name,
                 category: v.category || foodCategories[0],
                 unit: v.unit || 'g',
@@ -69,11 +69,11 @@ export default function FoodModal({ open, onCancel, onAdd }) {
                 fat: v.fat || 0,
             })
             const n = computeNutrition(created, v.qty)
-            onAdd({ foodId: created.id, food: created.name, qty: v.qty, unit: created.unit, ...n })
+            onAdd({ foodId: created._id || created.id, foodCode: created.code, food: created.name, qty: v.qty, unit: created.unit, ...n })
             return
         }
         if (!food) return
-        onAdd({ foodId: food.id, food: food.name, qty, unit: food.unit, ...nutrition })
+        onAdd({ foodId: food.id || food._id, foodCode: food.code, food: food.name, qty, unit: food.unit, ...nutrition })
     }
 
     const unitLabel = food ? (food.unit === 'count' ? '' : food.unit) : ''

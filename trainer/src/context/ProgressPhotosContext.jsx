@@ -1,13 +1,17 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../services/api'
+import { api, getToken } from '../services/api'
 
 const ProgressPhotosContext = createContext(null)
 
 export function ProgressPhotosProvider({ children }) {
     const [photos, setPhotos] = useState([])
 
-    useEffect(() => {
-        api.get('/progress-photos').then((res) => setPhotos(res.items || [])).catch(() => { })
+    const fetchForClient = useCallback(async (clientId) => {
+        if (!clientId) return
+        try {
+            const res = await api.get(`/progress-photos?client=${clientId}`)
+            setPhotos(res.items || [])
+        } catch { /* */ }
     }, [])
 
     const photosForClient = useCallback((clientId) => {
@@ -35,7 +39,7 @@ export function ProgressPhotosProvider({ children }) {
         setPhotos((prev) => prev.map((p) => ((p._id || p.id) === photoId ? { ...p, note: '', noteAt: null } : p)))
     }, [])
 
-    const value = useMemo(() => ({ photos, photosForClient, pendingCountForClient, setNote, clearNote }), [photos, photosForClient, pendingCountForClient, setNote, clearNote])
+    const value = useMemo(() => ({ photos, fetchForClient, photosForClient, pendingCountForClient, setNote, clearNote }), [photos, fetchForClient, photosForClient, pendingCountForClient, setNote, clearNote])
     return <ProgressPhotosContext.Provider value={value}>{children}</ProgressPhotosContext.Provider>
 }
 

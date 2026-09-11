@@ -27,7 +27,7 @@ router.delete('/trainers/:id', authorize('admin'), deleteTrainer)
 router.get('/clients', authorize('admin', 'trainer'), listClients)
 router.get('/clients/:id', authorize('admin', 'trainer', 'client'), getClient) // ':id' may be 'me'
 router.post('/clients', authorize('admin'), createClient)
-router.patch('/clients/:id', authorize('admin', 'client'), updateClient)
+router.patch('/clients/:id', authorize('admin', 'trainer', 'client'), updateClient)
 router.patch('/clients/:id/assign', authorize('admin'), assignClient)
 router.delete('/clients/:id', authorize('admin'), deleteClient)
 

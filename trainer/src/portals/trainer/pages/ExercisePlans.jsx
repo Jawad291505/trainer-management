@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, App, Empty } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -26,10 +26,14 @@ let exSeq = 100
 
 export default function ExercisePlans() {
     const { message } = App.useApp()
-    const { customExercises, updateExercise, removeExercise } = useLibrary()
+    const { exercises: customExercises, updateExercise, removeExercise } = useLibrary()
     const [clientId, setClientId] = useState(null)
     const [clientList, setClientList] = useState([])
     const [days, setDays] = useState([])
+    const [planId, setPlanId] = useState(null)
+    const [saving, setSaving] = useState(false)
+    const [publishing, setPublishing] = useState(false)
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         api.get('/clients').then((res) => {
@@ -38,6 +42,39 @@ export default function ExercisePlans() {
             if (items.length > 0) setClientId(items[0].id)
         }).catch(() => { })
     }, [])
+
+    // Load existing exercise plan for selected client
+    useEffect(() => {
+        if (!clientId) return
+        setLoading(true)
+        setPlanId(null)
+        setDays([])
+        api.get(`/exercise-plans?client=${clientId}`).then(async (res) => {
+            const plans = res.items || []
+            const plan = plans.find((p) => p.status === 'draft') || plans[0]
+            if (!plan) return
+            const full = await api.get(`/exercise-plans/${plan._id || plan.id}`)
+            setPlanId(full._id || full.id)
+            const loaded = (full.days || []).map((d, di) => ({
+                id: d._id || `D${di}`,
+                day: d.day,
+                focus: d.focus || '',
+                exercises: (d.exercises || []).map((ex) => ({
+                    id: ex._id || ex.id,
+                    exerciseId: ex.exercise,
+                    exerciseCode: ex.exerciseCode,
+                    name: ex.name,
+                    sets: ex.sets,
+                    reps: ex.reps,
+                    rest: ex.rest || '60s',
+                    technique: ex.technique || 'standard',
+                    youtube: ex.youtube || '',
+                    notes: ex.instructions || '',
+                })),
+            }))
+            setDays(loaded)
+        }).catch(() => { }).finally(() => setLoading(false))
+    }, [clientId])
     const [dayModal, setDayModal] = useState(false)
     const [exModal, setExModal] = useState(null) // dayId
     const [libModal, setLibModal] = useState(false) // My Exercises manager
@@ -102,12 +139,77 @@ export default function ExercisePlans() {
             },
         })
 
+    const buildDaysPayload = () =>
+        days.map((d) => ({
+            day: d.day,
+            focus: d.focus,
+            exercises: d.exercises.map((ex) => ({
+                exerciseCode: ex.exerciseCode || undefined,
+                name: ex.name,
+                sets: ex.sets,
+                reps: ex.reps,
+                rest: ex.rest || '60s',
+                technique: ex.technique || 'standard',
+                youtube: ex.youtube || '',
+                instructions: ex.notes || '',
+            })),
+        }))
+
+    const saveDraft = async () => {
+        if (!clientId) { message.warning('Select a client first'); return }
+        if (days.length === 0) { message.warning('Add at least one training day'); return }
+        setSaving(true)
+        try {
+            if (planId) {
+                await api.patch(`/exercise-plans/${planId}`, { days: buildDaysPayload() })
+            } else {
+                const plan = await api.post('/exercise-plans', {
+                    clientId,
+                    title: 'Exercise Plan',
+                    days: buildDaysPayload(),
+                })
+                setPlanId(plan._id || plan.id)
+            }
+            message.success('Draft saved')
+        } catch (err) {
+            message.error(err.message || 'Failed to save draft')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const publishPlan = async () => {
+        if (!clientId) { message.warning('Select a client first'); return }
+        if (days.length === 0) { message.warning('Add at least one training day'); return }
+        setPublishing(true)
+        try {
+            let id = planId
+            if (!id) {
+                const plan = await api.post('/exercise-plans', {
+                    clientId,
+                    title: 'Exercise Plan',
+                    days: buildDaysPayload(),
+                })
+                id = plan._id || plan.id
+                setPlanId(id)
+            } else {
+                await api.patch(`/exercise-plans/${id}`, { days: buildDaysPayload() })
+            }
+            await api.post(`/exercise-plans/${id}/publish`)
+            message.success('Plan published to client')
+        } catch (err) {
+            message.error(err.message || 'Failed to publish plan')
+        } finally {
+            setPublishing(false)
+        }
+    }
+
     return (
         <div>
             <PageHeader title="Exercise Plans" subtitle="Organize workouts by training day.">
                 <Button icon={<AppstoreOutlined />} onClick={() => setLibModal(true)}>My exercises</Button>
-                <Button icon={<SaveOutlined />} onClick={() => message.success('Draft saved')}>Save draft</Button>
-                <Button type="primary" icon={<SendOutlined />} onClick={() => message.success('Plan published to client')}>Publish</Button>
+                <Button icon={<SaveOutlined />} loading={saving} onClick={saveDraft}>Save draft</Button>
+                <Button type="primary" icon={<SendOutlined />} loading={publishing} onClick={publishPlan}>Publish</Button>
             </PageHeader>
 
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -123,7 +225,9 @@ export default function ExercisePlans() {
                 </Button>
             </div>
 
-            {days.length === 0 ? (
+            {loading ? (
+                <div className="flex justify-center py-16"><Spin size="large" /></div>
+            ) : days.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No training days yet"

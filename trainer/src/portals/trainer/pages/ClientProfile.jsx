@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { Button, Tabs, Progress, Checkbox, Tag, Image, Input, Modal, App } from 'antd'
+import { Button, Tabs, Progress, Checkbox, Tag, Image, Input, InputNumber, Modal, App } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -10,6 +10,7 @@ import {
     MessageOutlined,
     CalendarOutlined,
     EditOutlined,
+    FireOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -43,10 +44,14 @@ const progressPhotoAngleLabels = { front: 'Front', side: 'Side', back: 'Back', o
 // Photos one client has shared, with an inline editor for the trainer's per-photo note.
 function PhotosTab({ clientId, clientName }) {
     const { message } = App.useApp()
-    const { photosForClient, setNote, clearNote } = useProgressPhotos()
+    const { photosForClient, fetchForClient, setNote, clearNote } = useProgressPhotos()
     const groups = photosForClient(clientId)
     const [editing, setEditing] = useState(null) // { id, current }
     const [text, setText] = useState('')
+
+    useEffect(() => {
+        fetchForClient(clientId)
+    }, [clientId, fetchForClient])
 
     if (groups.length === 0) {
         return (
@@ -146,11 +151,17 @@ export default function ClientProfile() {
     const navigate = useNavigate()
     const { primary } = useTheme()
     const { requests } = useCorrections()
-    const { pendingCountForClient } = useProgressPhotos()
+    const { pendingCountForClient, fetchForClient: fetchPhotos } = useProgressPhotos()
     const [clientData, setClientData] = useState(null)
     const [weightData, setWeightData] = useState([])
     const [dietPlan, setDietPlan] = useState(null)
     const [exercisePlan, setExercisePlan] = useState(null)
+    const [todayCheats, setTodayCheats] = useState([])
+    const [todayMealStatus, setTodayMealStatus] = useState({}) // { [mealId]: boolean }
+    const [habitHistory, setHabitHistory] = useState([])
+    const [habitGoals, setHabitGoals] = useState({ waterGoal: 2, sleepGoal: 8 })
+    const [goalModal, setGoalModal] = useState(null) // { type: 'water' | 'sleep', value }
+    const [goalSaving, setGoalSaving] = useState(false)
     const clientRequests = requests.filter((r) => r.clientId === id || String(r.client) === id)
     const pendingPhotos = pendingCountForClient(id)
 
@@ -159,18 +170,57 @@ export default function ClientProfile() {
             try {
                 const c = await api.get(`/clients/${id}`)
                 setClientData(c)
+                fetchPhotos(id)
                 try {
                     const w = await api.get(`/progress/weight?client=${id}`)
                     setWeightData((w.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
                 } catch { /* */ }
                 try { const dp = await api.get(`/clients/${id}/diet-plan`); if (dp) setDietPlan(dp) } catch { /* */ }
                 try { const ep = await api.get(`/clients/${id}/exercise-plan`); if (ep) setExercisePlan(ep) } catch { /* */ }
+                try {
+                    const daily = await api.get(`/progress/daily?client=${id}`)
+                    setTodayCheats(daily.cheats || [])
+                    const mStatus = {}
+                        ; (daily.tasks || []).filter((t) => t.type === 'meal').forEach((t) => {
+                            mStatus[String(t.mealId)] = t.done
+                        })
+                    setTodayMealStatus(mStatus)
+                } catch { /* */ }
+                try {
+                    const h = await api.get(`/progress/daily/history?client=${id}&days=14`)
+                    setHabitHistory((h.history || []).map((d) => ({
+                        date: dayjs(d.date).format('DD MMM'),
+                        completionPct: d.completionPct,
+                        water: d.water,
+                        sleep: d.sleep,
+                        workout: d.workout,
+                        mealsDone: d.mealsDone,
+                        mealsTotal: d.mealsTotal,
+                    })))
+                    if (h.goals) setHabitGoals(h.goals)
+                } catch { /* */ }
             } catch { /* */ }
         }
         load()
-    }, [id])
+    }, [id, fetchPhotos])
 
-    const completion = 0
+    const completion = useMemo(() => {
+        if (!habitHistory.length) return 0
+        return Math.round(habitHistory.reduce((s, d) => s + d.completionPct, 0) / habitHistory.length)
+    }, [habitHistory])
+
+    const habitStats = useMemo(() => {
+        const total = habitHistory.length || 1
+        const waterDone = habitHistory.filter((d) => d.water).length
+        const sleepDone = habitHistory.filter((d) => d.sleep).length
+        const workoutDone = habitHistory.filter((d) => d.workout).length
+        return {
+            waterPct: Math.round((waterDone / total) * 100),
+            sleepPct: Math.round((sleepDone / total) * 100),
+            workoutPct: Math.round((workoutDone / total) * 100),
+            waterDone, sleepDone, workoutDone, total: habitHistory.length,
+        }
+    }, [habitHistory])
 
     if (!clientData) {
         return (
@@ -206,6 +256,24 @@ export default function ClientProfile() {
                         <div className="text-lg font-extrabold text-text-primary">{client.target}kg</div>
                         <div className="text-[11px] text-text-muted">Target</div>
                     </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                    <button
+                        className="rounded-xl p-3 text-left transition-colors hover:opacity-80"
+                        style={{ background: 'var(--color-surface-secondary)' }}
+                        onClick={() => setGoalModal({ type: 'water', value: client.waterGoal ?? 2 })}
+                    >
+                        <div className="text-lg font-extrabold text-text-primary">{client.waterGoal ?? 2}L</div>
+                        <div className="text-[11px] text-text-muted">Daily water goal</div>
+                    </button>
+                    <button
+                        className="rounded-xl p-3 text-left transition-colors hover:opacity-80"
+                        style={{ background: 'var(--color-surface-secondary)' }}
+                        onClick={() => setGoalModal({ type: 'sleep', value: client.sleepGoal ?? 8 })}
+                    >
+                        <div className="text-lg font-extrabold text-text-primary">{client.sleepGoal ?? 8}h</div>
+                        <div className="text-[11px] text-text-muted">Daily sleep goal</div>
+                    </button>
                 </div>
             </div>
 
@@ -265,15 +333,55 @@ export default function ClientProfile() {
         </div>
     )
 
+    const dietMealsDone = Object.values(todayMealStatus).filter(Boolean).length
+    const dietMealsTotal = dietPlan?.meals?.length || 0
+    const dietAdherence = dietMealsTotal ? Math.round((dietMealsDone / dietMealsTotal) * 100) : 0
+
     const dietTab = (
         <div>
             <div className="mb-4 flex items-center justify-between">
                 <h3 className="section-title m-0">{dietPlan?.title || 'No diet plan'}</h3>
                 <Button type="primary" onClick={() => navigate('/diet-plans')}>Edit plan</Button>
             </div>
+
+            {dietMealsTotal > 0 && (
+                <div className="app-card mb-4 p-4">
+                    <div className="mb-1.5 flex items-center justify-between text-sm">
+                        <span className="font-semibold text-text-secondary">Today's diet adherence</span>
+                        <span className="font-bold text-text-primary">{dietMealsDone}/{dietMealsTotal} meals · {dietAdherence}%</span>
+                    </div>
+                    <Progress percent={dietAdherence} strokeColor={dietAdherence === 100 ? 'var(--color-success)' : 'var(--color-primary)'} />
+                </div>
+            )}
+
+            {todayCheats.length > 0 && (
+                <div className="app-card mb-4 p-4" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+                    <div className="mb-2 flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--color-warning)' }}>
+                        <FireOutlined /> {todayCheats.length} cheat {todayCheats.length === 1 ? 'meal' : 'meals'} today
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        {todayCheats.map((c) => (
+                            <div key={String(c._id || c.mealId)} className="rounded-lg p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                                <div className="text-sm font-semibold text-text-primary">{c.mealName || 'Meal'}</div>
+                                {c.note && <div className="mt-0.5 text-sm text-text-secondary">{c.note}</div>}
+                                {c.items?.length > 0 && (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                        {c.items.map((item, i) => (
+                                            <span key={i} className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+                                                {item}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {(dietPlan?.meals || []).map((m) => (
-                    <MealCard key={m.id} meal={m} />
+                    <MealCard key={m.id} meal={m} cheat={todayCheats.find((c) => String(c.mealId) === String(m.id))} done={todayMealStatus[String(m._id || m.id)]} />
                 ))}
             </div>
         </div>
@@ -294,36 +402,81 @@ export default function ClientProfile() {
     )
 
     const progressTab = (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ChartCard title="Weekly Completion" subtitle="Daily activity completion (%)">
-                <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={[]} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                        <XAxis dataKey="day" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={40} />
-                        <Tooltip cursor={{ fill: 'var(--color-surface-secondary)' }} content={<ChartTooltip formatter={(v) => `${v}%`} />} />
-                        <Bar dataKey="pct" name="Completion" radius={[6, 6, 0, 0]} maxBarSize={40}>
-                            {[].map((e, i) => (
-                                <Cell key={i} fill={e.pct >= 80 ? 'var(--color-success)' : e.pct >= 60 ? primary : 'var(--color-warning)'} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
-            </ChartCard>
+        <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="app-card p-4 text-center">
+                    <div className="text-2xl font-extrabold" style={{ color: 'var(--color-info)' }}>{habitStats.waterPct}%</div>
+                    <div className="text-sm font-semibold text-text-primary">Water</div>
+                    <div className="text-xs text-text-muted">{habitStats.waterDone}/{habitStats.total} days — Goal: {habitGoals.waterGoal}L</div>
+                </div>
+                <div className="app-card p-4 text-center">
+                    <div className="text-2xl font-extrabold" style={{ color: '#7c3aed' }}>{habitStats.sleepPct}%</div>
+                    <div className="text-sm font-semibold text-text-primary">Sleep</div>
+                    <div className="text-xs text-text-muted">{habitStats.sleepDone}/{habitStats.total} days — Goal: {habitGoals.sleepGoal}h</div>
+                </div>
+                <div className="app-card p-4 text-center">
+                    <div className="text-2xl font-extrabold" style={{ color: 'var(--color-primary)' }}>{habitStats.workoutPct}%</div>
+                    <div className="text-sm font-semibold text-text-primary">Workout</div>
+                    <div className="text-xs text-text-muted">{habitStats.workoutDone}/{habitStats.total} days</div>
+                </div>
+            </div>
 
-            <ChartCard title="Today's Checklist" subtitle={`${completion}% complete`}>
-                <div className="mb-3">
-                    <Progress percent={completion} strokeColor="var(--color-primary)" />
-                </div>
-                <div className="flex flex-col gap-2">
-                    {[].map((t) => (
-                        <div key={t.id} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: 'var(--color-surface-secondary)' }}>
-                            <Checkbox checked={t.done} disabled />
-                            <span className={`text-sm ${t.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{t.label}</span>
-                        </div>
-                    ))}
-                </div>
-            </ChartCard>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <ChartCard title="Daily Completion" subtitle="Last 14 days (%)">
+                    <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={habitHistory} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                            <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={40} />
+                            <Tooltip
+                                content={({ active, payload, label }) => {
+                                    if (!active || !payload?.length) return null
+                                    const d = payload[0].payload
+                                    return (
+                                        <div className="rounded-lg border px-3 py-2 shadow-sm" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                                            <div className="text-xs font-semibold text-text-primary">{label} — {d.completionPct}%</div>
+                                            <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-text-muted">
+                                                <span>{d.water ? '✅' : '❌'} Water</span>
+                                                <span>{d.sleep ? '✅' : '❌'} Sleep</span>
+                                                <span>{d.workout ? '✅' : '❌'} Workout</span>
+                                                <span>🍽️ Meals: {d.mealsDone}/{d.mealsTotal}</span>
+                                            </div>
+                                        </div>
+                                    )
+                                }}
+                            />
+                            <Bar dataKey="completionPct" name="Completion" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                                {habitHistory.map((e, i) => (
+                                    <Cell key={i} fill={e.completionPct >= 80 ? 'var(--color-success)' : e.completionPct >= 50 ? primary : 'var(--color-warning)'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartCard>
+
+                <ChartCard title="Today's Checklist" subtitle={`${completion}% avg. completion`}>
+                    <div className="mb-3">
+                        <Progress percent={completion} strokeColor="var(--color-primary)" />
+                    </div>
+                    <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
+                        {habitHistory.length > 0 && (() => {
+                            const latest = habitHistory[habitHistory.length - 1]
+                            const items = [
+                                { label: 'Water intake', done: latest.water },
+                                { label: 'Sleep goal', done: latest.sleep },
+                                { label: 'Workout', done: latest.workout },
+                                { label: `Meals (${latest.mealsDone}/${latest.mealsTotal})`, done: latest.mealsDone === latest.mealsTotal && latest.mealsTotal > 0 },
+                            ]
+                            return items.map((t, i) => (
+                                <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: 'var(--color-surface-secondary)' }}>
+                                    <Checkbox checked={t.done} disabled />
+                                    <span className={`text-sm ${t.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{t.label}</span>
+                                </div>
+                            ))
+                        })()}
+                    </div>
+                </ChartCard>
+            </div>
         </div>
     )
 
@@ -438,6 +591,52 @@ export default function ClientProfile() {
                     ]}
                 />
             </div>
+
+            <Modal
+                title={goalModal?.type === 'water' ? 'Set daily water goal' : 'Set daily sleep goal'}
+                open={!!goalModal}
+                onCancel={() => { if (!goalSaving) setGoalModal(null) }}
+                onOk={async () => {
+                    if (!goalModal) return
+                    setGoalSaving(true)
+                    const field = goalModal.type === 'water' ? 'waterGoal' : 'sleepGoal'
+                    try {
+                        const updated = await api.patch(`/clients/${id}`, { [field]: goalModal.value })
+                        setClientData(updated)
+                        message.success(`${goalModal.type === 'water' ? 'Water' : 'Sleep'} goal updated`)
+                        setGoalModal(null)
+                    } catch { message.error('Failed to update') }
+                    finally { setGoalSaving(false) }
+                }}
+                confirmLoading={goalSaving}
+                okText="Save"
+                centered
+                destroyOnClose
+            >
+                {goalModal && (
+                    <div className="mt-4">
+                        <label className="mb-2 block text-sm font-medium text-text-secondary">
+                            {goalModal.type === 'water' ? 'Water intake (litres)' : 'Sleep duration (hours)'}
+                        </label>
+                        <InputNumber
+                            value={goalModal.value}
+                            onChange={(v) => setGoalModal((prev) => ({ ...prev, value: v }))}
+                            min={goalModal.type === 'water' ? 0.5 : 4}
+                            max={goalModal.type === 'water' ? 10 : 12}
+                            step={0.5}
+                            precision={1}
+                            className="!w-full"
+                            size="large"
+                            autoFocus
+                        />
+                        <p className="mt-2 text-xs text-text-muted">
+                            {goalModal.type === 'water'
+                                ? 'Recommended: 2–3L for most adults. This will appear as a daily task for your client.'
+                                : 'Recommended: 7–9 hours for most adults. This will appear as a daily task for your client.'}
+                        </p>
+                    </div>
+                )}
+            </Modal>
         </div>
     )
 }

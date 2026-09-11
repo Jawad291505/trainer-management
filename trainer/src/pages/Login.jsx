@@ -18,8 +18,8 @@ const CONFIG = {
         'Keep every client on schedule',
         'Track progress and never miss a follow-up',
     ],
-    demoEmail: 'trainer@fit360.com',
-    demoPassword: 'Fit360@123abc',
+    demoEmail: 'marcus.bennett@fittrack.io',
+    demoPassword: 'demo1234',
 }
 
 function Brand({ className = '' }) {

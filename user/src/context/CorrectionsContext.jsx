@@ -1,5 +1,5 @@
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../services/api'
+import { api, getToken } from '../services/api'
 
 const CorrectionsContext = createContext(null)
 
@@ -7,6 +7,7 @@ export function CorrectionsProvider({ children }) {
     const [requests, setRequests] = useState([])
 
     useEffect(() => {
+        if (!getToken()) return
         api.get('/corrections').then((res) => setRequests(res.items || [])).catch(() => { })
     }, [])
 
@@ -21,7 +22,9 @@ export function CorrectionsProvider({ children }) {
         setRequests((prev) => prev.filter((r) => (r._id || r.id) !== id))
     }, [])
 
-    const value = useMemo(() => ({ requests, addRequest, cancelRequest }), [requests, addRequest, cancelRequest])
+    const openCount = useMemo(() => requests.filter((r) => r.status === 'pending' || r.status === 'open').length, [requests])
+
+    const value = useMemo(() => ({ requests, addRequest, cancelRequest, openCount }), [requests, addRequest, cancelRequest, openCount])
     return <CorrectionsContext.Provider value={value}>{children}</CorrectionsContext.Provider>
 }
 
