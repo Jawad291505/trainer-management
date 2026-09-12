@@ -44,6 +44,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 rest: exercise.defaultRest,
                 technique: exercise.technique || 'standard',
                 notes: exercise.notes,
+                trackingType: exercise.trackingType || 'reps',
+                targetWeight: exercise.defaultWeight ?? undefined,
+                targetDuration: exercise.defaultDuration ?? undefined,
             })
         }
     }, [exercise, pickForm])
@@ -62,6 +65,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 technique: v.technique || exercise.technique || 'standard',
                 youtube: exercise.youtube || '',
                 notes: v.notes || '',
+                trackingType: v.trackingType || 'reps',
+                targetWeight: v.targetWeight ?? null,
+                targetDuration: v.targetDuration ?? null,
             })
             return
         }
@@ -77,6 +83,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 technique: v.technique || 'standard',
                 youtube: v.youtube || '',
                 notes: v.notes || '',
+                trackingType: v.trackingType || 'reps',
+                defaultWeight: v.targetWeight ?? null,
+                defaultDuration: v.targetDuration ?? null,
             })
         }
         onAdd({
@@ -89,6 +98,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
             technique: v.technique || 'standard',
             youtube: v.youtube || '',
             notes: v.notes || '',
+            trackingType: v.trackingType || 'reps',
+            targetWeight: v.targetWeight ?? null,
+            targetDuration: v.targetDuration ?? null,
         })
     }
 
@@ -181,6 +193,15 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                             </div>
 
                             <Form form={pickForm} layout="vertical" className="mt-4 builder-input">
+                                <Form.Item name="trackingType" label="Tracked by" initialValue="reps" className="mb-3">
+                                    <Segmented
+                                        block
+                                        options={[
+                                            { value: 'reps', label: 'Reps' },
+                                            { value: 'duration', label: 'Timed' },
+                                        ]}
+                                    />
+                                </Form.Item>
                                 <div className="grid grid-cols-3 gap-x-4">
                                     <Form.Item name="sets" label="Sets" rules={[{ required: true, message: 'Required' }]}>
                                         <InputNumber min={1} style={{ width: '100%' }} />
@@ -190,6 +211,14 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                     </Form.Item>
                                     <Form.Item name="rest" label="Rest">
                                         <Input placeholder="90s" />
+                                    </Form.Item>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-4">
+                                    <Form.Item name="targetWeight" label="Target weight (kg)">
+                                        <InputNumber min={0} style={{ width: '100%' }} placeholder="Optional" />
+                                    </Form.Item>
+                                    <Form.Item name="targetDuration" label="Target duration (sec)">
+                                        <InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 30" />
                                     </Form.Item>
                                 </div>
                                 <TechniqueField form={pickForm} />
@@ -212,6 +241,15 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                 <Select options={exerciseCategories.map((c) => ({ value: c, label: c }))} />
                             </Form.Item>
                         </div>
+                        <Form.Item name="trackingType" label="Tracked by" initialValue="reps" className="mb-3">
+                            <Segmented
+                                block
+                                options={[
+                                    { value: 'reps', label: 'Reps' },
+                                    { value: 'duration', label: 'Timed' },
+                                ]}
+                            />
+                        </Form.Item>
                         <div className="grid grid-cols-3 gap-x-4">
                             <Form.Item name="sets" label="Sets" rules={[{ required: true, message: 'Required' }]}>
                                 <InputNumber min={1} style={{ width: '100%' }} />
@@ -221,6 +259,14 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                             </Form.Item>
                             <Form.Item name="rest" label="Rest">
                                 <Input placeholder="90s" />
+                            </Form.Item>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4">
+                            <Form.Item name="targetWeight" label="Target weight (kg)">
+                                <InputNumber min={0} style={{ width: '100%' }} placeholder="Optional" />
+                            </Form.Item>
+                            <Form.Item name="targetDuration" label="Target duration (sec)">
+                                <InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 30" />
                             </Form.Item>
                         </div>
                         <TechniqueField form={newForm} />

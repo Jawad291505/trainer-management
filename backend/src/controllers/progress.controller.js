@@ -1,13 +1,9 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { WeightEntry, DailyLog, Client, DietPlan, ExercisePlan, ScheduleActivity } from '../models/index.js'
-import { WEEK_DAYS } from '../config/constants.js'
+import { pktStartOfDay, pktDayName, resolveTodayDay } from '../utils/pktTime.js'
 
-function startOfDay(d = new Date()) {
-    const x = new Date(d)
-    x.setHours(0, 0, 0, 0)
-    return x
-}
+const startOfDay = pktStartOfDay
 
 // Resolve which client the caller is acting on.
 async function resolveClientId(req) {
@@ -77,43 +73,32 @@ export const addWeight = asyncHandler(async (req, res) => {
 //   2. Today's exercises from the published exercise plan
 //   3. Today's schedule activities (added by trainer or client)
 //   4. Water intake goal
-async function seedTasksForClient(clientId, userId) {
+async function seedTasksForClient(clientId, userId, date = new Date()) {
     const tasks = []
 
-    // 1. Diet plan meals
+    // 1. That date's meals from the diet plan (day matched in PKT)
     const plan = await DietPlan.findOne({ client: clientId, status: 'published' })
-    if (plan?.meals?.length) {
-        for (const m of plan.meals) {
-            tasks.push({
-                key: `meal:${m._id}`,
-                label: `${m.name}${m.time ? ` — ${m.time}` : ''}`,
-                type: 'meal',
-                time: m.time || '',
-                done: false,
-                mealId: m._id,
-            })
+    if (plan) {
+        const todayDietDay = resolveTodayDay(plan.days, plan.todayDayId, date)
+        if (todayDietDay?.meals?.length) {
+            for (const m of todayDietDay.meals) {
+                tasks.push({
+                    key: `meal:${m._id}`,
+                    label: `${m.name}${m.time ? ` — ${m.time}` : ''}`,
+                    type: 'meal',
+                    time: m.time || '',
+                    done: false,
+                    mealId: m._id,
+                    itemsDone: new Array(m.items?.length || 0).fill(false),
+                })
+            }
         }
     }
 
-    // 2. Today's workout from the exercise plan
+    // 2. That date's workout from the exercise plan (day matched in PKT)
     const exPlan = await ExercisePlan.findOne({ client: clientId, status: 'published' })
     if (exPlan) {
-        // Match today's day name to a training day, or use todayDayId
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-        const todayShort = dayNames[new Date().getDay()]
-        const todayFull = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()]
-
-        let todayDay = null
-        if (exPlan.todayDayId) {
-            todayDay = exPlan.days.find((d) => String(d._id) === String(exPlan.todayDayId))
-        }
-        if (!todayDay) {
-            todayDay = exPlan.days.find((d) =>
-                d.day.toLowerCase() === todayFull.toLowerCase() ||
-                d.day.toLowerCase() === todayShort.toLowerCase() ||
-                d.day.toLowerCase() === 'today',
-            )
-        }
+        const todayDay = resolveTodayDay(exPlan.days, exPlan.todayDayId, date)
         if (todayDay && todayDay.exercises.length) {
             const label = todayDay.focus
                 ? `${todayDay.day} workout — ${todayDay.focus}`
@@ -128,8 +113,8 @@ async function seedTasksForClient(clientId, userId) {
         }
     }
 
-    // 3. Today's schedule activities (scope = 'today' or today's weekday)
-    const dayShort = WEEK_DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
+    // 3. That date's schedule activities (scope = 'today' or that weekday)
+    const dayShort = pktDayName(date).short
     const schedFilter = {
         $or: [
             { owner: userId, scope: { $in: ['today', dayShort] } },
@@ -168,7 +153,7 @@ export const getDailyLog = asyncHandler(async (req, res) => {
 
     let log = await DailyLog.findOne({ client: clientId, date })
     if (!log && req.user.role === 'client') {
-        log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id) })
+        log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id, date) })
     }
     if (!log) return res.json({ date, tasks: [], cheats: [], completionPct: 0, done: 0, total: 0 })
 
@@ -192,11 +177,61 @@ export const setTask = asyncHandler(async (req, res) => {
     if (!taskKey) throw ApiError.badRequest('taskKey is required')
 
     let log = await DailyLog.findOne({ client: clientId, date })
-    if (!log) log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id) })
+    if (!log) log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id, date) })
 
-    const task = log.tasks.find((t) => t.key === taskKey)
+    let task = log.tasks.find((t) => t.key === taskKey)
+    if (!task) {
+        // The plan may have changed since this log was seeded (e.g. the
+        // trainer added a meal after today's log already existed) — merge in
+        // any newly-available tasks without touching existing completion.
+        const freshTasks = await seedTasksForClient(clientId, req.user._id, date)
+        const existingKeys = new Set(log.tasks.map((t) => t.key))
+        const newTasks = freshTasks.filter((t) => !existingKeys.has(t.key))
+        if (newTasks.length) log.tasks.push(...newTasks)
+        task = log.tasks.find((t) => t.key === taskKey)
+    }
     if (!task) throw ApiError.notFound('Task not found in today\'s log')
     task.done = done ?? !task.done
+    await log.save()
+
+    // Roll the day's completion into the Client.progress headline number.
+    await Client.updateOne({ _id: clientId }, { progress: log.completionPct })
+
+    res.json({ id: String(log._id), tasks: log.tasks, completionPct: log.completionPct })
+})
+
+// PATCH /api/progress/daily/meal-item   Body: { date?, mealId, itemIndex, done }   (client)
+// Toggles a single food item within a meal. The meal's own `done` flag is
+// derived from itemsDone (true only once every item is checked) so a client
+// eating 2 of 3 items shows up as partial everywhere else that reads `done`.
+export const setMealItem = asyncHandler(async (req, res) => {
+    const clientId = req.client._id
+    const date = startOfDay(req.body.date ? new Date(req.body.date) : new Date())
+    const { mealId, itemIndex, done } = req.body
+    if (!mealId) throw ApiError.badRequest('mealId is required')
+    if (itemIndex === undefined || itemIndex === null) throw ApiError.badRequest('itemIndex is required')
+
+    let log = await DailyLog.findOne({ client: clientId, date })
+    if (!log) log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id, date) })
+
+    let task = log.tasks.find((t) => String(t.mealId) === String(mealId))
+    if (!task) {
+        // The plan may have changed since this log was seeded — merge in any
+        // newly-available tasks without touching existing completion.
+        const freshTasks = await seedTasksForClient(clientId, req.user._id, date)
+        const existingMealIds = new Set(log.tasks.filter((t) => t.mealId).map((t) => String(t.mealId)))
+        const newTasks = freshTasks.filter((t) => t.mealId && !existingMealIds.has(String(t.mealId)))
+        if (newTasks.length) log.tasks.push(...newTasks)
+        task = log.tasks.find((t) => String(t.mealId) === String(mealId))
+    }
+    if (!task) throw ApiError.notFound('Meal not found in today\'s log')
+
+    const itemsDone = Array.isArray(task.itemsDone) ? [...task.itemsDone] : []
+    while (itemsDone.length <= itemIndex) itemsDone.push(false)
+    itemsDone[itemIndex] = done ?? !itemsDone[itemIndex]
+    task.itemsDone = itemsDone
+    task.done = itemsDone.length > 0 && itemsDone.every(Boolean)
+    log.markModified('tasks')
     await log.save()
 
     // Roll the day's completion into the Client.progress headline number.
@@ -216,7 +251,7 @@ export const logCheat = asyncHandler(async (req, res) => {
     if (!mealId) throw ApiError.badRequest('mealId is required')
 
     let log = await DailyLog.findOne({ client: clientId, date })
-    if (!log) log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id) })
+    if (!log) log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id, date) })
 
     // Remove existing cheat for this meal if any, then add fresh
     log.cheats = log.cheats.filter((c) => String(c.mealId) !== String(mealId))
@@ -269,9 +304,9 @@ export const dailyHistory = asyncHandler(async (req, res) => {
     const clientId = await resolveClientId(req)
     const days = Math.min(Number(req.query.days) || 14, 90)
 
-    const since = new Date()
-    since.setHours(0, 0, 0, 0)
-    since.setDate(since.getDate() - (days - 1))
+    // PKT has no DST, so each calendar day is exactly 24h — safe to step back
+    // by milliseconds instead of using Date's locale-dependent setDate().
+    const since = new Date(pktStartOfDay().getTime() - (days - 1) * 24 * 60 * 60 * 1000)
 
     const logs = await DailyLog.find({ client: clientId, date: { $gte: since } }).sort({ date: 1 })
 
@@ -283,8 +318,14 @@ export const dailyHistory = asyncHandler(async (req, res) => {
         const water = log.tasks.find((t) => t.key === 'water')
         const sleep = log.tasks.find((t) => t.key === 'sleep')
         const workout = log.tasks.find((t) => t.type === 'workout')
-        const mealsDone = log.tasks.filter((t) => t.type === 'meal' && t.done).length
-        const mealsTotal = log.tasks.filter((t) => t.type === 'meal').length
+        const mealTasks = log.tasks.filter((t) => t.type === 'meal')
+        const mealsDone = mealTasks.filter((t) => t.done).length
+        const mealsTotal = mealTasks.length
+        // Item-level counts across all meals — lets the trainer see partial
+        // adherence (e.g. 5 of 8 items eaten) even on days with no fully
+        // completed meals.
+        const mealItemsDone = mealTasks.reduce((s, t) => s + (t.itemsDone || []).filter(Boolean).length, 0)
+        const mealItemsTotal = mealTasks.reduce((s, t) => s + (t.itemsDone || []).length, 0)
 
         return {
             date: log.date,
@@ -294,6 +335,8 @@ export const dailyHistory = asyncHandler(async (req, res) => {
             workout: workout?.done || false,
             mealsDone,
             mealsTotal,
+            mealItemsDone,
+            mealItemsTotal,
         }
     })
 

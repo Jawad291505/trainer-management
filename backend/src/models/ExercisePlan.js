@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { EXERCISE_PLAN_STATUS, EXERCISE_TECHNIQUES } from '../config/constants.js'
+import { EXERCISE_PLAN_STATUS, EXERCISE_TECHNIQUES, TRACKING_TYPES } from '../config/constants.js'
 
 // A client-specific exercise plan organised by training day
 // (trainer ExercisePlans.jsx builder -> user MyExercises.jsx).
@@ -22,6 +22,12 @@ const planExerciseSchema = new mongoose.Schema(
         youtube: { type: String, default: '' },
         instructions: { type: String, default: '' },
 
+        // Whether a set is logged by reps or a held/timed duration, and optional
+        // weight/duration targets carried into each WorkoutSession's set log.
+        trackingType: { type: String, enum: TRACKING_TYPES, default: 'reps' },
+        targetWeight: { type: Number, default: null, min: 0 }, // kg
+        targetDuration: { type: Number, default: null, min: 0 }, // seconds
+
         done: { type: Boolean, default: false },
     },
     { _id: true },
@@ -31,6 +37,10 @@ const trainingDaySchema = new mongoose.Schema(
     {
         day: { type: String, required: true, trim: true }, // "Monday" / "Today"
         focus: { type: String, default: '' }, // "Chest & Triceps"
+        // Free-text coaching note for this specific day (distinct from `focus`),
+        // e.g. "Go light on the shoulder today, form over weight". Set by the
+        // trainer, shown to the client above the day's exercises.
+        note: { type: String, default: '' },
         exercises: { type: [planExerciseSchema], default: [] },
     },
     { _id: true },

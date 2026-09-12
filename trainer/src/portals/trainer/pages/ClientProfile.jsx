@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { Button, Tabs, Progress, Checkbox, Tag, Image, Input, InputNumber, Modal, App } from 'antd'
+import { Button, Tabs, Progress, Checkbox, Tag, Image, Input, InputNumber, Modal, App, Collapse, Empty } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -33,6 +33,7 @@ import StatusBadge from '../../../components/common/StatusBadge'
 import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
 import EmptyState from '../../../components/common/EmptyState'
+import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import MealCard from '../components/MealCard'
 import ExerciseDayCard from '../components/ExerciseDayCard'
 import { api } from '../../../services/api'
@@ -153,55 +154,89 @@ export default function ClientProfile() {
     const { requests } = useCorrections()
     const { pendingCountForClient, fetchForClient: fetchPhotos } = useProgressPhotos()
     const [clientData, setClientData] = useState(null)
+    const [loading, setLoading] = useState(true)
     const [weightData, setWeightData] = useState([])
     const [dietPlan, setDietPlan] = useState(null)
     const [exercisePlan, setExercisePlan] = useState(null)
     const [todayCheats, setTodayCheats] = useState([])
     const [todayMealStatus, setTodayMealStatus] = useState({}) // { [mealId]: boolean }
+    const [todayMealItems, setTodayMealItems] = useState({}) // { [mealId]: boolean[] } — per-item completion
     const [habitHistory, setHabitHistory] = useState([])
     const [habitGoals, setHabitGoals] = useState({ waterGoal: 2, sleepGoal: 8 })
     const [goalModal, setGoalModal] = useState(null) // { type: 'water' | 'sleep', value }
     const [goalSaving, setGoalSaving] = useState(false)
+    const [workoutSessions, setWorkoutSessions] = useState([])
+    const [workoutAdherence, setWorkoutAdherence] = useState(null)
+    const [expandedSession, setExpandedSession] = useState(null) // sessionId
     const clientRequests = requests.filter((r) => r.clientId === id || String(r.client) === id)
     const pendingPhotos = pendingCountForClient(id)
 
     useEffect(() => {
+        let cancelled = false
         async function load() {
-            try {
-                const c = await api.get(`/clients/${id}`)
-                setClientData(c)
-                fetchPhotos(id)
-                try {
-                    const w = await api.get(`/progress/weight?client=${id}`)
-                    setWeightData((w.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
-                } catch { /* */ }
-                try { const dp = await api.get(`/clients/${id}/diet-plan`); if (dp) setDietPlan(dp) } catch { /* */ }
-                try { const ep = await api.get(`/clients/${id}/exercise-plan`); if (ep) setExercisePlan(ep) } catch { /* */ }
-                try {
-                    const daily = await api.get(`/progress/daily?client=${id}`)
-                    setTodayCheats(daily.cheats || [])
-                    const mStatus = {}
-                        ; (daily.tasks || []).filter((t) => t.type === 'meal').forEach((t) => {
-                            mStatus[String(t.mealId)] = t.done
-                        })
-                    setTodayMealStatus(mStatus)
-                } catch { /* */ }
-                try {
-                    const h = await api.get(`/progress/daily/history?client=${id}&days=14`)
-                    setHabitHistory((h.history || []).map((d) => ({
-                        date: dayjs(d.date).format('DD MMM'),
-                        completionPct: d.completionPct,
-                        water: d.water,
-                        sleep: d.sleep,
-                        workout: d.workout,
-                        mealsDone: d.mealsDone,
-                        mealsTotal: d.mealsTotal,
-                    })))
-                    if (h.goals) setHabitGoals(h.goals)
-                } catch { /* */ }
-            } catch { /* */ }
+            setLoading(true)
+            fetchPhotos(id)
+            // All six independent — fire them together instead of one long
+            // waterfall of sequential awaits (each one adding its own round-trip
+            // latency on top of the last, which is what made this page feel slow).
+            const [clientRes, weightRes, dietRes, exRes, dailyRes, historyRes, sessionsRes, adherenceRes] = await Promise.allSettled([
+                api.get(`/clients/${id}`),
+                api.get(`/progress/weight?client=${id}`),
+                api.get(`/clients/${id}/diet-plan`),
+                api.get(`/clients/${id}/exercise-plan`),
+                api.get(`/progress/daily?client=${id}`),
+                api.get(`/progress/daily/history?client=${id}&days=14`),
+                api.get(`/workout-sessions?client=${id}&limit=10`),
+                api.get(`/clients/${id}/workout-adherence?weeks=6`),
+            ])
+            if (cancelled) return
+
+            if (clientRes.status === 'fulfilled') setClientData(clientRes.value)
+
+            if (weightRes.status === 'fulfilled') {
+                const w = weightRes.value
+                setWeightData((w.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg, source: e.source })))
+            }
+
+            if (dietRes.status === 'fulfilled' && dietRes.value) setDietPlan(dietRes.value)
+            if (exRes.status === 'fulfilled' && exRes.value) setExercisePlan(exRes.value)
+
+            if (dailyRes.status === 'fulfilled') {
+                const daily = dailyRes.value
+                setTodayCheats(daily.cheats || [])
+                const mStatus = {}
+                const mItems = {}
+                    ; (daily.tasks || []).filter((t) => t.type === 'meal').forEach((t) => {
+                        mStatus[String(t.mealId)] = t.done
+                        mItems[String(t.mealId)] = t.itemsDone || []
+                    })
+                setTodayMealStatus(mStatus)
+                setTodayMealItems(mItems)
+            }
+
+            if (historyRes.status === 'fulfilled') {
+                const h = historyRes.value
+                setHabitHistory((h.history || []).map((d) => ({
+                    date: dayjs(d.date).format('DD MMM'),
+                    completionPct: d.completionPct,
+                    water: d.water,
+                    sleep: d.sleep,
+                    workout: d.workout,
+                    mealsDone: d.mealsDone,
+                    mealsTotal: d.mealsTotal,
+                    mealItemsDone: d.mealItemsDone,
+                    mealItemsTotal: d.mealItemsTotal,
+                })))
+                if (h.goals) setHabitGoals(h.goals)
+            }
+
+            if (sessionsRes.status === 'fulfilled') setWorkoutSessions(sessionsRes.value.items || [])
+            if (adherenceRes.status === 'fulfilled') setWorkoutAdherence(adherenceRes.value)
+
+            setLoading(false)
         }
         load()
+        return () => { cancelled = true }
     }, [id, fetchPhotos])
 
     const completion = useMemo(() => {
@@ -221,6 +256,8 @@ export default function ClientProfile() {
             waterDone, sleepDone, workoutDone, total: habitHistory.length,
         }
     }, [habitHistory])
+
+    if (loading) return <LoadingSkeleton cards={4} rows={6} />
 
     if (!clientData) {
         return (
@@ -278,11 +315,11 @@ export default function ClientProfile() {
             </div>
 
             <div className="lg:col-span-2">
-                <ChartCard title="Weight Progress" subtitle="Last 8 weeks (kg)">
+                <ChartCard title="Weight Progress" subtitle="Recent weigh-ins (kg)">
                     <ResponsiveContainer width="100%" height={260}>
                         <LineChart data={weightData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                            <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                            <XAxis dataKey="date" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                             <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={44} />
                             <Tooltip
                                 content={({ active, payload, label }) => {
@@ -333,8 +370,13 @@ export default function ClientProfile() {
         </div>
     )
 
-    const dietMealsDone = Object.values(todayMealStatus).filter(Boolean).length
-    const dietMealsTotal = dietPlan?.meals?.length || 0
+    const todayDietDay = (dietPlan?.days || []).find((d) => (d.id || d._id) === dietPlan?.resolvedTodayDayId) || dietPlan?.days?.[0]
+    const todayDietMeals = todayDietDay?.meals || []
+    // Only count completion for meals still on today's plan — todayMealStatus
+    // can carry stale entries for meals the trainer has since edited/removed,
+    // which would otherwise inflate the count past the plan's current total.
+    const dietMealsDone = todayDietMeals.filter((m) => todayMealStatus[String(m._id || m.id)]).length
+    const dietMealsTotal = todayDietMeals.length
     const dietAdherence = dietMealsTotal ? Math.round((dietMealsDone / dietMealsTotal) * 100) : 0
 
     const dietTab = (
@@ -380,8 +422,14 @@ export default function ClientProfile() {
             )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {(dietPlan?.meals || []).map((m) => (
-                    <MealCard key={m.id} meal={m} cheat={todayCheats.find((c) => String(c.mealId) === String(m.id))} done={todayMealStatus[String(m._id || m.id)]} />
+                {todayDietMeals.map((m) => (
+                    <MealCard
+                        key={m.id}
+                        meal={m}
+                        cheat={todayCheats.find((c) => String(c.mealId) === String(m.id))}
+                        done={todayMealStatus[String(m._id || m.id)]}
+                        itemsDone={todayMealItems[String(m._id || m.id)]}
+                    />
                 ))}
             </div>
         </div>
@@ -397,6 +445,110 @@ export default function ClientProfile() {
                 {(exercisePlan?.days || []).map((d) => (
                     <ExerciseDayCard key={d.id} day={d} />
                 ))}
+            </div>
+
+            <div className="mt-6">
+                <h3 className="section-title mb-3">Workout History &amp; Performance</h3>
+
+                <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="app-card p-4 text-center">
+                        <div className="text-2xl font-extrabold" style={{ color: 'var(--color-success)' }}>{workoutAdherence?.totals?.completed ?? 0}</div>
+                        <div className="text-sm font-semibold text-text-primary">Completed</div>
+                        <div className="text-xs text-text-muted">last 6 weeks</div>
+                    </div>
+                    <div className="app-card p-4 text-center">
+                        <div className="text-2xl font-extrabold" style={{ color: 'var(--color-warning)' }}>{workoutAdherence?.totals?.partial ?? 0}</div>
+                        <div className="text-sm font-semibold text-text-primary">Partial</div>
+                        <div className="text-xs text-text-muted">last 6 weeks</div>
+                    </div>
+                    <div className="app-card p-4 text-center">
+                        <div className="text-2xl font-extrabold" style={{ color: 'var(--color-danger)' }}>{workoutAdherence?.totals?.missed ?? 0}</div>
+                        <div className="text-sm font-semibold text-text-primary">Missed</div>
+                        <div className="text-xs text-text-muted">last 6 weeks</div>
+                    </div>
+                </div>
+
+                {workoutAdherence?.weeklyBreakdown?.length > 0 && (
+                    <ChartCard title="Weekly Adherence" subtitle="Last 6 weeks (%)" className="mb-4">
+                        <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={workoutAdherence.weeklyBreakdown.map((w) => ({ week: dayjs(w.weekStart).format('D MMM'), adherencePct: w.adherencePct }))} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                                <XAxis dataKey="week" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                                <Tooltip content={<ChartTooltip />} />
+                                <Bar dataKey="adherencePct" fill="var(--color-primary)" radius={[6, 6, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </ChartCard>
+                )}
+
+                {workoutSessions.length === 0 ? (
+                    <Empty description="No workout sessions logged yet" className="py-6" />
+                ) : (
+                    <Collapse
+                        accordion
+                        activeKey={expandedSession}
+                        onChange={(key) => setExpandedSession(key)}
+                        items={workoutSessions.map((s) => ({
+                            key: s._id || s.id,
+                            label: (
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span className="font-semibold text-text-primary">
+                                        {dayjs(s.date).format('ddd, D MMM')} — {s.day}{s.focus ? ` · ${s.focus}` : ''}
+                                    </span>
+                                    <span className="flex items-center gap-2">
+                                        <Tag color={s.status === 'completed' ? 'success' : 'processing'}>{s.status === 'completed' ? 'Completed' : 'In progress'}</Tag>
+                                        <span className="text-xs text-text-muted">{s.doneSets}/{s.totalSets} sets · {s.completionPct}%</span>
+                                    </span>
+                                </div>
+                            ),
+                            children: (
+                                <div className="flex flex-col gap-3">
+                                    {(s.exercises || []).map((ex, exi) => (
+                                        <div key={exi} className="rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                                            <div className="mb-1 flex items-center justify-between">
+                                                <span className="text-sm font-semibold text-text-primary">{ex.name}</span>
+                                                <span className="text-xs text-text-muted">{ex.doneSets}/{ex.totalSets} sets</span>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-xs">
+                                                    <thead>
+                                                        <tr className="text-left text-text-muted">
+                                                            <th className="pr-3 font-medium">Set</th>
+                                                            <th className="pr-3 font-medium">Target</th>
+                                                            <th className="pr-3 font-medium">Actual</th>
+                                                            <th className="font-medium">Done</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {(ex.sets || []).map((set, si) => (
+                                                            <tr key={si} className="text-text-secondary">
+                                                                <td className="pr-3 py-0.5">{set.setNumber}</td>
+                                                                <td className="pr-3 py-0.5">
+                                                                    {ex.trackingType === 'duration'
+                                                                        ? `${set.targetDuration ?? '—'}s`
+                                                                        : `${set.targetReps}${set.targetWeight ? ` @ ${set.targetWeight}kg` : ''}`}
+                                                                </td>
+                                                                <td className="pr-3 py-0.5">
+                                                                    {ex.trackingType === 'duration'
+                                                                        ? `${set.actualDuration ?? '—'}s`
+                                                                        : `${set.actualReps ?? '—'}${set.actualWeight ? ` @ ${set.actualWeight}kg` : ''}`}
+                                                                </td>
+                                                                <td className="py-0.5">{set.completed ? '✓' : '—'}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            {ex.notes && <div className="mt-1 text-xs italic text-text-secondary">{ex.notes}</div>}
+                                        </div>
+                                    ))}
+                                    {s.notes && <div className="text-xs italic text-text-secondary">Client note: {s.notes}</div>}
+                                </div>
+                            ),
+                        }))}
+                    />
+                )}
             </div>
         </div>
     )
@@ -439,7 +591,7 @@ export default function ClientProfile() {
                                                 <span>{d.water ? '✅' : '❌'} Water</span>
                                                 <span>{d.sleep ? '✅' : '❌'} Sleep</span>
                                                 <span>{d.workout ? '✅' : '❌'} Workout</span>
-                                                <span>🍽️ Meals: {d.mealsDone}/{d.mealsTotal}</span>
+                                                <span>🍽️ Meals: {d.mealsDone}/{d.mealsTotal} ({d.mealItemsDone}/{d.mealItemsTotal} items)</span>
                                             </div>
                                         </div>
                                     )

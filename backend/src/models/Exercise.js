@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { EXERCISE_TECHNIQUES, LIBRARY_SOURCES } from '../config/constants.js'
+import { EXERCISE_TECHNIQUES, LIBRARY_SOURCES, TRACKING_TYPES } from '../config/constants.js'
 
 // Exercise master data. Seeded verbatim from data/exerciseLibrary.json (240 rows
 // across 10 categories, built from the Fit360OS exercise PDFs) and managed by
@@ -30,6 +30,11 @@ const exerciseSchema = new mongoose.Schema(
         defaultSets: { type: Number, default: 3, min: 1 },
         defaultReps: { type: String, default: '8-12' }, // string: ranges like "6-10", "AMRAP"
         defaultRest: { type: String, default: '60s' },
+
+        // Whether a set is logged by reps or a held/timed duration (planks, cardio).
+        trackingType: { type: String, enum: TRACKING_TYPES, default: 'reps' },
+        defaultWeight: { type: Number, default: null, min: 0 }, // kg, optional
+        defaultDuration: { type: Number, default: null, min: 0 }, // seconds, for trackingType: 'duration'
 
         youtube: { type: String, default: '' },
         notes: { type: String, default: '' }, // form / coaching cues

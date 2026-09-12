@@ -19,6 +19,12 @@ export default function ExerciseDayCard({ day }) {
                 </span>
             </div>
 
+            {day.note && (
+                <div className="mb-3 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+                    {day.note}
+                </div>
+            )}
+
             <div className="flex flex-col gap-2">
                 {day.exercises.map((ex, i) => (
                     <div
@@ -48,8 +54,9 @@ export default function ExerciseDayCard({ day }) {
                             )}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
-                            <span>{ex.sets} sets × {ex.reps}</span>
+                            <span>{ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps}</span>
                             <span>· Rest {ex.rest}</span>
+                            {ex.targetWeight ? <span>· {ex.targetWeight}kg</span> : null}
                         </div>
                         {(ex.notes || ex.instructions) && <div className="mt-1 text-xs italic text-text-secondary">{ex.notes || ex.instructions}</div>}
                     </div>

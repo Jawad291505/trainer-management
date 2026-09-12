@@ -9,7 +9,9 @@ function qtyLabel(it) {
 }
 
 // Displays a single meal with its food items and macro totals.
-export default function MealCard({ meal, cheat, done }) {
+export default function MealCard({ meal, cheat, done, itemsDone }) {
+    const hasItemDetail = Array.isArray(itemsDone) && itemsDone.length === meal.items.length
+    const itemsEaten = hasItemDetail ? itemsDone.filter(Boolean).length : 0
     const totals = meal.items.reduce(
         (acc, it) => ({
             cal: acc.cal + it.cal,
@@ -39,6 +41,11 @@ export default function MealCard({ meal, cheat, done }) {
                                 Completed
                             </span>
                         )}
+                        {!done && !cheat && hasItemDetail && itemsEaten > 0 && (
+                            <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+                                {itemsEaten}/{meal.items.length} items
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-text-muted">
                         <ClockCircleOutlined /> {meal.time}
@@ -50,12 +57,26 @@ export default function MealCard({ meal, cheat, done }) {
             </div>
 
             <div className="mt-3 flex flex-col gap-2">
-                {meal.items.map((it, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
-                        <span className="font-medium text-text-primary">{it.food || it.name}</span>
-                        <span className="text-text-muted">{qtyLabel(it)}</span>
-                    </div>
-                ))}
+                {meal.items.map((it, i) => {
+                    const eaten = hasItemDetail ? !!itemsDone[i] : null
+                    return (
+                        <div
+                            key={i}
+                            className="flex items-center justify-between rounded-lg px-3 py-2 text-sm"
+                            style={{ background: eaten ? 'var(--color-success-soft)' : 'var(--color-surface-secondary)' }}
+                        >
+                            <span className="flex items-center gap-2 font-medium text-text-primary">
+                                {eaten !== null && (
+                                    eaten
+                                        ? <CheckCircleFilled style={{ color: 'var(--color-success)', fontSize: 13 }} />
+                                        : <span className="inline-block h-3 w-3 rounded-full border" style={{ borderColor: 'var(--color-border-strong)' }} />
+                                )}
+                                {it.food || it.name}
+                            </span>
+                            <span className="text-text-muted">{qtyLabel(it)}</span>
+                        </div>
+                    )
+                })}
             </div>
 
             {meal.items.length > 0 && (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, App } from 'antd'
+import dayjs from 'dayjs'
 import { MessageOutlined, RightOutlined, FireOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import ChartCard from '../../../components/common/ChartCard'
@@ -29,7 +30,7 @@ export default function Dashboard() {
                     api.get('/progress/weight'),
                 ])
                 setTasks(daily.tasks || [])
-                setWeightData((weight.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
+                setWeightData((weight.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })))
                 // Get trainer info from client profile
                 if (client?.trainer) {
                     setTrainerInfo(client.trainer)
@@ -109,7 +110,7 @@ export default function Dashboard() {
             {weightData.length > 0 && (
                 <div className="mt-6">
                     <ChartCard title="Weight Journey" subtitle={`${weightData.length} weigh-ins (kg)`}>
-                        <GrowthChart data={weightData} dataKey="weight" xKey="week" name="Weight" height={260} />
+                        <GrowthChart data={weightData} dataKey="weight" xKey="date" name="Weight" height={260} />
                     </ChartCard>
                 </div>
             )}

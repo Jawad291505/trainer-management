@@ -34,6 +34,7 @@ async function normalizeDays(days = []) {
     return days.map((d) => ({
         day: d.day,
         focus: d.focus || '',
+        note: d.note || '',
         exercises: (d.exercises || []).map((e) => {
             const ref = e.exerciseCode ? byCode.get(e.exerciseCode) : null
             return {
@@ -46,6 +47,9 @@ async function normalizeDays(days = []) {
                 technique: e.technique ?? ref?.technique ?? 'standard',
                 youtube: e.youtube ?? ref?.youtube ?? '',
                 instructions: e.instructions ?? ref?.notes ?? '',
+                trackingType: e.trackingType ?? ref?.trackingType ?? 'reps',
+                targetWeight: e.targetWeight ?? ref?.defaultWeight ?? null,
+                targetDuration: e.targetDuration ?? ref?.defaultDuration ?? null,
                 done: !!e.done,
             }
         }),

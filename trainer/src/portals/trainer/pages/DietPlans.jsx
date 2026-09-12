@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, Tag, App, Alert, Spin } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { Select, Button, Modal, Form, Input, InputNumber, Tag, App, Alert, Spin, Segmented } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -8,6 +8,7 @@ import {
     SaveOutlined,
     SendOutlined,
     WarningOutlined,
+    CalendarOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
@@ -24,6 +25,7 @@ import {
 import FoodModal from '../components/FoodModal'
 import GlycemicBadge from '../components/GlycemicBadge'
 
+let daySeq = 100
 let mealSeq = 100
 
 export default function DietPlans() {
@@ -31,12 +33,23 @@ export default function DietPlans() {
     const { foods } = useLibrary()
     const [clientId, setClientId] = useState(null)
     const [clientList, setClientList] = useState([])
-    const [meals, setMeals] = useState([])
+    const [days, setDays] = useState([])
+    const [activeDayId, setActiveDayId] = useState(null)
     const [planId, setPlanId] = useState(null)
     const [saving, setSaving] = useState(false)
     const [publishing, setPublishing] = useState(false)
     const [loading, setLoading] = useState(true)
     const [templates, setTemplates] = useState([])
+
+    const activeDay = useMemo(() => days.find((d) => d.id === activeDayId) || null, [days, activeDayId])
+    const meals = activeDay?.meals || []
+
+    // Apply an updater to the active day's meals array.
+    const setMeals = (updater) => {
+        setDays((prev) =>
+            prev.map((d) => (d.id === activeDayId ? { ...d, meals: typeof updater === 'function' ? updater(d.meals) : updater } : d)),
+        )
+    }
 
     useEffect(() => {
         api.get('/clients').then((res) => {
@@ -49,12 +62,39 @@ export default function DietPlans() {
         }).catch(() => { })
     }, [])
 
+    // Build local day state from an API plan's `days`.
+    const loadDaysFromPlan = (plan) =>
+        (plan.days || []).map((d, di) => ({
+            id: d.id || d._id || `D${di}`,
+            day: d.day,
+            meals: (d.meals || []).map((m, mi) => ({
+                id: m.id || m._id || `M${mi}`,
+                name: m.name,
+                time: m.time || '',
+                notes: m.notes || '',
+                items: (m.items || []).map((it) => ({
+                    foodId: it.foodId || it.food,
+                    foodCode: it.foodCode,
+                    food: it.name || it.food_name || '',
+                    qty: it.qty,
+                    unit: it.unit || 'g',
+                    cal: it.cal || 0,
+                    protein: Math.round((it.protein || 0) * 10) / 10,
+                    carbs: Math.round((it.carbs || 0) * 10) / 10,
+                    fat: Math.round((it.fat || 0) * 10) / 10,
+                    gl: it.gl || 0,
+                    gi: it.gi || 0,
+                })),
+            })),
+        }))
+
     // Load existing diet plan for selected client
     useEffect(() => {
         if (!clientId) return
         setLoading(true)
         setPlanId(null)
-        setMeals([])
+        setDays([])
+        setActiveDayId(null)
         setTemplateName('')
         setTemplateId(undefined)
         api.get(`/diet-plans?client=${clientId}`).then(async (res) => {
@@ -65,63 +105,51 @@ export default function DietPlans() {
             const full = await api.get(`/diet-plans/${plan._id || plan.id}`)
             setPlanId(full._id || full.id)
             setTemplateName(full.title || '')
-            const loaded = (full.meals || []).map((m, mi) => ({
-                id: m.id || `M${mi}`,
-                name: m.name,
-                time: m.time || '',
-                notes: m.notes || '',
-                items: (m.items || []).map((it) => ({
-                    foodId: it.foodId,
-                    foodCode: it.foodCode,
-                    food: it.name || '',
-                    qty: it.qty,
-                    unit: it.unit || 'g',
-                    cal: it.cal || 0,
-                    protein: Math.round((it.protein || 0) * 10) / 10,
-                    carbs: Math.round((it.carbs || 0) * 10) / 10,
-                    fat: Math.round((it.fat || 0) * 10) / 10,
-                    gl: it.gl || 0,
-                    gi: it.gi || 0,
-                })),
-            }))
-            setMeals(loaded)
+            const loaded = loadDaysFromPlan(full)
+            setDays(loaded)
+            setActiveDayId(loaded[0]?.id || null)
         }).catch(() => { }).finally(() => setLoading(false))
     }, [clientId])
     const [templateId, setTemplateId] = useState(undefined)
     const [templateName, setTemplateName] = useState('')
+    const [dayModal, setDayModal] = useState(false)
     const [mealModal, setMealModal] = useState(false)
     const [foodModal, setFoodModal] = useState(null) // mealId
+    const [dayForm] = Form.useForm()
     const [mealForm] = Form.useForm()
 
     const openMealModal = () => setMealModal(true)
 
-    // Apply an admin diet-plan template via API
+    const addDay = async () => {
+        const v = await dayForm.validateFields()
+        const id = `D${daySeq++}`
+        setDays((prev) => [...prev, { id, day: v.day, meals: [] }])
+        setActiveDayId(id)
+        dayForm.resetFields()
+        setDayModal(false)
+        message.success('Day added')
+    }
+
+    const removeDay = (id) => {
+        setDays((prev) => {
+            const next = prev.filter((d) => d.id !== id)
+            if (activeDayId === id) setActiveDayId(next[0]?.id || null)
+            return next
+        })
+        message.success('Day removed')
+    }
+
+    // Apply an admin diet-plan template via API — populates a single
+    // "Everyday" day; the trainer can split it into weekdays afterward.
     const applyTemplate = async (id) => {
         if (!clientId) { message.warning('Select a client first'); return }
         setTemplateId(id)
         try {
             const plan = await api.post('/diet-plans/from-template', { clientId, templateId: id })
             setPlanId(plan._id || plan.id)
-            const planMeals = (plan.meals || []).map((m) => ({
-                id: m._id || `M${mealSeq++}`,
-                name: m.name,
-                time: m.time,
-                notes: m.notes || '',
-                items: (m.items || []).map((it) => ({
-                    foodId: it.food,
-                    foodCode: it.foodCode,
-                    food: it.food_name || it.name || '',
-                    qty: it.qty,
-                    unit: it.unit || 'g',
-                    cal: it.cal || 0,
-                    protein: it.protein || 0,
-                    carbs: it.carbs || 0,
-                    fat: it.fat || 0,
-                    gl: it.gl || 0,
-                    gi: it.gi || 0,
-                })),
-            }))
-            setMeals(planMeals)
+            const loaded = loadDaysFromPlan(plan)
+            setDays(loaded)
+            setActiveDayId(loaded[0]?.id || null)
             const tpl = templates.find((p) => (p._id || p.id) === id)
             setTemplateName(tpl?.name || 'Template')
             message.success(`Loaded "${tpl?.name || 'template'}" — review and customise before publishing`)
@@ -175,32 +203,35 @@ export default function DietPlans() {
         setMeals((prev) => prev.map((m) => (m.id === mealId ? { ...m, items: m.items.filter((_, i) => i !== idx) } : m)))
     }
 
-    // Build the meals payload for the API
-    const buildMealsPayload = () =>
-        meals.map((m) => ({
-            name: m.name,
-            time: m.time,
-            notes: m.notes || '',
-            items: m.items.map((it) => ({
-                foodCode: it.foodCode,
-                food_name: it.food,
-                qty: it.qty,
-                unit: it.unit,
+    // Build the days payload for the API
+    const buildDaysPayload = () =>
+        days.map((d) => ({
+            day: d.day,
+            meals: d.meals.map((m) => ({
+                name: m.name,
+                time: m.time,
+                notes: m.notes || '',
+                items: m.items.map((it) => ({
+                    foodCode: it.foodCode,
+                    food_name: it.food,
+                    qty: it.qty,
+                    unit: it.unit,
+                })),
             })),
         }))
 
     const saveDraft = async () => {
         if (!clientId) { message.warning('Select a client first'); return }
-        if (meals.length === 0) { message.warning('Add at least one meal'); return }
+        if (days.length === 0) { message.warning('Add at least one day'); return }
         setSaving(true)
         try {
             if (planId) {
-                await api.patch(`/diet-plans/${planId}`, { meals: buildMealsPayload() })
+                await api.patch(`/diet-plans/${planId}`, { days: buildDaysPayload() })
             } else {
                 const plan = await api.post('/diet-plans', {
                     clientId,
                     title: templateName || 'Custom Diet Plan',
-                    meals: buildMealsPayload(),
+                    days: buildDaysPayload(),
                 })
                 setPlanId(plan._id || plan.id)
             }
@@ -214,7 +245,7 @@ export default function DietPlans() {
 
     const publishPlan = async () => {
         if (!clientId) { message.warning('Select a client first'); return }
-        if (meals.length === 0) { message.warning('Add at least one meal'); return }
+        if (days.length === 0) { message.warning('Add at least one day'); return }
         setPublishing(true)
         try {
             let id = planId
@@ -222,12 +253,12 @@ export default function DietPlans() {
                 const plan = await api.post('/diet-plans', {
                     clientId,
                     title: templateName || 'Custom Diet Plan',
-                    meals: buildMealsPayload(),
+                    days: buildDaysPayload(),
                 })
                 id = plan._id || plan.id
                 setPlanId(id)
             } else {
-                await api.patch(`/diet-plans/${id}`, { meals: buildMealsPayload() })
+                await api.patch(`/diet-plans/${id}`, { days: buildDaysPayload() })
             }
             await api.post(`/diet-plans/${id}/publish`)
             message.success('Plan published to client')
@@ -271,16 +302,32 @@ export default function DietPlans() {
                     style={{ width: 240 }}
                     options={clientList.map((c) => ({ value: c.id, label: c.name }))}
                 />
-                <span
-                    className="rounded-full px-2.5 py-1 text-xs font-semibold"
-                    style={{ background: 'var(--color-surface-secondary)', color: 'var(--color-text-secondary)' }}
-                >
-                    {meals.length} {meals.length === 1 ? 'meal' : 'meals'}
-                </span>
-                <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} onClick={openMealModal}>
-                    Add meal
+                <Button className="sm:ml-auto" type="dashed" icon={<CalendarOutlined />} onClick={() => setDayModal(true)}>
+                    Add day
                 </Button>
             </div>
+
+            {days.length > 0 && (
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <Segmented
+                        value={activeDayId}
+                        onChange={setActiveDayId}
+                        options={days.map((d) => ({ label: d.day, value: d.id }))}
+                    />
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => activeDayId && removeDay(activeDayId)}>
+                        Remove day
+                    </Button>
+                    <span
+                        className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                        style={{ background: 'var(--color-surface-secondary)', color: 'var(--color-text-secondary)' }}
+                    >
+                        {meals.length} {meals.length === 1 ? 'meal' : 'meals'}
+                    </span>
+                    <Button type="dashed" icon={<PlusOutlined />} onClick={openMealModal}>
+                        Add meal
+                    </Button>
+                </div>
+            )}
 
             {/* Start from an admin template */}
             <div className="app-card mb-4 p-4">
@@ -334,11 +381,19 @@ export default function DietPlans() {
 
             {loading ? (
                 <div className="flex justify-center py-16"><Spin size="large" /></div>
+            ) : days.length === 0 ? (
+                <div className="app-card">
+                    <EmptyState
+                        title="No days yet"
+                        description="Add a day like 'Monday' to begin — or 'Everyday' if the plan repeats daily."
+                        action={<Button type="primary" icon={<CalendarOutlined />} onClick={() => setDayModal(true)}>Add day</Button>}
+                    />
+                </div>
             ) : meals.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No meals yet"
-                        description="Start building the plan by adding a meal."
+                        description={`Start building ${activeDay?.day || 'this day'}'s plan by adding a meal.`}
                         action={<Button type="primary" icon={<PlusOutlined />} onClick={openMealModal}>Add meal</Button>}
                     />
                 </div>
@@ -458,6 +513,22 @@ export default function DietPlans() {
             </Modal>
 
             <FoodModal open={!!foodModal} onCancel={() => setFoodModal(null)} onAdd={addFoodToMeal} />
+
+            <Modal
+                title={<ModalTitle icon={<CalendarOutlined />} title="Add day" subtitle="e.g. Monday, or 'Everyday' if it repeats daily" />}
+                open={dayModal}
+                onCancel={() => setDayModal(false)}
+                onOk={addDay}
+                okText="Add day"
+                okButtonProps={{ icon: <PlusOutlined /> }}
+                centered
+            >
+                <Form form={dayForm} layout="vertical" className="mt-1">
+                    <Form.Item name="day" label="Day" rules={[{ required: true, message: 'Enter a day' }]}>
+                        <Input placeholder="e.g. Monday" />
+                    </Form.Item>
+                </Form>
+            </Modal>
         </div>
     )
 }

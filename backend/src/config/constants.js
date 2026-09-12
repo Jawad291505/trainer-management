@@ -87,3 +87,11 @@ export const REFERRAL_STATUS = ['joined', 'pending']
 
 export const DIET_PLAN_STATUS = ['draft', 'published']
 export const EXERCISE_PLAN_STATUS = ['draft', 'published']
+
+// Exercise.trackingType / ExercisePlan planExercise.trackingType — whether a
+// set is logged by reps or by a held/timed duration (planks, cardio, etc.).
+export const TRACKING_TYPES = ['reps', 'duration']
+
+// WorkoutSession.status — a client's in-progress or finished run through a
+// training day (Workout -> Exercise -> Sets -> Completion/Performance).
+export const WORKOUT_SESSION_STATUS = ['in_progress', 'completed']

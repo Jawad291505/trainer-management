@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Progress, Segmented } from 'antd'
-import { PlayCircleOutlined, CheckOutlined, CalendarOutlined } from '@ant-design/icons'
+import { PlayCircleOutlined, CheckCircleFilled, CalendarOutlined, ThunderboltOutlined, RightOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import PageSpin from '../../../components/common/PageSpin'
@@ -9,11 +10,11 @@ import { api } from '../../../services/api'
 import { getTechnique } from '../../../services/exerciseLibrary'
 
 export default function MyExercises() {
+    const navigate = useNavigate()
     const { client } = useAuth()
     const [exercisePlan, setExercisePlan] = useState(null)
-    const [done, setDone] = useState({})
+    const [daySession, setDaySession] = useState(null) // { session, day } for the active day
     const [loading, setLoading] = useState(true)
-    const [toggling, setToggling] = useState(null)
 
     const planId = exercisePlan?._id || exercisePlan?.id
 
@@ -21,11 +22,9 @@ export default function MyExercises() {
         if (!client) return
         api.get(`/clients/${client._id || client.id}/exercise-plan`).then((plan) => {
             setExercisePlan(plan)
-            const seed = {}
-                ; (plan?.days || []).forEach((d) => (d.exercises || []).forEach((e) => (seed[e._id || e.id] = !!e.done)))
-            setDone(seed)
         }).catch(() => { }).finally(() => setLoading(false))
     }, [client])
+
     const [activeDay, setActiveDay] = useState(null)
 
     const days = exercisePlan?.days || []
@@ -33,28 +32,29 @@ export default function MyExercises() {
 
     useEffect(() => { if (todayId && !activeDay) setActiveDay(todayId) }, [todayId, activeDay])
 
+    // Any day can be started/redone at any time — not just the plan's "today"
+    // day — so re-fetch that day's own session status whenever it changes.
+    useEffect(() => {
+        if (!planId || !activeDay) return
+        setDaySession(null)
+        api.get(`/exercise-plans/${planId}/sessions/day/${activeDay}`).then(setDaySession).catch(() => { })
+    }, [planId, activeDay])
+
     const day = useMemo(
         () => days.find((d) => (d._id || d.id) === activeDay) || days[0] || { exercises: [] },
         [activeDay, days],
     )
 
     const exercises = day?.exercises || []
-    const completed = exercises.filter((e) => done[e._id || e.id]).length
+    const completed = exercises.filter((e) => e.done).length
     const pct = exercises.length ? Math.round((completed / exercises.length) * 100) : 0
 
-    const toggle = async (exId) => {
-        if (!planId || toggling) return
-        const newVal = !done[exId]
-        setToggling(exId)
-        setDone((prev) => ({ ...prev, [exId]: newVal }))
+    const startWorkout = async () => {
+        if (!planId || !activeDay) return
         try {
-            await api.patch(`/exercise-plans/${planId}/exercises/${exId}`, { done: newVal })
-        } catch {
-            // Revert on failure
-            setDone((prev) => ({ ...prev, [exId]: !newVal }))
-        } finally {
-            setToggling(null)
-        }
+            await api.post(`/exercise-plans/${planId}/sessions/start`, { dayId: activeDay })
+        } catch { /* no-op */ }
+        navigate('/workout', { state: { planId, dayId: activeDay } })
     }
 
     const dayOptions = days.map((d) => ({
@@ -63,6 +63,8 @@ export default function MyExercises() {
     }))
 
     if (loading) return <PageSpin />
+
+    const session = daySession?.session
 
     return (
         <div>
@@ -84,6 +86,12 @@ export default function MyExercises() {
                 <Segmented options={dayOptions} value={activeDay} onChange={setActiveDay} />
             </div>
 
+            {day?.note && (
+                <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
+                    {day.note}
+                </div>
+            )}
+
             <div className="app-card mb-4 p-4">
                 <div className="mb-1.5 flex items-center justify-between text-sm">
                     <span className="flex items-center gap-1.5 font-semibold text-text-secondary">
@@ -94,16 +102,52 @@ export default function MyExercises() {
                 <Progress percent={pct} strokeColor={pct === 100 ? 'var(--color-success)' : 'var(--color-primary)'} />
             </div>
 
+            {exercises.length > 0 && (
+                <button
+                    onClick={startWorkout}
+                    className="app-card mb-4 flex w-full items-center justify-between p-5 text-left transition-all"
+                    style={{ borderColor: session?.status === 'completed' ? 'var(--color-success)' : 'var(--color-primary)' }}
+                >
+                    <div className="flex items-center gap-3">
+                        <span
+                            className="flex h-11 w-11 items-center justify-center rounded-xl text-lg"
+                            style={{
+                                background: session?.status === 'completed' ? 'var(--color-success-soft)' : 'var(--color-primary-soft)',
+                                color: session?.status === 'completed' ? 'var(--color-success)' : 'var(--color-primary)',
+                            }}
+                        >
+                            {session?.status === 'completed' ? <CheckCircleFilled /> : <ThunderboltOutlined />}
+                        </span>
+                        <div>
+                            <div className="font-bold text-text-primary">
+                                {session?.status === 'completed'
+                                    ? 'Workout completed — Start again'
+                                    : session?.status === 'in_progress'
+                                        ? `Resume workout — ${session.doneSets}/${session.totalSets} sets`
+                                        : 'Start Workout'}
+                            </div>
+                            <div className="text-xs text-text-muted">
+                                {session?.status === 'completed'
+                                    ? `Logged ${session.doneSets}/${session.totalSets} sets — tap to do it again`
+                                    : 'Log sets, reps, weight & duration as you go'}
+                            </div>
+                        </div>
+                    </div>
+                    <RightOutlined className="text-text-muted" />
+                </button>
+            )}
+
             <div className="flex flex-col gap-3">
                 {exercises.map((ex) => {
                     const exId = ex._id || ex.id
-                    const isDone = done[exId]
+                    const isDone = ex.done
                     return (
                         <div key={exId} className="app-card p-5" style={isDone ? { borderColor: 'var(--color-success)' } : undefined}>
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="font-bold text-text-primary">{ex.name}</span>
+                                        {isDone && <CheckCircleFilled style={{ color: 'var(--color-success)' }} />}
                                         {ex.technique && ex.technique !== 'standard' && (
                                             <span
                                                 className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"
@@ -116,9 +160,10 @@ export default function MyExercises() {
                                     </div>
                                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
                                         <span className="rounded px-1.5 py-0.5 font-semibold" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
-                                            {ex.sets} sets × {ex.reps}
+                                            {ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps}
                                         </span>
                                         <span>Rest {ex.rest}</span>
+                                        {ex.targetWeight ? <span>{ex.targetWeight}kg</span> : null}
                                     </div>
                                     {ex.instructions && <div className="mt-2 text-sm text-text-secondary">{ex.instructions}</div>}
                                     {ex.youtube && (
@@ -134,18 +179,6 @@ export default function MyExercises() {
                                     )}
                                 </div>
                             </div>
-                            <button
-                                onClick={() => toggle(exId)}
-                                disabled={toggling === exId}
-                                className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition-all"
-                                style={{
-                                    background: isDone ? 'var(--color-success)' : 'var(--color-primary)',
-                                    color: '#fff',
-                                    opacity: toggling === exId ? 0.7 : 1,
-                                }}
-                            >
-                                <CheckOutlined /> {isDone ? 'Completed' : 'Mark as complete'}
-                            </button>
                         </div>
                     )
                 })}

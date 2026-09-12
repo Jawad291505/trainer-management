@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, Tabs, Progress, App } from 'antd'
+import dayjs from 'dayjs'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -40,18 +41,23 @@ export default function ClientDetail() {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        let cancelled = false
         async function load() {
-            try {
-                const c = await api.get(`/clients/${id}`)
-                setClient(c)
-                try {
-                    const w = await api.get(`/progress/weight?client=${id}`)
-                    setWeightData((w.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
-                } catch { /* no weight data */ }
-            } catch { /* client not found */ }
-            finally { setLoading(false) }
+            setLoading(true)
+            const [clientRes, weightRes] = await Promise.allSettled([
+                api.get(`/clients/${id}`),
+                api.get(`/progress/weight?client=${id}`),
+            ])
+            if (cancelled) return
+            if (clientRes.status === 'fulfilled') setClient(clientRes.value)
+            if (weightRes.status === 'fulfilled') {
+                const w = weightRes.value
+                setWeightData((w.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })))
+            }
+            setLoading(false)
         }
         load()
+        return () => { cancelled = true }
     }, [id])
 
     if (loading) return <LoadingSkeleton />
@@ -98,7 +104,7 @@ export default function ClientDetail() {
                         <ResponsiveContainer width="100%" height={260}>
                             <LineChart data={weightData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                                <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                                <XAxis dataKey="date" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                                 <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={44} />
                                 <Tooltip content={<ChartTooltip />} />
                                 <Line type="monotone" dataKey="weight" name="Weight" stroke={primary} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />

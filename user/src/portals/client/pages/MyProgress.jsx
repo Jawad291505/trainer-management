@@ -29,10 +29,14 @@ export default function MyProgress() {
     const [habitHistory, setHabitHistory] = useState([])
     const [habitGoals, setHabitGoals] = useState({ waterGoal: 2, sleepGoal: 8 })
     const [habitDays, setHabitDays] = useState(14)
+    const [adherence, setAdherence] = useState(null)
     const [modalOpen, setModalOpen] = useState(false)
     const [newWeight, setNewWeight] = useState(null)
     const [newDate, setNewDate] = useState(dayjs())
     const [saving, setSaving] = useState(false)
+
+    const mapWeightEntries = (items) =>
+        (items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg }))
 
     const loadHabits = async (days) => {
         try {
@@ -59,9 +63,10 @@ export default function MyProgress() {
                     api.get('/progress/weight'),
                     api.get('/stats/client/completion?days=7').catch(() => null),
                 ])
-                setWeightEntries((w.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
+                setWeightEntries(mapWeightEntries(w.items))
                 if (c) setCompletion(c)
                 await loadHabits(14)
+                api.get('/clients/me/workout-adherence?weeks=6').then(setAdherence).catch(() => { })
             } catch { /* */ }
             finally { setLoading(false) }
         }
@@ -84,7 +89,7 @@ export default function MyProgress() {
         try {
             await api.post('/progress/weight', { weightKg: newWeight, date: newDate.toISOString() })
             const w = await api.get('/progress/weight')
-            setWeightEntries((w.items || []).map((e, i) => ({ week: e.label || `W${i + 1}`, weight: e.weightKg })))
+            setWeightEntries(mapWeightEntries(w.items))
             message.success(`Logged ${newWeight} kg`)
             setModalOpen(false)
             setNewWeight(null)
@@ -92,10 +97,6 @@ export default function MyProgress() {
         } catch { message.error('Failed to log weight') }
         finally { setSaving(false) }
     }
-
-    if (loading) return <LoadingSkeleton />
-
-    const weeklyAvg = completion?.weeklyAveragePct ?? 0
 
     // Habit streak stats
     const habitStats = useMemo(() => {
@@ -113,6 +114,10 @@ export default function MyProgress() {
             total: habitHistory.length,
         }
     }, [habitHistory])
+
+    if (loading) return <LoadingSkeleton />
+
+    const weeklyAvg = completion?.weeklyAveragePct ?? 0
 
     return (
         <div>
@@ -136,7 +141,7 @@ export default function MyProgress() {
                         <LineChart data={weightEntries} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                             <defs><linearGradient id="wline" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor={primary} /><stop offset="100%" stopColor="var(--color-success)" /></linearGradient></defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                            <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                            <XAxis dataKey="date" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
                             <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={44} />
                             <Tooltip content={<ChartTooltip />} />
                             <Line type="monotone" dataKey="weight" name="Weight" stroke="url(#wline)" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} />
@@ -191,6 +196,26 @@ export default function MyProgress() {
                         </div>
                     </div>
                 </div>
+
+                {adherence?.totals && (
+                    <div className="mt-4 app-card p-4">
+                        <div className="mb-3 text-sm font-semibold text-text-secondary">Workout Adherence — last 6 weeks</div>
+                        <div className="grid grid-cols-3 gap-3 text-center">
+                            <div>
+                                <div className="text-xl font-extrabold" style={{ color: 'var(--color-success)' }}>{adherence.totals.completed}</div>
+                                <div className="text-xs text-text-muted">Completed</div>
+                            </div>
+                            <div>
+                                <div className="text-xl font-extrabold" style={{ color: 'var(--color-warning)' }}>{adherence.totals.partial}</div>
+                                <div className="text-xs text-text-muted">Partial</div>
+                            </div>
+                            <div>
+                                <div className="text-xl font-extrabold" style={{ color: 'var(--color-danger)' }}>{adherence.totals.missed}</div>
+                                <div className="text-xs text-text-muted">Missed</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {habitHistory.length > 0 && (
                     <ChartCard className="mt-4" title="Daily Completion" subtitle={`Last ${habitDays} days (%)`}>

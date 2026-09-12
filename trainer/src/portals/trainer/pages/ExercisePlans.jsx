@@ -59,6 +59,7 @@ export default function ExercisePlans() {
                 id: d._id || `D${di}`,
                 day: d.day,
                 focus: d.focus || '',
+                note: d.note || '',
                 exercises: (d.exercises || []).map((ex) => ({
                     id: ex._id || ex.id,
                     exerciseId: ex.exercise,
@@ -70,6 +71,9 @@ export default function ExercisePlans() {
                     technique: ex.technique || 'standard',
                     youtube: ex.youtube || '',
                     notes: ex.instructions || '',
+                    trackingType: ex.trackingType || 'reps',
+                    targetWeight: ex.targetWeight ?? null,
+                    targetDuration: ex.targetDuration ?? null,
                 })),
             }))
             setDays(loaded)
@@ -84,10 +88,23 @@ export default function ExercisePlans() {
 
     const addDay = async () => {
         const v = await dayForm.validateFields()
-        setDays((prev) => [...prev, { id: `D${daySeq++}`, day: v.day, focus: v.focus, exercises: [] }])
+        setDays((prev) => [...prev, { id: `D${daySeq++}`, day: v.day, focus: v.focus, note: v.note || '', exercises: [] }])
         dayForm.resetFields()
         setDayModal(false)
         message.success('Day added')
+    }
+
+    const [noteEditing, setNoteEditing] = useState(null) // dayId being edited
+    const [noteDraft, setNoteDraft] = useState('')
+
+    const openNoteEdit = (day) => {
+        setNoteEditing(day.id)
+        setNoteDraft(day.note || '')
+    }
+
+    const saveNote = () => {
+        setDays((prev) => prev.map((d) => (d.id === noteEditing ? { ...d, note: noteDraft } : d)))
+        setNoteEditing(null)
     }
 
     const removeDay = (id) => {
@@ -143,6 +160,7 @@ export default function ExercisePlans() {
         days.map((d) => ({
             day: d.day,
             focus: d.focus,
+            note: d.note || '',
             exercises: d.exercises.map((ex) => ({
                 exerciseCode: ex.exerciseCode || undefined,
                 name: ex.name,
@@ -152,6 +170,9 @@ export default function ExercisePlans() {
                 technique: ex.technique || 'standard',
                 youtube: ex.youtube || '',
                 instructions: ex.notes || '',
+                trackingType: ex.trackingType || 'reps',
+                targetWeight: ex.targetWeight ?? null,
+                targetDuration: ex.targetDuration ?? null,
             })),
         }))
 
@@ -250,6 +271,18 @@ export default function ExercisePlans() {
                                 </div>
                             </div>
 
+                            <button
+                                type="button"
+                                onClick={() => openNoteEdit(d)}
+                                className="mb-3 w-full rounded-lg px-3 py-2 text-left text-xs"
+                                style={{
+                                    background: d.note ? 'var(--color-warning-soft)' : 'var(--color-surface-secondary)',
+                                    color: d.note ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                                }}
+                            >
+                                {d.note || '+ Add a note for the client (e.g. go light on shoulders)'}
+                            </button>
+
                             {d.exercises.length === 0 ? (
                                 <div className="rounded-lg py-6 text-center text-xs text-text-muted" style={{ background: 'var(--color-surface-secondary)' }}>
                                     No exercises yet
@@ -272,7 +305,10 @@ export default function ExercisePlans() {
                                                     <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeExerciseFromDay(d.id, ex.id)} />
                                                 </div>
                                             </div>
-                                            <div className="mt-1 text-xs text-text-muted">{ex.sets} sets × {ex.reps} · Rest {ex.rest}</div>
+                                            <div className="mt-1 text-xs text-text-muted">
+                                                {ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps} · Rest {ex.rest}
+                                                {ex.targetWeight ? ` · ${ex.targetWeight}kg` : ''}
+                                            </div>
                                             {ex.notes && <div className="mt-1 text-xs italic text-text-secondary">{ex.notes}</div>}
                                         </div>
                                     ))}
@@ -298,6 +334,9 @@ export default function ExercisePlans() {
                     </Form.Item>
                     <Form.Item name="focus" label="Focus" rules={[{ required: true, message: 'Enter a focus' }]}>
                         <Input placeholder="e.g. Chest & Triceps" />
+                    </Form.Item>
+                    <Form.Item name="note" label="Note for client (optional)">
+                        <Input.TextArea rows={2} placeholder="e.g. Go light on the shoulder today, form over weight" />
                     </Form.Item>
                 </Form>
             </Modal>
@@ -369,6 +408,23 @@ export default function ExercisePlans() {
                         <Input.TextArea rows={2} />
                     </Form.Item>
                 </Form>
+            </Modal>
+
+            {/* Per-day note for the client */}
+            <Modal
+                title={<ModalTitle icon={<CalendarOutlined />} title="Note for client" subtitle="Shown at the top of this day's workout" />}
+                open={!!noteEditing}
+                onCancel={() => setNoteEditing(null)}
+                onOk={saveNote}
+                okText="Save note"
+                centered
+            >
+                <Input.TextArea
+                    rows={3}
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder="e.g. Go light on the shoulder today, form over weight"
+                />
             </Modal>
         </div>
     )

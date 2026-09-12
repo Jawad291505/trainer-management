@@ -212,12 +212,15 @@ export async function seedDemoData() {
                 title: DEMO_DIET_PLAN.title,
                 status: 'published',
                 publishedAt: new Date(),
-                meals: DEMO_DIET_PLAN.meals.map((m) => ({
-                    name: m.name, time: m.time, notes: m.notes, taskKey: `meal:${m.name.toLowerCase()}`,
-                    items: m.items
-                        .filter((it) => byCode.has(it.foodCode))
-                        .map((it) => ({ food: byCode.get(it.foodCode)._id, foodCode: it.foodCode, qty: it.qty })),
-                })),
+                days: [{
+                    day: 'Everyday',
+                    meals: DEMO_DIET_PLAN.meals.map((m) => ({
+                        name: m.name, time: m.time, notes: m.notes, taskKey: `meal:${m.name.toLowerCase()}`,
+                        items: m.items
+                            .filter((it) => byCode.has(it.foodCode))
+                            .map((it) => ({ food: byCode.get(it.foodCode)._id, foodCode: it.foodCode, qty: it.qty })),
+                    })),
+                }],
             })
         }
 

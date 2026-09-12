@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Progress, Input, Alert, Button, Modal, App } from 'antd'
 import {
   ClockCircleOutlined,
@@ -8,11 +8,15 @@ import {
   FireOutlined,
   PlusOutlined,
   DeleteOutlined,
+  LeftOutlined,
+  RightOutlined,
+  CalendarOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import GlycemicBadge from '../components/GlycemicBadge'
-import PageSpin from '../../../components/common/PageSpin'
+import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { getFood } from '../../../services/foodLibrary'
@@ -33,38 +37,74 @@ function resolveItem(it) {
   return { label: food.name, qtyLabel: formatQty(food, it.qty), ...n }
 }
 
+// "Current day" is always Pakistan Standard Time (UTC+5, no DST) — this is a
+// display/browse concern only. Which day is authoritative "today" for the
+// default view comes from the server's resolvedTodayDayId (dietPlan.service.js).
+const PKT_TZ = 'Asia/Karachi'
+
+function pktDateStr(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: PKT_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+}
+
+function addDaysToDateStr(dateStr, delta) {
+  const d = new Date(`${dateStr}T12:00:00Z`) // noon UTC avoids DST/offset edge cases
+  d.setUTCDate(d.getUTCDate() + delta)
+  return pktDateStr(d)
+}
+
+function weekdayNamesForDateStr(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00Z`)
+  const full = new Intl.DateTimeFormat('en-US', { timeZone: PKT_TZ, weekday: 'long' }).format(d)
+  return { full, short: full.slice(0, 3) }
+}
+
+// Find which of the plan's days applies to `dateStr`. For today, trust the
+// server's resolvedTodayDayId (it also honors a trainer's explicit override);
+// for any other date, match by weekday name with an "everyday" fallback.
+function pickDayForDate(dietPlan, dateStr, todayStr) {
+  const days = dietPlan?.days || []
+  if (!days.length) return null
+  if (dateStr === todayStr && dietPlan.resolvedTodayDayId) {
+    const byId = days.find((d) => (d.id || d._id) === dietPlan.resolvedTodayDayId)
+    if (byId) return byId
+  }
+  const { full, short } = weekdayNamesForDateStr(dateStr)
+  return (
+    days.find((d) => d.day.toLowerCase() === full.toLowerCase() || d.day.toLowerCase() === short.toLowerCase()) ||
+    days.find((d) => d.day.toLowerCase() === 'everyday') ||
+    days[0] ||
+    null
+  )
+}
+
 export default function MyDiet() {
   const { message } = App.useApp()
   const { client } = useAuth()
   const [dietPlan, setDietPlan] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [cheats, setCheats] = useState({}) // { [mealId]: { on, note, items } }
+  const [dayLoading, setDayLoading] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(() => pktDateStr())
+  const [cheats, setCheats] = useState({}) // { [mealId]: { on, note, items } } — for selectedDate
   const [cheatModal, setCheatModal] = useState(null) // mealId being edited
   const [cheatNote, setCheatNote] = useState('')
   const [cheatItems, setCheatItems] = useState([''])
+  const [savingCheat, setSavingCheat] = useState(false)
+  const [revertingMealId, setRevertingMealId] = useState(null)
+  const [togglingKey, setTogglingKey] = useState(null) // `${mealId}:${index}` currently syncing
+  // Per-item completion, keyed by `${mealId}:${index}` — for selectedDate. Each
+  // toggle is saved to the server immediately (a meal can be 2/3 eaten).
+  const [checked, setChecked] = useState({})
 
-  useEffect(() => {
-    if (!client) return
-    Promise.all([
-      api.get(`/clients/${client._id || client.id}/diet-plan`),
-      api.get('/progress/daily').catch(() => null),
-    ]).then(([plan, daily]) => {
-      setDietPlan(plan)
-      // Hydrate cheats from today's daily log
-      if (daily?.cheats?.length) {
-        const loaded = {}
-        daily.cheats.forEach((c) => {
-          loaded[String(c.mealId)] = { on: true, note: c.note || '', items: c.items || [] }
-        })
-        setCheats(loaded)
-      }
-    }).catch(() => { }).finally(() => setLoading(false))
-  }, [client])
+  const todayStr = pktDateStr()
+  const isToday = selectedDate === todayStr
+  const isFuture = selectedDate > todayStr
+
+  const activeDay = useMemo(() => pickDayForDate(dietPlan, selectedDate, todayStr), [dietPlan, selectedDate, todayStr])
 
   // Precompute resolved items + per-meal macro/GL totals once.
   const meals = useMemo(
     () =>
-      (dietPlan?.meals || []).map((m) => {
+      (activeDay?.meals || []).map((m) => {
         const items = m.items.map(resolveItem)
         const totals = items.reduce(
           (acc, it) => ({
@@ -78,37 +118,57 @@ export default function MyDiet() {
         )
         return { ...m, resolved: items, totals }
       }),
-    [dietPlan],
+    [activeDay],
   )
 
-  // Per-item completion, keyed by `${mealId}:${index}`.
-  const [checked, setChecked] = useState({})
-
-  // Hydrate checked state from daily log meal tasks
+  // Fetch the diet plan once per client, and the daily log for whichever date
+  // is being viewed — bundled together on first load so the page never paints
+  // with a default/empty state before the real data arrives. Re-runs (with
+  // dayLoading, not the full-page spinner) whenever the viewed date changes.
   useEffect(() => {
-    if (!dietPlan) return
-    api.get('/progress/daily').then((daily) => {
-      if (!daily?.tasks) return
-      const mealTasks = {}
-      daily.tasks.filter((t) => t.type === 'meal').forEach((t) => {
-        mealTasks[String(t.mealId)] = t.done
+    if (!client) return
+    let cancelled = false
+    const clientId = client._id || client.id
+    setDayLoading(true)
+    Promise.all([
+      api.get(`/clients/${clientId}/diet-plan`),
+      api.get(`/progress/daily?date=${selectedDate}`).catch(() => null),
+    ]).then(([plan, daily]) => {
+      if (cancelled) return
+      setDietPlan(plan)
+
+      const loadedCheats = {}
+      ;(daily?.cheats || []).forEach((c) => {
+        loadedCheats[String(c.mealId)] = { on: true, note: c.note || '', items: c.items || [] }
       })
-      // If a meal task is done, mark all its items as checked
+      setCheats(loadedCheats)
+
+      const itemsByMeal = {}
+      ;(daily?.tasks || []).filter((t) => t.type === 'meal').forEach((t) => {
+        itemsByMeal[String(t.mealId)] = t.itemsDone || []
+      })
+      const activeDayForFetch = pickDayForDate(plan, selectedDate, pktDateStr())
       const seed = {}
-      meals.forEach((m) => {
-        const mealDone = mealTasks[String(m._id || m.id)] || false
-        m.resolved.forEach((_, i) => {
-          seed[`${m.id}:${i}`] = mealDone
+      ;(activeDayForFetch?.meals || []).forEach((m) => {
+        const mealId = m._id || m.id
+        const itemsDone = itemsByMeal[String(mealId)] || []
+        m.items.forEach((_, i) => {
+          seed[`${mealId}:${i}`] = !!itemsDone[i]
         })
       })
       setChecked(seed)
-    }).catch(() => { })
-  }, [dietPlan, meals])
+    }).catch(() => { }).finally(() => {
+      if (cancelled) return
+      setLoading(false)
+      setDayLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [client, selectedDate])
 
-  // Cheat state per meal: { [mealId]: { on, note, items } }
   const isCheat = (mealId) => !!cheats[mealId]?.on
 
   const openCheatModal = (mealId, mealName) => {
+    if (isFuture) return
     const existing = cheats[mealId]
     setCheatNote(existing?.note || '')
     setCheatItems(existing?.items?.length ? [...existing.items] : [''])
@@ -116,11 +176,13 @@ export default function MyDiet() {
   }
 
   const saveCheat = async () => {
-    if (!cheatModal) return
+    if (!cheatModal || savingCheat) return
     const mealId = cheatModal.id
     const items = cheatItems.filter((s) => s.trim())
+    setSavingCheat(true)
     try {
       await api.post('/progress/daily/cheat', {
+        date: selectedDate,
         mealId,
         mealName: cheatModal.name,
         note: cheatNote,
@@ -128,50 +190,55 @@ export default function MyDiet() {
       })
       setCheats((prev) => ({ ...prev, [mealId]: { on: true, note: cheatNote, items } }))
       message.success('Cheat meal logged')
+      setCheatModal(null)
     } catch (err) {
-      message.error(err.message || 'Failed to save')
+      message.error(err.message || 'Failed to save — please try again')
+    } finally {
+      setSavingCheat(false)
     }
-    setCheatModal(null)
   }
 
   const revertCheat = async (mealId) => {
+    if (isFuture || revertingMealId) return
+    setRevertingMealId(mealId)
     try {
-      await api.delete(`/progress/daily/cheat/${mealId}`)
+      await api.delete(`/progress/daily/cheat/${mealId}?date=${selectedDate}`)
       setCheats((prev) => { const n = { ...prev }; delete n[mealId]; return n })
       message.success('Back on plan')
     } catch (err) {
-      message.error(err.message || 'Failed to revert')
+      message.error(err.message || 'Failed to revert — please try again')
+    } finally {
+      setRevertingMealId(null)
     }
   }
 
+  // Toggle a single food item and save it to the server immediately — every
+  // click hits the API, so 2 of 3 items checked is never silently dropped.
   const toggleItem = async (mealId, idx) => {
-    if (isCheat(mealId)) return
+    if (isCheat(mealId) || isFuture || togglingKey) return
     const key = `${mealId}:${idx}`
+    const prevChecked = checked
     const newVal = !checked[key]
-    const next = { ...checked, [key]: newVal }
-    setChecked(next)
+    setChecked((prev) => ({ ...prev, [key]: newVal }))
 
-    // Check if all items in this meal are now done
-    const meal = meals.find((m) => (m._id || m.id) === mealId || m.id === mealId)
-    if (!meal) return
-    const allDone = meal.resolved.every((_, i) => next[`${mealId}:${i}`])
-    const wasDone = meal.resolved.every((_, i) => i === idx ? checked[key] : checked[`${mealId}:${i}`])
-
-    // Only call backend when meal completion state changes (all done or was all done)
-    if (allDone !== wasDone) {
-      try {
-        await api.patch('/progress/daily', { taskKey: `meal:${mealId}`, done: allDone })
-      } catch { /* */ }
+    setTogglingKey(key)
+    try {
+      await api.patch('/progress/daily/meal-item', { date: selectedDate, mealId, itemIndex: idx, done: newVal })
+    } catch (err) {
+      setChecked(prevChecked)
+      message.error(err.message || "Couldn't save — please try again")
+    } finally {
+      setTogglingKey(null)
     }
   }
 
   const mealProgress = (meal) => {
     const done = meal.resolved.filter((_, i) => checked[`${meal.id}:${i}`]).length
-    return { done, total: meal.resolved.length, pct: Math.round((done / meal.resolved.length) * 100) }
+    return { done, total: meal.resolved.length, pct: meal.resolved.length ? Math.round((done / meal.resolved.length) * 100) : 0 }
   }
 
   const summary = useMemo(() => {
-    const totalItems = meals.reduce((s, m) => s + m.resolved.length, 0)
+    let totalItems = 0
     let doneItems = 0
     let cheatMeals = 0
     meals.forEach((m) => {
@@ -179,6 +246,7 @@ export default function MyDiet() {
         cheatMeals += 1
         return
       }
+      totalItems += m.resolved.length
       m.resolved.forEach((_, i) => {
         if (checked[`${m.id}:${i}`]) doneItems += 1
       })
@@ -207,12 +275,16 @@ export default function MyDiet() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cheats, meals])
 
-  if (loading) return <PageSpin />
+  if (loading) return <LoadingSkeleton cards={4} rows={6} />
+
+  const dateLabel = isToday
+    ? 'Today'
+    : new Date(`${selectedDate}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: PKT_TZ, weekday: 'short', month: 'short', day: 'numeric' })
 
   return (
     <div>
       <PageHeader title="My Diet Plan" subtitle={dietPlan?.title || 'No diet plan assigned'}>
-        <RequestCorrection area="diet" items={(dietPlan?.meals || []).map((m) => `${m.name} — ${m.time}`)} />
+        <RequestCorrection area="diet" items={(activeDay?.meals || []).map((m) => `${m.name} — ${m.time}`)} />
       </PageHeader>
 
       {/* Trainer attribution — makes the plan feel assigned, not generic */}
@@ -224,10 +296,24 @@ export default function MyDiet() {
         <span>Updated {dietPlan?.updatedAt ? new Date(dietPlan.updatedAt).toLocaleDateString('en-CA') : '—'}</span>
       </div>
 
+      {/* Date navigator — browse/edit past days, current day is the default */}
+      <div className="app-card mb-4 flex items-center justify-between p-3">
+        <Button icon={<LeftOutlined />} onClick={() => setSelectedDate((d) => addDaysToDateStr(d, -1))} disabled={dayLoading} />
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
+          <CalendarOutlined /> {dateLabel}
+          {activeDay?.day && <span className="text-xs font-normal text-text-muted">· {activeDay.day}</span>}
+        </span>
+        <Button icon={<RightOutlined />} onClick={() => setSelectedDate((d) => addDaysToDateStr(d, 1))} disabled={dayLoading || isToday} />
+      </div>
+
+      {isFuture && (
+        <Alert className="mb-4" type="info" showIcon message="This is a future day — check back once it arrives to log completion." />
+      )}
+
       {/* Overall summary */}
       <div className="app-card mb-4 p-5">
         <div className="mb-1.5 flex items-center justify-between text-sm">
-          <span className="font-semibold text-text-secondary">Today's adherence</span>
+          <span className="font-semibold text-text-secondary">{isToday ? "Today's adherence" : 'Adherence'}</span>
           <span className="font-bold text-text-primary">{summary.adherence}%</span>
         </div>
         <Progress
@@ -271,11 +357,11 @@ export default function MyDiet() {
         )}
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className={`flex flex-col gap-4 transition-opacity ${dayLoading ? 'pointer-events-none opacity-50' : ''}`}>
         {meals.map((meal) => {
           const p = mealProgress(meal)
           const cheat = isCheat(meal.id)
-          const complete = !cheat && p.done === p.total
+          const complete = !cheat && p.total > 0 && p.done === p.total
           const glLevel = glMealLevel(meal.totals.gl)
           return (
             <div
@@ -329,25 +415,30 @@ export default function MyDiet() {
                 />
               )}
 
-              {/* Per-meal progress (hidden when cheat) */}
-              {!cheat && (
+              {/* Per-meal progress (hidden when cheat) — reflects however many items are checked, not just all-or-nothing */}
+              {!cheat && p.total > 0 && (
                 <div className="mt-3">
                   <Progress percent={p.pct} showInfo={false} strokeColor={complete ? 'var(--color-success)' : 'var(--color-primary)'} size="small" />
                 </div>
               )}
 
-              {/* Item checkboxes (dimmed when cheat) */}
-              <div className={`mt-3 flex flex-col gap-2 ${cheat ? 'pointer-events-none opacity-40' : ''}`}>
+              {/* Item checkboxes — each tap saves immediately, so eating 2 of 3 items is recorded and visible to your trainer (dimmed when cheat or a future day) */}
+              <div className={`mt-3 flex flex-col gap-2 ${cheat || isFuture ? 'pointer-events-none opacity-40' : ''}`}>
                 {meal.resolved.map((it, i) => {
-                  const on = checked[`${meal.id}:${i}`]
+                  const key = `${meal.id}:${i}`
+                  const on = checked[key]
+                  const isSyncing = togglingKey === key
                   return (
                     <button
                       key={i}
                       onClick={() => toggleItem(meal.id, i)}
+                      disabled={!!togglingKey}
                       className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all"
                       style={{
                         background: on ? 'var(--color-success-soft)' : 'var(--color-surface-secondary)',
                         border: `1px solid ${on ? 'transparent' : 'var(--color-border)'}`,
+                        cursor: togglingKey ? 'default' : 'pointer',
+                        opacity: togglingKey && !isSyncing ? 0.6 : 1,
                       }}
                     >
                       <span
@@ -358,7 +449,11 @@ export default function MyDiet() {
                           color: '#fff',
                         }}
                       >
-                        {on && <CheckOutlined style={{ fontSize: 11 }} />}
+                        {isSyncing ? (
+                          <LoadingOutlined style={{ fontSize: 11, color: on ? '#fff' : 'var(--color-text-muted)' }} />
+                        ) : (
+                          on && <CheckOutlined style={{ fontSize: 11 }} />
+                        )}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className={`font-medium ${on ? 'text-text-muted line-through' : 'text-text-primary'}`}>
@@ -392,13 +487,15 @@ export default function MyDiet() {
                       ))}
                     </div>
                   )}
-                  <button
-                    onClick={() => openCheatModal(meal.id, meal.name)}
-                    className="mt-2 text-xs font-semibold"
-                    style={{ color: 'var(--color-warning)' }}
-                  >
-                    Edit what you ate
-                  </button>
+                  {!isFuture && (
+                    <button
+                      onClick={() => openCheatModal(meal.id, meal.name)}
+                      className="mt-2 text-xs font-semibold"
+                      style={{ color: 'var(--color-warning)' }}
+                    >
+                      Edit what you ate
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -409,13 +506,17 @@ export default function MyDiet() {
               )}
 
               {/* Cheat toggle */}
-              <button
-                onClick={() => cheat ? revertCheat(meal.id) : openCheatModal(meal.id, meal.name)}
-                className="mt-3 flex items-center gap-1.5 text-xs font-semibold transition-colors"
-                style={{ color: cheat ? 'var(--color-text-muted)' : 'var(--color-warning)' }}
-              >
-                <FireOutlined /> {cheat ? 'Back on plan' : 'Mark as cheat meal'}
-              </button>
+              {!isFuture && (
+                <button
+                  onClick={() => cheat ? revertCheat(meal.id) : openCheatModal(meal.id, meal.name)}
+                  disabled={revertingMealId === meal.id}
+                  className="mt-3 flex items-center gap-1.5 text-xs font-semibold transition-colors"
+                  style={{ color: cheat ? 'var(--color-text-muted)' : 'var(--color-warning)', opacity: revertingMealId === meal.id ? 0.6 : 1 }}
+                >
+                  {revertingMealId === meal.id ? <LoadingOutlined /> : <FireOutlined />}
+                  {cheat ? 'Back on plan' : 'Mark as cheat meal'}
+                </button>
+              )}
             </div>
           )
         })}
@@ -428,6 +529,11 @@ export default function MyDiet() {
         onCancel={() => setCheatModal(null)}
         onOk={saveCheat}
         okText="Save cheat meal"
+        okButtonProps={{ loading: savingCheat }}
+        cancelButtonProps={{ disabled: savingCheat }}
+        confirmLoading={savingCheat}
+        maskClosable={!savingCheat}
+        closable={!savingCheat}
         centered
         width={480}
       >

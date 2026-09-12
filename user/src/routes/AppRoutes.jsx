@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import Dashboard from '../portals/client/pages/Dashboard'
 import MyDiet from '../portals/client/pages/MyDiet'
 import MyExercises from '../portals/client/pages/MyExercises'
+import WorkoutRunner from '../portals/client/pages/WorkoutRunner'
 import MySchedule from '../portals/client/pages/MySchedule'
 import MyProgress from '../portals/client/pages/MyProgress'
 import Messages from '../portals/client/pages/Messages'
@@ -29,6 +30,7 @@ export default function AppRoutes() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/diet" element={<MyDiet />} />
                 <Route path="/exercises" element={<MyExercises />} />
+                <Route path="/workout" element={<WorkoutRunner />} />
                 <Route path="/schedule" element={<MySchedule />} />
                 <Route path="/progress" element={<MyProgress />} />
                 <Route path="/messages" element={<Messages />} />

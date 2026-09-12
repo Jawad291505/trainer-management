@@ -11,6 +11,10 @@ import {
     listExercisePlans, getExercisePlan, getClientExercisePlan, createExercisePlan,
     updateExercisePlan, setExerciseDone, publishExercisePlan, deleteExercisePlan,
 } from '../controllers/exercisePlans.controller.js'
+import {
+    startWorkoutSession, getSessionForDay, updateSessionSet, updateSessionExerciseNotes,
+    finishWorkoutSession, listWorkoutSessions, getWorkoutSession, getWorkoutAdherence,
+} from '../controllers/workoutSessions.controller.js'
 
 const router = Router()
 router.use(authenticate)
@@ -40,8 +44,18 @@ router.patch('/exercise-plans/:id/exercises/:exId', setExerciseDone) // client o
 router.post('/exercise-plans/:id/publish', authorize('trainer'), publishExercisePlan)
 router.delete('/exercise-plans/:id', authorize('trainer'), deleteExercisePlan)
 
+// ---- Workout sessions (Workout -> Exercise -> Sets -> Completion/Performance) ----
+router.post('/exercise-plans/:id/sessions/start', authorize('client'), startWorkoutSession)
+router.get('/exercise-plans/:id/sessions/day/:dayId', getSessionForDay)
+router.get('/workout-sessions', listWorkoutSessions)
+router.get('/workout-sessions/:sessionId', getWorkoutSession)
+router.patch('/workout-sessions/:sessionId/exercises/:exIdx/sets/:setIdx', updateSessionSet) // client or trainer
+router.patch('/workout-sessions/:sessionId/exercises/:exIdx', updateSessionExerciseNotes) // client or trainer
+router.post('/workout-sessions/:sessionId/finish', authorize('client'), finishWorkoutSession)
+
 // ---- Convenience: a client's current published plans ----
 router.get('/clients/:clientId/diet-plan', getClientDietPlan)
 router.get('/clients/:clientId/exercise-plan', getClientExercisePlan)
+router.get('/clients/:clientId/workout-adherence', getWorkoutAdherence)
 
 export default router

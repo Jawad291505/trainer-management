@@ -30,6 +30,17 @@ const mealSchema = new mongoose.Schema(
     { _id: true },
 )
 
+// A single day's worth of meals. `day` is a free-text identifier ("Monday",
+// "Everyday", "Today") matched case-insensitively at read time — see
+// resolveTodayDay() in utils/pktTime.js. Mirrors ExercisePlan's trainingDaySchema.
+const dietDaySchema = new mongoose.Schema(
+    {
+        day: { type: String, required: true, trim: true },
+        meals: { type: [mealSchema], default: [] },
+    },
+    { _id: true },
+)
+
 const dietPlanSchema = new mongoose.Schema(
     {
         client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true, index: true },
@@ -41,7 +52,11 @@ const dietPlanSchema = new mongoose.Schema(
         // If this plan was seeded from an admin template, remember which one.
         sourceTemplate: { type: mongoose.Schema.Types.ObjectId, ref: 'DietPlanTemplate', default: null },
 
-        meals: { type: [mealSchema], default: [] },
+        // Which day the client should see now (mirrors ExercisePlan.todayDayId).
+        // Optional override — resolveTodayDay() falls back to weekday-name matching.
+        todayDayId: { type: mongoose.Schema.Types.ObjectId, default: null },
+
+        days: { type: [dietDaySchema], default: [] },
         publishedAt: { type: Date, default: null },
     },
     { timestamps: true },

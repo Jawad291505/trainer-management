@@ -12,6 +12,7 @@ export { LibraryCategory } from './LibraryCategory.js'
 export { DietPlanTemplate } from './DietPlanTemplate.js'
 export { DietPlan } from './DietPlan.js'
 export { ExercisePlan } from './ExercisePlan.js'
+export { WorkoutSession } from './WorkoutSession.js'
 
 export { Payment } from './Payment.js'
 export { LibraryResource } from './LibraryResource.js'

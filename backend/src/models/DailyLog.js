@@ -19,6 +19,10 @@ const taskSchema = new mongoose.Schema(
         done: { type: Boolean, default: false },
         // Optional link back to the diet-plan meal this task represents.
         mealId: { type: mongoose.Schema.Types.ObjectId, default: null },
+        // For meal tasks: per-item completion (a client may eat 2 of 3 items).
+        // `done` above stays true only once every entry here is true, so
+        // existing completion-pct/compliance math keeps working unchanged.
+        itemsDone: { type: [Boolean], default: undefined },
     },
     { _id: false },
 )

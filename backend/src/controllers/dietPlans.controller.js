@@ -4,6 +4,17 @@ import { DietPlan, DietPlanTemplate, Client } from '../models/index.js'
 import { serializeDietPlan } from '../services/dietPlan.service.js'
 import { normalizeMeals } from './dietPlanTemplates.controller.js'
 
+// Turn incoming day payloads (`[{ day, meals }]`) into stored days, running
+// each day's meals through the shared normalizeMeals() food-linking logic.
+async function normalizeDays(days = []) {
+    return Promise.all(
+        days.map(async (d) => ({
+            day: d.day,
+            meals: await normalizeMeals(d.meals || []),
+        })),
+    )
+}
+
 // Ensure the caller may act on `plan`. Trainers are scoped to their own plans;
 // clients to their own; admins unrestricted.
 function assertCanAccess(req, plan) {
@@ -66,9 +77,9 @@ export const getClientDietPlan = asyncHandler(async (req, res) => {
     res.json(await serializeDietPlan(result))
 })
 
-// POST /api/diet-plans   (trainer)  Body: { clientId, title, meals[] }
+// POST /api/diet-plans   (trainer)  Body: { clientId, title, days[] }
 export const createDietPlan = asyncHandler(async (req, res) => {
-    const { clientId, title, meals } = req.body
+    const { clientId, title, days, todayDayId } = req.body
     if (!clientId || !title) throw ApiError.badRequest('clientId and title are required')
     await assertTrainerOwnsClient(req, clientId)
 
@@ -76,15 +87,17 @@ export const createDietPlan = asyncHandler(async (req, res) => {
         client: clientId,
         trainer: req.trainer._id,
         title,
-        meals: await normalizeMeals(meals || []),
+        days: await normalizeDays(days || []),
+        todayDayId: todayDayId || null,
         status: 'draft',
     })
     res.status(201).json(await serializeDietPlan(plan))
 })
 
 // POST /api/diet-plans/from-template   (trainer)  Body: { clientId, templateId, title? }
-// Copies the template's meals into a fresh client plan (data/README.md rule:
-// the template is never mutated).
+// Copies the template's flat meals into a single "Everyday" day on a fresh
+// client plan (data/README.md rule: the template is never mutated). The
+// trainer can split it into specific weekdays afterward.
 export const createFromTemplate = asyncHandler(async (req, res) => {
     const { clientId, templateId, title } = req.body
     if (!clientId || !templateId) throw ApiError.badRequest('clientId and templateId are required')
@@ -99,29 +112,33 @@ export const createFromTemplate = asyncHandler(async (req, res) => {
         title: title || tpl.name,
         sourceTemplate: tpl._id,
         status: 'draft',
-        meals: tpl.meals.map((m) => ({
-            name: m.name,
-            time: m.time,
-            notes: m.notes,
-            taskKey: null,
-            items: m.items.map((it) => ({
-                food: it.food,
-                foodCode: it.foodCode,
-                qty: it.qty,
+        days: [{
+            day: 'Everyday',
+            meals: tpl.meals.map((m) => ({
+                name: m.name,
+                time: m.time,
+                notes: m.notes,
+                taskKey: null,
+                items: m.items.map((it) => ({
+                    food: it.food,
+                    foodCode: it.foodCode,
+                    qty: it.qty,
+                })),
             })),
-        })),
+        }],
     })
     res.status(201).json(await serializeDietPlan(plan))
 })
 
-// PATCH /api/diet-plans/:id   (trainer)  Body: { title?, meals? }
+// PATCH /api/diet-plans/:id   (trainer)  Body: { title?, days?, todayDayId? }
 export const updateDietPlan = asyncHandler(async (req, res) => {
     const plan = await loadPlanOr404(req.params.id)
     assertCanAccess(req, plan)
     if (req.user.role !== 'trainer') throw ApiError.forbidden('Only the trainer can edit a plan')
 
     if (req.body.title !== undefined) plan.title = req.body.title
-    if (req.body.meals !== undefined) plan.meals = await normalizeMeals(req.body.meals)
+    if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days)
+    if (req.body.todayDayId !== undefined) plan.todayDayId = req.body.todayDayId || null
     await plan.save()
     res.json(await serializeDietPlan(plan))
 })

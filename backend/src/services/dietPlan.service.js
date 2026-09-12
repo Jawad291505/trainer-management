@@ -1,4 +1,5 @@
 import { Food, NutritionConfig } from '../models/index.js'
+import { resolveTodayDay } from '../utils/pktTime.js'
 import {
     computeNutrition,
     formatQty,
@@ -8,21 +9,8 @@ import {
     sumMacros,
 } from './nutrition.service.js'
 
-// Resolve a stored DietPlan (or DietPlanTemplate) — whose meal items hold only
-// { foodCode, qty } — into the fully-computed shape the front-end renders:
-// per-item macros + GI/GL + level, per-meal totals + meal GL level, and day
-// totals. This is the server-side equivalent of resolveItem() + the useMemo
-// totals in user/src/portals/client/pages/MyDiet.jsx and the dayTotals reduce in
-// trainer/src/portals/trainer/pages/DietPlans.jsx.
-export async function resolvePlanNutrition(plan) {
-    const thresholds = await NutritionConfig.getDefault()
-
-    // Load every referenced food in one query.
-    const codes = [...new Set(plan.meals.flatMap((m) => m.items.map((it) => it.foodCode)))]
-    const foods = await Food.find({ code: { $in: codes } })
-    const byCode = new Map(foods.map((f) => [f.code, f]))
-
-    const meals = plan.meals.map((meal) => {
+async function resolveMeals(meals, thresholds, byCode) {
+    return meals.map((meal) => {
         const items = meal.items.map((it) => {
             const food = byCode.get(it.foodCode)
             if (!food) {
@@ -65,7 +53,22 @@ export async function resolvePlanNutrition(plan) {
             mealGLLevel: glMealLevel(totals.gl, thresholds),
         }
     })
+}
 
+// Resolve a stored DietPlanTemplate — a flat, non-per-day meal list — into the
+// fully-computed shape the front-end renders: per-item macros + GI/GL + level,
+// per-meal totals + meal GL level, and day totals. This is the server-side
+// equivalent of resolveItem() + the useMemo totals in
+// user/src/portals/client/pages/MyDiet.jsx and the dayTotals reduce in
+// trainer/src/portals/trainer/pages/DietPlans.jsx.
+export async function resolvePlanNutrition(plan) {
+    const thresholds = await NutritionConfig.getDefault()
+
+    const codes = [...new Set(plan.meals.flatMap((m) => m.items.map((it) => it.foodCode)))]
+    const foods = await Food.find({ code: { $in: codes } })
+    const byCode = new Map(foods.map((f) => [f.code, f]))
+
+    const meals = await resolveMeals(plan.meals, thresholds, byCode)
     const dayTotals = sumMacros(meals.map((m) => m.totals))
 
     return {
@@ -80,9 +83,49 @@ export async function resolvePlanNutrition(plan) {
     }
 }
 
+// Resolve a stored DietPlan — organised into per-weekday `days`, each holding
+// its own meals (items hold only { foodCode, qty }) — into the fully-computed
+// shape the front-end renders, plus which day is "today" in PKT.
+export async function resolveDietPlanNutrition(plan) {
+    const thresholds = await NutritionConfig.getDefault()
+
+    // Load every referenced food across every day in one query.
+    const codes = [
+        ...new Set(plan.days.flatMap((d) => d.meals.flatMap((m) => m.items.map((it) => it.foodCode)))),
+    ]
+    const foods = await Food.find({ code: { $in: codes } })
+    const byCode = new Map(foods.map((f) => [f.code, f]))
+
+    const days = await Promise.all(
+        plan.days.map(async (d) => {
+            const meals = await resolveMeals(d.meals, thresholds, byCode)
+            const dayTotals = sumMacros(meals.map((m) => m.totals))
+            return {
+                id: d._id ? String(d._id) : undefined,
+                day: d.day,
+                meals,
+                dayTotals,
+                dayGLLevel: glMealLevel(dayTotals.gl, thresholds),
+            }
+        }),
+    )
+
+    const todayDay = resolveTodayDay(plan.days, plan.todayDayId)
+
+    return {
+        days,
+        resolvedTodayDayId: todayDay?._id ? String(todayDay._id) : null,
+        thresholds: {
+            gi: thresholds.gi,
+            glItem: thresholds.glItem,
+            glMeal: thresholds.glMeal,
+        },
+    }
+}
+
 // Serialise a DietPlan document + its computed nutrition for an API response.
 export async function serializeDietPlan(plan) {
-    const nutrition = await resolvePlanNutrition(plan)
+    const nutrition = await resolveDietPlanNutrition(plan)
     const obj = plan.toObject ? plan.toObject() : plan
     return { ...obj, ...nutrition }
 }
