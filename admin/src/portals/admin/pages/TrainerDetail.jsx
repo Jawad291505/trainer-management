@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Rate, Tabs, Progress, Modal, Input, App } from 'antd'
+import { Button, Rate, Tabs, Progress, Modal, Input, App, Tag } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -18,6 +18,7 @@ import ChartCard from '../../../components/common/ChartCard'
 import RevenueChart from '../../../components/charts/RevenueChart'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import { api } from '../../../services/api'
+import { useAuth } from '../../../context/AuthContext'
 
 const money = (v) => `${(v || 0).toLocaleString()}`
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA') : '—'
@@ -26,6 +27,7 @@ export default function TrainerDetail() {
     const { id } = useParams()
     const navigate = useNavigate()
     const { message } = App.useApp()
+    const { user } = useAuth()
     const [trainer, setTrainer] = useState(null)
     const [assigned, setAssigned] = useState([])
     const [revTrend, setRevTrend] = useState([])
@@ -34,14 +36,16 @@ export default function TrainerDetail() {
     useEffect(() => {
         async function load() {
             try {
-                const [t, c, r] = await Promise.all([
+                const [t, c] = await Promise.all([
                     api.get(`/trainers/${id}`),
                     api.get(`/clients?trainer=${id}`),
-                    api.get('/stats/admin/revenue-trend'),
                 ])
                 setTrainer(t)
                 setAssigned(c.items || [])
-                setRevTrend(r.items || [])
+                // Revenue trend is Payments/Sales data — Admin only.
+                if (user?.role === 'admin') {
+                    api.get('/stats/admin/revenue-trend').then((r) => setRevTrend(r.items || [])).catch(() => {})
+                }
             } catch {
                 // trainer not found
             } finally {
@@ -49,7 +53,7 @@ export default function TrainerDetail() {
             }
         }
         load()
-    }, [id])
+    }, [id, user?.role])
 
     if (loading) return <LoadingSkeleton />
 
@@ -98,6 +102,11 @@ export default function TrainerDetail() {
                             <div className="flex items-center gap-3">
                                 <h1 className="m-0 text-xl font-extrabold text-text-primary md:text-2xl">{trainer.name}</h1>
                                 <StatusBadge status={trainer.status} />
+                                {user?.role === 'admin' && (
+                                    <Tag color={trainer.trainerType === 'third-party' ? 'purple' : 'default'} style={{ borderRadius: 999, margin: 0 }}>
+                                        {trainer.trainerType === 'third-party' ? `Third-party${trainer.memberName ? ` — ${trainer.memberName}` : ''}` : 'In-house'}
+                                    </Tag>
+                                )}
                             </div>
                             <div className="mt-1 text-sm text-text-muted">{trainer.specialization}</div>
                             <div className="mt-1.5 flex items-center gap-1">

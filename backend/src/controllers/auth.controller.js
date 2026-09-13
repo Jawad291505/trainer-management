@@ -2,13 +2,18 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { hashPassword, comparePassword } from '../utils/password.js'
 import { signToken } from '../utils/jwt.js'
-import { User, Trainer, Client } from '../models/index.js'
+import { User, Member, Trainer, Client } from '../models/index.js'
 import { ensureReferralCode, redeemReferralCode } from '../services/referral.service.js'
 import { ROLES } from '../config/constants.js'
 
-// Assemble the "who am I" payload the front-end AuthContext needs.
-async function profileFor(user) {
+// Assemble the "who am I" payload the front-end AuthContext needs. Exported for
+// reuse by memberSignup.controller.js, whose responses shape the same object.
+export async function profileFor(user) {
     const base = user.toJSON()
+    if (user.role === ROLES.MEMBER) {
+        const member = await Member.findOne({ user: user._id }).populate('plan').populate('pendingPlan')
+        return { ...base, member: member ? member.toJSON() : null }
+    }
     if (user.role === ROLES.TRAINER) {
         const trainer = await Trainer.findOne({ user: user._id }).populate('referredBy', 'referralCode')
         return { ...base, trainer: trainer ? trainer.toJSON() : null }
@@ -94,6 +99,14 @@ export const login = asyncHandler(async (req, res) => {
     }
     if (user.status === 'inactive') throw ApiError.forbidden('Account is inactive')
 
+    // A temp password that's past its expiry can't be used to log in at all —
+    // the admin has to resend the invite (POST /users/:id/resend-invite).
+    if (user.mustChangePassword && user.tempPasswordExpires && user.tempPasswordExpires < new Date()) {
+        throw ApiError.unauthorized(
+            'Your temporary password has expired. Ask your administrator to resend your invite.',
+        )
+    }
+
     res.json({ token: issue(user), user: await profileFor(user) })
 })
 
@@ -115,7 +128,12 @@ export const updateMe = asyncHandler(async (req, res) => {
         if (!currentPassword || !(await comparePassword(currentPassword, user.passwordHash))) {
             throw ApiError.badRequest('Current password is incorrect')
         }
+        if (newPassword.length < 8) throw ApiError.badRequest('New password must be at least 8 characters')
         user.passwordHash = await hashPassword(newPassword)
+        // Whether this was a first-login "set your permanent password" flow or a
+        // regular change, the temp-password window is over either way.
+        user.mustChangePassword = false
+        user.tempPasswordExpires = null
     }
 
     await user.save()

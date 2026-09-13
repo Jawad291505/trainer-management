@@ -1,5 +1,5 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
-import { getAdminStats, getTrainerStats, getClientCompletion } from '../services/stats.service.js'
+import { getAdminStats, getMemberStats, getTrainerStats, getClientCompletion } from '../services/stats.service.js'
 import { Payment } from '../models/index.js'
 
 // GET /api/stats/admin   (admin) — dashboard + payment headline numbers
@@ -23,6 +23,11 @@ export const revenueTrend = asyncHandler(async (_req, res) => {
     res.json({
         items: rows.map((r) => ({ month: MONTHS[r._id.m - 1], year: r._id.y, revenue: r.revenue })),
     })
+})
+
+// GET /api/stats/member   (member) — dashboard cards scoped to the member's own trainers/clients
+export const memberStats = asyncHandler(async (req, res) => {
+    res.json(await getMemberStats(req.member._id))
 })
 
 // GET /api/stats/trainer   (trainer) — trainer dashboard cards

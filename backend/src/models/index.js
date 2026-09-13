@@ -1,5 +1,8 @@
 // Barrel export for every Mongoose model.
 export { User } from './User.js'
+export { Member } from './Member.js'
+export { SubscriptionPlan } from './SubscriptionPlan.js'
+export { MemberPayment } from './MemberPayment.js'
 export { Trainer } from './Trainer.js'
 export { Client } from './Client.js'
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Select, Button, App, Modal, Form, Input, InputNumber } from 'antd'
+import { Select, Button, App, Modal, Form, Input, InputNumber, Tooltip } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
@@ -10,22 +10,31 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import TrainerCard from '../components/TrainerCard'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
+import { useAuth } from '../../../context/AuthContext'
 
 export default function Trainers() {
     const { message } = App.useApp()
     const navigate = useNavigate()
+    const { user } = useAuth()
+    const isMember = user?.role === 'member'
     const [data, setData] = useState([])
+    const [memberStats, setMemberStats] = useState(null)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
+    const [type, setType] = useState('all')
     const [editing, setEditing] = useState(null)
     const [saving, setSaving] = useState(false)
     const [form] = Form.useForm()
 
     const fetchTrainers = async () => {
         try {
-            const res = await api.get('/trainers')
+            const [res, stats] = await Promise.all([
+                api.get('/trainers'),
+                isMember ? api.get('/stats/member') : Promise.resolve(null),
+            ])
             setData(res.items || [])
+            if (stats) setMemberStats(stats)
         } catch (err) {
             message.error('Failed to load trainers')
         } finally {
@@ -34,6 +43,8 @@ export default function Trainers() {
     }
 
     useEffect(() => { fetchTrainers() }, [])
+
+    const atLimit = isMember && memberStats && memberStats.totalTrainers >= memberStats.trainerLimit
 
     const openCreate = () => {
         setEditing('new')
@@ -57,7 +68,12 @@ export default function Trainers() {
             if (editing === 'new') {
                 const created = await api.post('/trainers', v)
                 setData((prev) => [created, ...prev])
-                message.success(`${v.name} created`)
+                if (isMember) setMemberStats((prev) => (prev ? { ...prev, totalTrainers: prev.totalTrainers + 1 } : prev))
+                if (created.inviteWarning) {
+                    message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
+                } else {
+                    message.success(`${v.name} created — an invite email was sent to ${v.email}`)
+                }
             } else {
                 const updated = await api.patch(`/trainers/${editing.id}`, v)
                 setData((prev) => prev.map((t) => (t.id === editing.id ? updated : t)))
@@ -76,9 +92,10 @@ export default function Trainers() {
         return data.filter((t) => {
             const matchQ = !q || t.name?.toLowerCase().includes(q) || t.specialization?.toLowerCase().includes(q)
             const matchS = status === 'all' || t.status === status
-            return matchQ && matchS
+            const matchT = type === 'all' || t.trainerType === type
+            return matchQ && matchS && matchT
         })
-    }, [data, search, status])
+    }, [data, search, status, type])
 
     const handleAction = async (key, trainer) => {
         switch (key) {
@@ -120,6 +137,7 @@ export default function Trainers() {
                         try {
                             await api.delete(`/trainers/${trainer.id}`)
                             setData((prev) => prev.filter((t) => t.id !== trainer.id))
+                            if (isMember) setMemberStats((prev) => (prev ? { ...prev, totalTrainers: Math.max(0, prev.totalTrainers - 1) } : prev))
                             message.success('Trainer deleted')
                         } catch (err) { message.error(err.message) }
                     },
@@ -134,10 +152,17 @@ export default function Trainers() {
 
     return (
         <div>
-            <PageHeader title="Trainer Management" subtitle={`${filtered.length} trainers on the platform`}>
-                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-                    Create trainer
-                </Button>
+            <PageHeader
+                title="Trainer Management"
+                subtitle={isMember && memberStats
+                    ? `${memberStats.totalTrainers} / ${memberStats.trainerLimit} trainers assigned to you`
+                    : `${filtered.length} trainers on the platform`}
+            >
+                <Tooltip title={atLimit ? `You've reached your trainer limit (${memberStats.trainerLimit}). Ask a Super Admin to raise it.` : ''}>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} disabled={atLimit}>
+                        Create trainer
+                    </Button>
+                </Tooltip>
             </PageHeader>
 
             <FilterBar>
@@ -152,6 +177,18 @@ export default function Trainers() {
                         { value: 'inactive', label: 'Inactive' },
                     ]}
                 />
+                {!isMember && (
+                    <Select
+                        value={type}
+                        onChange={setType}
+                        style={{ width: 170 }}
+                        options={[
+                            { value: 'all', label: 'In-house & Third-party' },
+                            { value: 'in-house', label: 'In-house only' },
+                            { value: 'third-party', label: 'Third-party only' },
+                        ]}
+                    />
+                )}
             </FilterBar>
 
             {filtered.length === 0 ? (
@@ -161,7 +198,7 @@ export default function Trainers() {
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {filtered.map((t) => (
-                        <TrainerCard key={t.id} trainer={t} onAction={handleAction} />
+                        <TrainerCard key={t.id} trainer={t} onAction={handleAction} showType={!isMember} />
                     ))}
                 </div>
             )}

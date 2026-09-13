@@ -24,6 +24,15 @@ export function AuthProvider({ children }) {
         return data.user
     }, [])
 
+    // Member self-signup, step 1 (Signup.jsx) — auto-logs the new account in so
+    // the rest of onboarding (OTP -> plan -> payment) can use normal Bearer auth.
+    const signup = useCallback(async (payload) => {
+        const data = await api.post('/member-signup', payload)
+        setToken(data.token)
+        setUser(data.user)
+        return data
+    }, [])
+
     const logout = useCallback(() => {
         setToken(null)
         setUser(null)
@@ -37,8 +46,8 @@ export function AuthProvider({ children }) {
     const authed = !!user
 
     const value = useMemo(
-        () => ({ authed, user, loading, login, logout, refreshUser }),
-        [authed, user, loading, login, logout, refreshUser],
+        () => ({ authed, user, loading, login, signup, logout, refreshUser }),
+        [authed, user, loading, login, signup, logout, refreshUser],
     )
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

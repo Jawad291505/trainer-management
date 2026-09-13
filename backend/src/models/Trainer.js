@@ -8,6 +8,10 @@ const trainerSchema = new mongoose.Schema(
     {
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
 
+        // Which Member this trainer is scoped under (admin Member Management ->
+        // Trainers -> Clients hierarchy). null = managed directly by Admin.
+        managedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Member', default: null, index: true },
+
         specialization: { type: String, default: 'General Fitness', trim: true },
 
         // "18 / 25" capacity widget (admin CapacityBar). `clientCount` is a

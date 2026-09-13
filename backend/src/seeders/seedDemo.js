@@ -3,7 +3,7 @@ import { env } from '../config/env.js'
 import { hashPassword } from '../utils/password.js'
 import { ensureReferralCode } from '../services/referral.service.js'
 import {
-    User, Trainer, Client, Referral,
+    User, Member, Trainer, Client, Referral,
     DietPlan, ExercisePlan, Payment, WeightEntry, FollowUp,
 } from '../models/index.js'
 import { PLAN_PRICES } from '../config/constants.js'
@@ -112,6 +112,17 @@ export async function seedDemoData() {
         avatarColor: '#0b2545',
     })
 
+    // ---- Member (Admin -> Members -> Trainers -> Clients hierarchy demo) ----
+    const memberUser = await upsertUser({
+        name: 'Priya Sharma',
+        email: 'priya.sharma@fittrack.io',
+        role: 'member',
+        avatarColor: '#9333ea',
+    })
+    let member = await Member.findOne({ user: memberUser._id })
+    if (!member) member = new Member({ user: memberUser._id, title: 'Regional Manager' })
+    await member.save()
+
     // ---- Trainers ----
     const trainerByLegacyId = new Map()
     for (const t of registry.trainers) {
@@ -133,6 +144,15 @@ export async function seedDemoData() {
         trainer.referralCode = t.code // data/referrals.json — issued once, verbatim
         await trainer.save()
         trainerByLegacyId.set(t.id, trainer)
+    }
+
+    // Scope the first two trainers under the demo Member (rest stay Admin-managed).
+    for (const legacyId of ['TR-1001', 'TR-1002']) {
+        const trainer = trainerByLegacyId.get(legacyId)
+        if (trainer && !trainer.managedBy) {
+            trainer.managedBy = member._id
+            await trainer.save()
+        }
     }
 
     // ---- Referral records ----
@@ -313,6 +333,7 @@ export async function seedDemoData() {
 
     return {
         admins: 1,
+        members: 1,
         trainers: trainerByLegacyId.size,
         clients: createdClients.length,
         referrals: registry.referrals.length,

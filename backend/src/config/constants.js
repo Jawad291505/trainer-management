@@ -15,8 +15,9 @@ export const CLIENT_GOALS = [
 export const MEMBERSHIP_PLANS = ['Starter', 'Standard', 'Premium', 'Elite']
 export const PLAN_PRICES = { Starter: 49, Standard: 89, Premium: 149, Elite: 249 }
 
-// User roles across the three portals.
-export const ROLES = { ADMIN: 'admin', TRAINER: 'trainer', CLIENT: 'client' }
+// User roles across the three portals. 'member' is an Admin-portal sub-role:
+// same UI as admin, scoped to the members's own Trainers/Clients, no Payments.
+export const ROLES = { ADMIN: 'admin', MEMBER: 'member', TRAINER: 'trainer', CLIENT: 'client' }
 export const ROLE_VALUES = Object.values(ROLES)
 
 // Shared account status (admin Users / Trainers / Clients pages).
@@ -84,6 +85,21 @@ export const MAX_DIET_PLAN_TEMPLATES = 4
 
 // data/referrals.json -> referral.status
 export const REFERRAL_STATUS = ['joined', 'pending']
+
+// Member self-signup flow (controllers/memberSignup.controller.js). Member.status
+// stays 'pending' the whole way through until 'approved' is granted -> 'active';
+// 'rejected' is a terminal sub-state of 'pending' that still allows a resubmit.
+export const MEMBER_ONBOARDING_STAGES = [
+    'verify_email',
+    'select_plan',
+    'submit_payment',
+    'awaiting_approval',
+    'rejected',
+    'approved',
+]
+
+// controllers/memberPayments.controller.js — a Member's submitted proof-of-payment.
+export const MEMBER_PAYMENT_STATUS = ['pending', 'approved', 'rejected']
 
 export const DIET_PLAN_STATUS = ['draft', 'published']
 export const EXERCISE_PLAN_STATUS = ['draft', 'published']

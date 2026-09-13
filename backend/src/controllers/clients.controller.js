@@ -1,8 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
-import { User, Trainer, Client, DailyLog } from '../models/index.js'
-import { hashPassword } from '../utils/password.js'
-import { env } from '../config/env.js'
+import { User, Member, Trainer, Client, DailyLog } from '../models/index.js'
+import { createInvitedUser } from '../services/invite.service.js'
 
 function flatten(client) {
     const u = client.user
@@ -39,11 +38,18 @@ async function syncCount(trainerId) {
     await Trainer.updateOne({ _id: trainerId }, { clientCount: count })
 }
 
+// Trainer ids assigned to a member — the scope boundary for all client access below.
+async function memberTrainerIds(memberId) {
+    const trainers = await Trainer.find({ managedBy: memberId }, '_id')
+    return trainers.map((t) => t._id)
+}
+
 // GET /api/clients?status=&goal=&plan=&trainer=&search=&unassigned=1
-// admin: all;  trainer: only their own (ignores `trainer` query)
+// admin: all;  member: only clients of their own trainers;  trainer: only their own (ignores `trainer` query)
 export const listClients = asyncHandler(async (req, res) => {
     const filter = {}
     if (req.user.role === 'trainer') filter.trainer = req.trainer._id
+    else if (req.user.role === 'member') filter.trainer = { $in: await memberTrainerIds(req.member._id) }
     else if (req.query.trainer) filter.trainer = req.query.trainer
     if (req.query.unassigned === '1') filter.trainer = null
     if (req.query.status) filter.status = req.query.status
@@ -62,7 +68,7 @@ export const listClients = asyncHandler(async (req, res) => {
     res.json({ count: clients.length, items: clients.map(flatten) })
 })
 
-// GET /api/clients/:id   (admin; trainer if assigned; client if self)
+// GET /api/clients/:id   (admin; member if one of their trainers; trainer if assigned; client if self)
 export const getClient = asyncHandler(async (req, res) => {
     const id = req.params.id === 'me' ? req.client?._id : req.params.id
     const client = await Client.findById(id)
@@ -73,29 +79,62 @@ export const getClient = asyncHandler(async (req, res) => {
     if (req.user.role === 'trainer' && String(client.trainer?._id) !== String(req.trainer._id)) {
         throw ApiError.forbidden('That client is not assigned to you')
     }
+    if (req.user.role === 'member' && String(client.trainer?.managedBy || '') !== String(req.member?._id)) {
+        throw ApiError.forbidden('That client is outside your scope')
+    }
     if (req.user.role === 'client' && String(client._id) !== String(req.client._id)) {
         throw ApiError.forbidden()
     }
     res.json(flatten(client))
 })
 
-// POST /api/clients   (admin) — provision a client account
+// Guard: a member may only assign/reassign clients to a trainer within their own scope.
+async function assertMemberOwnsTrainer(req, trainerId) {
+    if (req.user.role !== 'member' || !trainerId) return
+    const trainer = await Trainer.findById(trainerId)
+    if (!trainer || String(trainer.managedBy || '') !== String(req.member._id)) {
+        throw ApiError.forbidden('That trainer is not assigned to you')
+    }
+}
+
+// Plan-based cap on total Clients across all of a Member's trainers combined
+// (Member.clientLimit, snapshotted from their SubscriptionPlan on approval —
+// see memberPayments.controller#approveMemberPayment). Applies regardless of
+// who's adding the client (Admin or the Member themselves), since it reflects
+// what that Member is actually paying for.
+async function assertClientLimit(trainerId) {
+    if (!trainerId) return
+    const trainer = await Trainer.findById(trainerId, 'managedBy')
+    if (!trainer?.managedBy) return
+    const member = await Member.findById(trainer.managedBy)
+    if (!member) return
+    const currentCount = await Client.countDocuments({ trainer: { $in: await memberTrainerIds(member._id) } })
+    if (currentCount >= member.clientLimit) {
+        throw ApiError.badRequest(
+            `This member's plan allows up to ${member.clientLimit} clients — the limit has been reached.`,
+        )
+    }
+}
+
+// POST /api/clients   (admin, or member scoped to their own trainers) — provision
+// a client account via the shared invite flow (temp password emailed via Resend).
 export const createClient = asyncHandler(async (req, res) => {
-    const { name, email, password, goal, plan, trainerId } = req.body
+    const { name, email, goal, plan, trainerId } = req.body
     if (!name || !email) throw ApiError.badRequest('name and email are required')
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
+    await assertMemberOwnsTrainer(req, trainerId)
 
     if (trainerId) {
         const trainer = await Trainer.findById(trainerId)
         if (!trainer) throw ApiError.notFound('Trainer not found')
         if (trainer.clientCount >= trainer.capacity) throw ApiError.badRequest('Trainer is at full capacity')
+        await assertClientLimit(trainerId)
     }
 
-    const user = await User.create({
+    const { user, tempPassword, inviteSent, inviteWarning } = await createInvitedUser({
         name,
         email,
         role: 'client',
-        passwordHash: await hashPassword(password || env.seedDemoPassword),
         avatarColor: req.body.avatarColor,
         status: req.body.status || 'active',
     })
@@ -111,10 +150,13 @@ export const createClient = asyncHandler(async (req, res) => {
     })
     await syncCount(trainerId)
     await client.populate([{ path: 'user' }, { path: 'trainer', populate: { path: 'user', select: 'name' } }])
-    res.status(201).json(flatten(client))
+    res.status(201).json({
+        ...flatten(client),
+        ...(inviteSent ? {} : { inviteWarning, tempPassword }),
+    })
 })
 
-// PATCH /api/clients/:id   (admin; client may update own goal/weights)
+// PATCH /api/clients/:id   (admin; member if within scope; client may update own goal/weights)
 export const updateClient = asyncHandler(async (req, res) => {
     const id = req.params.id === 'me' ? req.client?._id : req.params.id
     const client = await Client.findById(id).populate('user')
@@ -122,15 +164,22 @@ export const updateClient = asyncHandler(async (req, res) => {
 
     const isSelf = req.user.role === 'client' && String(client._id) === String(req.client._id)
     const isTrainer = req.user.role === 'trainer' && req.trainer && String(client.trainer) === String(req.trainer._id)
-    if (req.user.role !== 'admin' && !isSelf && !isTrainer) throw ApiError.forbidden()
+    const isMember = req.user.role === 'member'
+    if (isMember) {
+        const trainer = client.trainer && await Trainer.findById(client.trainer)
+        if (!trainer || String(trainer.managedBy || '') !== String(req.member._id)) {
+            throw ApiError.forbidden('That client is outside your scope')
+        }
+    }
+    if (!['admin', 'member'].includes(req.user.role) && !isSelf && !isTrainer) throw ApiError.forbidden()
 
     const selfFields = ['goal', 'startWeight', 'weight', 'target']
     const trainerFields = [...selfFields, 'waterGoal', 'sleepGoal']
     const adminFields = [...trainerFields, 'plan', 'status', 'progress']
-    const allowed = req.user.role === 'admin' ? adminFields : isTrainer ? trainerFields : selfFields
+    const allowed = ['admin', 'member'].includes(req.user.role) ? adminFields : isTrainer ? trainerFields : selfFields
     for (const k of allowed) if (req.body[k] !== undefined) client[k] = req.body[k]
 
-    if (req.user.role === 'admin' && client.user) {
+    if (['admin', 'member'].includes(req.user.role) && client.user) {
         if (req.body.name) client.user.name = req.body.name
         if (req.body.email) client.user.email = req.body.email
         if (req.body.status) client.user.status = req.body.status
@@ -160,7 +209,7 @@ export const updateClient = asyncHandler(async (req, res) => {
     res.json(flatten(await client.populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })))
 })
 
-// PATCH /api/clients/:id/assign   (admin)  Body: { trainerId | null }
+// PATCH /api/clients/:id/assign   (admin, or member scoped to their own trainers)  Body: { trainerId | null }
 // Backs the admin Assignments page: assign / reassign / unassign + capacity guard.
 export const assignClient = asyncHandler(async (req, res) => {
     const client = await Client.findById(req.params.id).populate('user', 'name')
@@ -168,14 +217,26 @@ export const assignClient = asyncHandler(async (req, res) => {
 
     const nextTrainerId = req.body.trainerId || null
     const prevTrainerId = client.trainer ? String(client.trainer) : null
+    if (req.user.role === 'member') {
+        if (!prevTrainerId) throw ApiError.forbidden('That client is outside your scope')
+        await assertMemberOwnsTrainer(req, prevTrainerId)
+        if (nextTrainerId) await assertMemberOwnsTrainer(req, nextTrainerId)
+    }
     if (String(nextTrainerId) === String(prevTrainerId)) return res.json(flatten(client))
 
     if (nextTrainerId) {
-        const trainer = await Trainer.findById(nextTrainerId)
-        if (!trainer) throw ApiError.notFound('Trainer not found')
-        if (trainer.clientCount >= trainer.capacity) {
+        const nextTrainer = await Trainer.findById(nextTrainerId)
+        if (!nextTrainer) throw ApiError.notFound('Trainer not found')
+        if (nextTrainer.clientCount >= nextTrainer.capacity) {
             throw ApiError.badRequest('Trainer is at full capacity — increase capacity first')
         }
+        // Only re-check the plan limit if this move actually brings the client
+        // into (or between) a member's scope — a lateral move between two
+        // trainers under the *same* member doesn't change that member's total.
+        const prevTrainer = prevTrainerId ? await Trainer.findById(prevTrainerId, 'managedBy') : null
+        const sameMemberScope = nextTrainer.managedBy && prevTrainer?.managedBy
+            && String(nextTrainer.managedBy) === String(prevTrainer.managedBy)
+        if (!sameMemberScope) await assertClientLimit(nextTrainerId)
     }
 
     client.trainer = nextTrainerId
@@ -186,11 +247,15 @@ export const assignClient = asyncHandler(async (req, res) => {
     res.json(flatten(client))
 })
 
-// DELETE /api/clients/:id   (admin)
+// DELETE /api/clients/:id   (admin, or member scoped to their own trainers)
 export const deleteClient = asyncHandler(async (req, res) => {
     const client = await Client.findById(req.params.id)
     if (!client) throw ApiError.notFound('Client not found')
     const trainerId = client.trainer ? String(client.trainer) : null
+    if (req.user.role === 'member') {
+        if (!trainerId) throw ApiError.forbidden('That client is outside your scope')
+        await assertMemberOwnsTrainer(req, trainerId)
+    }
     await User.findByIdAndDelete(client.user)
     await client.deleteOne()
     await syncCount(trainerId)

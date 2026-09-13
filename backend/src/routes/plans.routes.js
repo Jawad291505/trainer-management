@@ -22,9 +22,9 @@ router.use(authenticate)
 // ---- Diet-plan templates (admin-managed "General Diet Plans", max 4) ----
 router.get('/diet-plan-templates', listTemplates)
 router.get('/diet-plan-templates/:id', getTemplate)
-router.post('/diet-plan-templates', authorize('admin'), createTemplate)
-router.patch('/diet-plan-templates/:id', authorize('admin'), updateTemplate)
-router.delete('/diet-plan-templates/:id', authorize('admin'), deleteTemplate)
+router.post('/diet-plan-templates', authorize('admin', 'member'), createTemplate)
+router.patch('/diet-plan-templates/:id', authorize('admin', 'member'), updateTemplate)
+router.delete('/diet-plan-templates/:id', authorize('admin', 'member'), deleteTemplate)
 
 // ---- Client-specific diet plans ----
 router.get('/diet-plans', listDietPlans)

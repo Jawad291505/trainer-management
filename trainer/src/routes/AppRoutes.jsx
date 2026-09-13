@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
 import AppLayout from '../layouts/AppLayout'
 import Login from '../pages/Login'
+import SetPassword from '../pages/SetPassword'
 import { useAuth } from '../context/AuthContext'
 import Dashboard from '../portals/trainer/pages/Dashboard'
 import Clients from '../portals/trainer/pages/Clients'
@@ -17,7 +18,8 @@ import Settings from '../portals/trainer/pages/Settings'
 import NotFound from '../pages/NotFound'
 
 export default function AppRoutes() {
-    const { authed, loading } = useAuth()
+    const { authed, loading, user } = useAuth()
+    const mustChangePassword = !!user?.mustChangePassword
 
     if (loading) {
         return (
@@ -30,7 +32,11 @@ export default function AppRoutes() {
     return (
         <Routes>
             <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
-            <Route element={authed ? <AppLayout /> : <Navigate to="/login" replace />}>
+            <Route
+                path="/set-password"
+                element={authed ? (mustChangePassword ? <SetPassword /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
+            />
+            <Route element={authed ? (mustChangePassword ? <Navigate to="/set-password" replace /> : <AppLayout />) : <Navigate to="/login" replace />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/clients" element={<Clients />} />
                 <Route path="/clients/:id" element={<ClientProfile />} />

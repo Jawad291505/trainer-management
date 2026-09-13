@@ -48,7 +48,7 @@ export default function Login() {
                 setLoading(false)
                 return
             }
-            navigate('/', { replace: true })
+            navigate(user.mustChangePassword ? '/set-password' : '/', { replace: true })
         } catch (err) {
             message.error(err.message || 'Login failed')
         } finally {

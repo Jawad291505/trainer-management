@@ -4,10 +4,9 @@ import { Select, Dropdown, Button, Tag, App, Modal, Form, Input } from 'antd'
 import {
     MoreOutlined,
     EyeOutlined,
-    EditOutlined,
     StopOutlined,
     CheckCircleOutlined,
-    DeleteOutlined,
+    MailOutlined,
     PlusOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
@@ -17,23 +16,29 @@ import DataTable from '../../../components/tables/DataTable'
 import StatusBadge from '../../../components/common/StatusBadge'
 import UserAvatar from '../../../components/common/UserAvatar'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
-import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
+import { useAuth } from '../../../context/AuthContext'
 
 const ROLE_TAG = {
     'Super Admin': 'var(--color-primary)',
+    Member: '#9333ea',
     Trainer: 'var(--color-info)',
     Client: 'var(--color-success)',
 }
 
 export default function Users() {
-    const { message } = App.useApp()
+    const { message, modal } = App.useApp()
     const navigate = useNavigate()
+    const { user: me } = useAuth()
+    const isAdmin = me?.role === 'admin'
     const [data, setData] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [role, setRole] = useState('all')
     const [status, setStatus] = useState('all')
+    const [inviting, setInviting] = useState(false)
+    const [savingInvite, setSavingInvite] = useState(false)
+    const [inviteForm] = Form.useForm()
 
     const fetchUsers = async () => {
         try {
@@ -47,6 +52,46 @@ export default function Users() {
     }
 
     useEffect(() => { fetchUsers() }, [])
+
+    const inviteAdmin = async () => {
+        const v = await inviteForm.validateFields()
+        setSavingInvite(true)
+        try {
+            const created = await api.post('/admins', v)
+            await fetchUsers()
+            if (created.inviteWarning) {
+                message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
+            } else {
+                message.success(`${v.name} invited — an email was sent to ${v.email}`)
+            }
+            setInviting(false)
+        } catch (err) {
+            message.error(err.message)
+        } finally {
+            setSavingInvite(false)
+        }
+    }
+
+    const resendInvite = (record) => {
+        modal.confirm({
+            title: 'Resend invite?',
+            content: `This issues a new temporary password for ${record.name} and emails it to ${record.email}. Their current password stops working.`,
+            okText: 'Resend invite',
+            onOk: async () => {
+                try {
+                    const res = await api.post(`/users/${record.id}/resend-invite`)
+                    setData((prev) => prev.map((u) => (u.id === record.id ? { ...u, mustChangePassword: true } : u)))
+                    if (res.inviteWarning) {
+                        message.warning(`Invite email failed to send (${res.inviteWarning}). Temporary password: ${res.tempPassword}`, 10)
+                    } else {
+                        message.success(`Invite re-sent to ${record.email}`)
+                    }
+                } catch (err) {
+                    message.error(err.message)
+                }
+            },
+        })
+    }
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -70,8 +115,15 @@ export default function Users() {
     }
 
     const viewProfile = (record) => {
-        if (record.roleKey === 'trainer') navigate(`/trainers/${record.id}`)
-        else if (record.roleKey === 'client') navigate(`/clients/${record.id}`)
+        // `record.id` is the User id — the Trainer/Client/Member detail pages key
+        // on their own document's id (`profileId`), a different ObjectId.
+        if (!record.profileId) {
+            message.info('No detail page for this role')
+            return
+        }
+        if (record.roleKey === 'member') navigate(`/members/${record.profileId}`)
+        else if (record.roleKey === 'trainer') navigate(`/trainers/${record.profileId}`)
+        else if (record.roleKey === 'client') navigate(`/clients/${record.profileId}`)
         else message.info('No detail page for this role')
     }
 
@@ -101,6 +153,7 @@ export default function Users() {
             width: 140,
             filters: [
                 { text: 'Super Admin', value: 'Super Admin' },
+                { text: 'Member', value: 'Member' },
                 { text: 'Trainer', value: 'Trainer' },
                 { text: 'Client', value: 'Client' },
             ],
@@ -111,7 +164,19 @@ export default function Users() {
                 </Tag>
             ),
         },
-        { title: 'Status', dataIndex: 'status', width: 130, render: (s) => <StatusBadge status={s} /> },
+        {
+            title: 'Status',
+            dataIndex: 'status',
+            width: 170,
+            render: (s, r) => (
+                <div className="flex items-center gap-1.5">
+                    <StatusBadge status={s} />
+                    {r.mustChangePassword && (
+                        <Tag style={{ borderRadius: 999, border: 'none', padding: '2px 8px' }} color="gold">Invite pending</Tag>
+                    )}
+                </div>
+            ),
+        },
         { title: 'Assigned Trainer', dataIndex: 'trainerName', width: 170, render: (t) => <span className="text-text-secondary">{t || '—'}</span> },
         { title: 'Join Date', dataIndex: 'joinDate', width: 130, sorter: (a, b) => String(a.joinDate).localeCompare(String(b.joinDate)), render: (d) => <span className="text-text-secondary">{fmtDate(d)}</span> },
         { title: 'Last Activity', dataIndex: 'lastActivity', width: 140, render: (d) => <span className="text-text-muted">{fmtDate(d)}</span> },
@@ -134,10 +199,12 @@ export default function Users() {
                                     icon: isActive ? <StopOutlined /> : <CheckCircleOutlined />,
                                     label: isActive ? 'Deactivate' : 'Activate',
                                 },
+                                ...(isAdmin ? [{ key: 'resend-invite', icon: <MailOutlined />, label: 'Resend invite' }] : []),
                             ],
                             onClick: ({ key }) => {
                                 if (key === 'view') viewProfile(r)
                                 else if (key === 'toggle') toggleStatus(r)
+                                else if (key === 'resend-invite') resendInvite(r)
                             },
                         }}
                     >
@@ -152,7 +219,13 @@ export default function Users() {
 
     return (
         <div>
-            <PageHeader title="User Management" subtitle={`${filtered.length} users found`} />
+            <PageHeader title="User Management" subtitle={`${filtered.length} users found`}>
+                {isAdmin && (
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => { inviteForm.resetFields(); setInviting(true) }}>
+                        Invite admin
+                    </Button>
+                )}
+            </PageHeader>
 
             <FilterBar>
                 <SearchInput value={search} onChange={setSearch} placeholder="Search by name or email…" />
@@ -163,6 +236,7 @@ export default function Users() {
                     options={[
                         { value: 'all', label: 'All roles' },
                         { value: 'Super Admin', label: 'Super Admin' },
+                        { value: 'Member', label: 'Member' },
                         { value: 'Trainer', label: 'Trainer' },
                         { value: 'Client', label: 'Client' },
                     ]}
@@ -181,6 +255,28 @@ export default function Users() {
             </FilterBar>
 
             <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1050} />
+
+            <Modal
+                title="Invite a new Admin"
+                open={inviting}
+                onCancel={() => setInviting(false)}
+                onOk={inviteAdmin}
+                okText="Send invite"
+                confirmLoading={savingInvite}
+                centered
+            >
+                <Form form={inviteForm} layout="vertical" className="mt-4">
+                    <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}>
+                        <Input placeholder="e.g. Sarah Chen" />
+                    </Form.Item>
+                    <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}>
+                        <Input placeholder="sarah.chen@fittrack.io" />
+                    </Form.Item>
+                </Form>
+                <p className="mt-1 text-xs text-text-muted">
+                    A temporary password will be emailed to this address. They&apos;ll be asked to set their own password on first login.
+                </p>
+            </Modal>
         </div>
     )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Form, Input, Button, Checkbox, App } from 'antd'
 import {
     MailOutlined,
@@ -50,12 +50,12 @@ export default function Login() {
         setLoading(true)
         try {
             const user = await login(values.email, values.password)
-            if (user.role !== 'admin') {
-                message.error('This portal is for admins only')
+            if (!['admin', 'member'].includes(user.role)) {
+                message.error('This portal is for admins and members only')
                 setLoading(false)
                 return
             }
-            navigate('/', { replace: true })
+            navigate(user.mustChangePassword ? '/set-password' : '/', { replace: true })
         } catch (err) {
             message.error(err.message || 'Login failed')
         } finally {
@@ -157,6 +157,10 @@ export default function Login() {
                             Sign in
                         </Button>
                     </Form>
+
+                    <p className="mt-4 text-center text-sm text-text-secondary">
+                        Signing up as a Member? <Link to="/signup" className="font-semibold text-primary">Create an account</Link>
+                    </p>
                 </div>
             </div>
         </div>

@@ -65,7 +65,24 @@
       "Bash(node -pe \"const d=require\\('./monday_redo.json'\\); JSON.stringify\\({id:d._id, status:d.status, day:d.day, doneSets:d.doneSets, totalSets:d.totalSets}\\)\" --input-type=commonjs)",
       "Bash(node -e \"const d=require\\('/c/Projects/trainer-management/backend/monday_redo.json'.replace\\('/c/','C:/'\\)\\); console.log\\(JSON.stringify\\({id:d._id, status:d.status, day:d.day, doneSets:d.doneSets, totalSets:d.totalSets}\\)\\)\")",
       "Bash(curl -s http://localhost:8000/api/exercise-plans/6aa2d34f1ffa4670642878ee/sessions/day/6aa2d34f1ffa4670642878ef -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWEyZDM0NTFmZmE0NjcwNjQyODc4ODgiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzg5MjM0MzE2LCJleHAiOjE3ODk4MzkxMTZ9.4K4z5-fDWPU3-KTqFk0VO3-MOcKAn6z2Obynyk3Muqs')",
-      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.session?.status, j.session?.doneSets, j.session?.totalSets\\)}\\)\")"
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.session?.status, j.session?.doneSets, j.session?.totalSets\\)}\\)\")",
+      "Bash(cp admin/src/pages/SetPassword.jsx trainer/src/pages/SetPassword.jsx)",
+      "Bash(cp admin/src/pages/SetPassword.jsx user/src/pages/SetPassword.jsx)",
+      "Bash(grep \"^RESEND_API_KEY=$\" .env)",
+      "Bash(xargs -I{} node --check {})",
+      "Bash(grep -v \"^$\")",
+      "Bash(node --check src/routes/index.js)",
+      "Bash(node --check src/controllers/trainers.controller.js)",
+      "Bash(node --check src/controllers/users.controller.js)",
+      "Bash(node --check src/controllers/memberPayments.controller.js)",
+      "Bash(node --check src/models/Member.js)",
+      "Bash(node --check src/models/MemberPayment.js)",
+      "Bash(node --check src/routes/admin.routes.js)",
+      "Bash(node --check src/controllers/members.controller.js)",
+      "Bash(npx esbuild *)",
+      "Bash(node --check src/controllers/subscriptionPlans.controller.js)",
+      "Bash(node --check src/models/SubscriptionPlan.js)",
+      "Bash(node --check src/seeders/seedMaster.js)"
     ]
   }
 }

@@ -1,107 +1,226 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Select, Button, DatePicker, App, Dropdown, Modal, Descriptions } from 'antd'
+import dayjs from 'dayjs'
+import { Select, Button, App, Modal, Form, InputNumber, DatePicker, Tag, Dropdown } from 'antd'
 import {
     DollarOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
     CloseCircleOutlined,
-    DownloadOutlined,
     MoreOutlined,
-    EyeOutlined,
-    FileTextOutlined,
+    HistoryOutlined,
+    SyncOutlined,
+    TeamOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
-import ChartCard from '../../../components/common/ChartCard'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
-import StatusBadge from '../../../components/common/StatusBadge'
-import UserAvatar from '../../../components/common/UserAvatar'
-import RevenueChart from '../../../components/charts/RevenueChart'
-import DonutChart from '../../../components/charts/DonutChart'
+import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import UserAvatar from '../../../components/common/UserAvatar'
 import { api } from '../../../services/api'
 
-const money = (v) => `${(v || 0).toLocaleString()}`
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA') : '—'
+const money = (n, currency = 'PKR') => `${currency} ${Number(n || 0).toLocaleString()}`
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-CA') : '—')
 
+const SUB_STATUS = {
+    active: { label: 'Active', color: 'green' },
+    expiring: { label: 'Expiring soon', color: 'gold' },
+    expired: { label: 'Expired', color: 'red' },
+    inactive: { label: 'Inactive', color: 'default' },
+    no_plan: { label: 'No plan', color: 'default' },
+}
+
+// Derive a display subscription status from the member's own status + plan +
+// expiry — there's no separate "subscription status" field, it's computed.
+function subscriptionStatus(member) {
+    if (!member.plan) return 'no_plan'
+    if (member.status !== 'active') return 'inactive'
+    if (!member.planExpiryDate) return 'active'
+    const daysLeft = dayjs(member.planExpiryDate).diff(dayjs(), 'day')
+    if (daysLeft < 0) return 'expired'
+    if (daysLeft <= 7) return 'expiring'
+    return 'active'
+}
+
+// Admin's Payments page: Members and their SubscriptionPlan purchase/renewal
+// history, backed by Member + SubscriptionPlan + MemberPayment (the same
+// domain PaymentApprovals.jsx reviews self-signup submissions against — see
+// memberPayments.controller.js). Renewing here creates a new, auto-approved
+// MemberPayment (source: 'admin_renewal') rather than mutating history.
 export default function Payments() {
     const { message } = App.useApp()
     const [loading, setLoading] = useState(true)
+    const [members, setMembers] = useState([])
     const [payments, setPayments] = useState([])
-    const [stats, setStats] = useState(null)
-    const [revTrend, setRevTrend] = useState([])
+    const [plans, setPlans] = useState([])
     const [search, setSearch] = useState('')
-    const [status, setStatus] = useState('all')
-    const [method, setMethod] = useState('all')
-    const [detail, setDetail] = useState(null)
+    const [statusFilter, setStatusFilter] = useState('all')
+    const [planFilter, setPlanFilter] = useState('all')
 
-    useEffect(() => {
-        async function load() {
-            try {
-                const [p, s, r] = await Promise.all([
-                    api.get('/payments'),
-                    api.get('/stats/admin'),
-                    api.get('/stats/admin/revenue-trend'),
-                ])
-                setPayments(p.items || [])
-                setStats(s)
-                setRevTrend(r.items || [])
-            } catch (err) {
-                message.error('Failed to load payments')
-            } finally {
-                setLoading(false)
-            }
+    const [renewing, setRenewing] = useState(null) // member being renewed, or 'new'
+    const [saving, setSaving] = useState(false)
+    const [form] = Form.useForm()
+    const [historyFor, setHistoryFor] = useState(null)
+
+    const load = async () => {
+        setLoading(true)
+        try {
+            const [m, p, pl] = await Promise.all([
+                api.get('/members'),
+                api.get('/member-payments'),
+                api.get('/subscription-plans'),
+            ])
+            setMembers(m.items || [])
+            setPayments(p.items || [])
+            setPlans(pl.items || [])
+        } catch (err) {
+            message.error('Failed to load payments')
+        } finally {
+            setLoading(false)
         }
-        load()
-    }, [])
+    }
 
-    const methods = useMemo(() => Array.from(new Set(payments.map((p) => p.method).filter(Boolean))), [payments])
+    useEffect(() => { load() }, [])
+
+    const paymentsByMember = useMemo(() => {
+        const map = {}
+        for (const p of payments) {
+            if (!map[p.memberId]) map[p.memberId] = []
+            map[p.memberId].push(p)
+        }
+        return map
+    }, [payments])
+
+    const rows = useMemo(() => members.map((m) => {
+        const history = paymentsByMember[m.id] || []
+        const lastApproved = history.find((p) => p.status === 'approved')
+        return {
+            ...m,
+            purchasedAt: lastApproved?.submittedAt || m.joinDate,
+            subStatus: subscriptionStatus(m),
+            historyCount: history.length,
+        }
+    }), [members, paymentsByMember])
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
-        return payments.filter((p) => {
-            const matchQ = !q || (p.clientName || '').toLowerCase().includes(q) || (p.txnId || '').includes(q)
-            const matchS = status === 'all' || p.status === status
-            const matchM = method === 'all' || p.method === method
-            return matchQ && matchS && matchM
+        return rows.filter((r) => {
+            const matchQ = !q || r.name?.toLowerCase().includes(q) || r.email?.toLowerCase().includes(q)
+            const matchS = statusFilter === 'all' || r.subStatus === statusFilter
+            const matchP = planFilter === 'all' || r.plan?.id === planFilter
+            return matchQ && matchS && matchP
         })
-    }, [payments, search, status, method])
+    }, [rows, search, statusFilter, planFilter])
 
-    if (loading || !stats) return <LoadingSkeleton />
+    const summary = useMemo(() => ({
+        active: rows.filter((r) => r.subStatus === 'active').length,
+        expiringSoon: rows.filter((r) => r.subStatus === 'expiring').length,
+        expired: rows.filter((r) => r.subStatus === 'expired').length,
+        totalRevenue: payments.filter((p) => p.status === 'approved').reduce((sum, p) => sum + Number(p.amount || 0), 0),
+    }), [rows, payments])
+
+    const activePlans = useMemo(() => plans.filter((p) => p.active), [plans])
+
+    const openRenew = (member) => {
+        setRenewing(member)
+        const defaultPlan = member.plan || activePlans[0] || null
+        form.setFieldsValue({
+            planId: defaultPlan?.id,
+            amount: defaultPlan?.priceMonthly,
+            renewalDate: dayjs(),
+        })
+    }
+
+    const onPlanChange = (planId) => {
+        const plan = plans.find((p) => p.id === planId)
+        if (plan) form.setFieldsValue({ amount: plan.priceMonthly })
+    }
+
+    const submitRenewal = async () => {
+        if (!renewing?.id) {
+            message.error('Select a member to renew')
+            return
+        }
+        const v = await form.validateFields()
+        setSaving(true)
+        try {
+            await api.post(`/member-payments/${renewing.id}/renew`, {
+                planId: v.planId,
+                amount: v.amount,
+                renewalDate: v.renewalDate.toISOString(),
+            })
+            message.success(`${renewing.name}'s subscription was renewed`)
+            setRenewing(null)
+            await load()
+        } catch (err) {
+            message.error(err.message)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    if (loading) return <LoadingSkeleton />
 
     const cards = [
-        { icon: <DollarOutlined />, label: 'Total Revenue', value: money(stats.totalRevenue), hint: `${stats.paidCount} paid` },
-        { icon: <CheckCircleOutlined />, label: 'Paid', value: stats.paidCount, accent: 'var(--color-success)' },
-        { icon: <ClockCircleOutlined />, label: 'Pending', value: stats.pendingCount, hint: money(stats.pendingAmount), accent: 'var(--color-warning)' },
-        { icon: <CloseCircleOutlined />, label: 'Failed / Refunded', value: stats.failedCount + stats.refundedCount, accent: 'var(--color-danger)' },
+        { icon: <DollarOutlined />, label: 'Revenue Collected', value: money(summary.totalRevenue), hint: `${payments.filter((p) => p.status === 'approved').length} approved payments` },
+        { icon: <CheckCircleOutlined />, label: 'Active Subscriptions', value: summary.active, accent: 'var(--color-success)' },
+        { icon: <ClockCircleOutlined />, label: 'Expiring Soon', value: summary.expiringSoon, hint: 'Within 7 days', accent: 'var(--color-warning)' },
+        { icon: <CloseCircleOutlined />, label: 'Expired', value: summary.expired, accent: 'var(--color-danger)' },
     ]
 
     const columns = [
         {
-            title: 'Client', dataIndex: 'clientName',
+            title: 'Member',
+            dataIndex: 'name',
             render: (_, r) => (
                 <div className="flex items-center gap-3">
-                    <UserAvatar name={r.clientName || 'Client'} color={r.clientAvatar} size={34} />
-                    <span className="font-semibold text-text-primary">{r.clientName || '—'}</span>
+                    <UserAvatar name={r.name} color={r.avatarColor} size={36} />
+                    <div className="min-w-0">
+                        <div className="truncate font-semibold text-text-primary">{r.name}</div>
+                        <div className="truncate text-xs text-text-muted">{r.email}</div>
+                    </div>
                 </div>
             ),
         },
-        { title: 'Trainer', dataIndex: 'trainerName', width: 160, render: (t) => <span className="text-text-secondary">{t || '—'}</span> },
-        { title: 'Plan', dataIndex: 'plan', width: 110, render: (p) => <span className="font-medium text-text-primary">{p}</span> },
-        { title: 'Amount', dataIndex: 'amount', width: 110, sorter: (a, b) => a.amount - b.amount, render: (a) => <span className="font-bold text-text-primary">{money(a)}</span> },
-        { title: 'Date', dataIndex: 'date', width: 120, sorter: (a, b) => String(a.date).localeCompare(String(b.date)), render: (d) => <span className="text-text-secondary">{fmtDate(d)}</span> },
-        { title: 'Status', dataIndex: 'status', width: 120, render: (s) => <StatusBadge status={s} /> },
-        { title: 'Method', dataIndex: 'method', width: 170, render: (m) => <span className="text-text-secondary">{m}</span> },
-        { title: 'Transaction', dataIndex: 'txnId', width: 140, render: (t) => <span className="font-mono text-xs text-text-muted">{t}</span> },
         {
-            title: '', key: 'actions', width: 50, fixed: 'right',
+            title: 'Plan',
+            dataIndex: ['plan', 'name'],
+            width: 170,
+            render: (_, r) => r.plan
+                ? <div><div className="font-medium text-text-primary">{r.plan.name}</div><div className="text-xs text-text-muted">Up to {r.plan.maxClients} clients, {r.plan.maxTrainers} trainers</div></div>
+                : <span className="text-text-muted">—</span>,
+        },
+        {
+            title: 'Price',
+            width: 130,
+            render: (_, r) => r.plan ? <span className="font-semibold text-text-primary">{money(r.plan.priceMonthly, r.plan.currency)}<span className="text-xs font-normal text-text-muted">/mo</span></span> : '—',
+        },
+        { title: 'Purchased', dataIndex: 'purchasedAt', width: 130, render: fmtDate },
+        {
+            title: 'Status',
+            dataIndex: 'subStatus',
+            width: 130,
+            render: (s) => <Tag color={SUB_STATUS[s].color} style={{ borderRadius: 999 }}>{SUB_STATUS[s].label}</Tag>,
+        },
+        { title: 'Expiry', dataIndex: 'planExpiryDate', width: 120, render: fmtDate },
+        {
+            title: '',
+            key: 'actions',
+            width: 60,
+            fixed: 'right',
             render: (_, r) => (
-                <Dropdown trigger={['click']} menu={{
-                    items: [{ key: 'view', icon: <EyeOutlined />, label: 'View details' }],
-                    onClick: () => setDetail(r),
-                }}>
+                <Dropdown
+                    trigger={['click']}
+                    menu={{
+                        items: [
+                            { key: 'renew', icon: <SyncOutlined />, label: 'Renew subscription' },
+                            { key: 'history', icon: <HistoryOutlined />, label: `Payment history (${r.historyCount})` },
+                        ],
+                        onClick: ({ key }) => (key === 'renew' ? openRenew(r) : setHistoryFor(r)),
+                    }}
+                >
                     <Button type="text" icon={<MoreOutlined />} />
                 </Dropdown>
             ),
@@ -110,33 +229,119 @@ export default function Payments() {
 
     return (
         <div>
-            <PageHeader title="Payments" subtitle="Revenue, invoices and transaction history." />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map((c, i) => <StatCard key={i} {...c} />)}</div>
-            <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <ChartCard className="lg:col-span-2" title="Revenue Trend" subtitle="Monthly revenue"><RevenueChart data={revTrend} /></ChartCard>
-                <ChartCard title="Payment Status" subtitle="Distribution by state"><DonutChart data={stats.paymentStatusData || []} useStatusColors centerLabel="payments" /></ChartCard>
+            <PageHeader title="Payments" subtitle="Member subscriptions, plan purchases and renewals.">
+                <Button type="primary" icon={<TeamOutlined />} onClick={() => openRenew({ id: null })} disabled={!members.length}>
+                    Renew subscription
+                </Button>
+            </PageHeader>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {cards.map((c, i) => <StatCard key={i} {...c} />)}
             </div>
+
             <div className="mt-6">
                 <FilterBar>
-                    <SearchInput value={search} onChange={setSearch} placeholder="Search client or txn…" />
-                    <Select value={status} onChange={setStatus} style={{ width: 150 }} options={[{ value: 'all', label: 'All status' }, { value: 'paid', label: 'Paid' }, { value: 'pending', label: 'Pending' }, { value: 'failed', label: 'Failed' }, { value: 'refunded', label: 'Refunded' }]} />
-                    <Select value={method} onChange={setMethod} style={{ width: 190 }} options={[{ value: 'all', label: 'All methods' }, ...methods.map((m) => ({ value: m, label: m }))]} />
+                    <SearchInput value={search} onChange={setSearch} placeholder="Search member…" />
+                    <Select
+                        value={statusFilter}
+                        onChange={setStatusFilter}
+                        style={{ width: 160 }}
+                        options={[{ value: 'all', label: 'All status' }, ...Object.entries(SUB_STATUS).map(([v, s]) => ({ value: v, label: s.label }))]}
+                    />
+                    <Select
+                        value={planFilter}
+                        onChange={setPlanFilter}
+                        style={{ width: 200 }}
+                        options={[{ value: 'all', label: 'All plans' }, ...plans.map((p) => ({ value: p.id, label: p.name }))]}
+                    />
                 </FilterBar>
-                <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1200} />
+
+                {filtered.length === 0 ? (
+                    <div className="app-card">
+                        <EmptyState title="No members found" description="Try adjusting your search or filters." />
+                    </div>
+                ) : (
+                    <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1100} />
+                )}
             </div>
-            <Modal title="Payment details" open={!!detail} onCancel={() => setDetail(null)} centered footer={[<Button key="close" onClick={() => setDetail(null)}>Close</Button>]}>
-                {detail && (
-                    <Descriptions column={1} size="small" className="mt-2" bordered>
-                        <Descriptions.Item label="Payment ID">{detail.id}</Descriptions.Item>
-                        <Descriptions.Item label="Client">{detail.clientName}</Descriptions.Item>
-                        <Descriptions.Item label="Trainer">{detail.trainerName}</Descriptions.Item>
-                        <Descriptions.Item label="Plan">{detail.plan}</Descriptions.Item>
-                        <Descriptions.Item label="Amount">{money(detail.amount)}</Descriptions.Item>
-                        <Descriptions.Item label="Date">{fmtDate(detail.date)}</Descriptions.Item>
-                        <Descriptions.Item label="Status">{detail.status}</Descriptions.Item>
-                        <Descriptions.Item label="Method">{detail.method}</Descriptions.Item>
-                        <Descriptions.Item label="Transaction">{detail.txnId}</Descriptions.Item>
-                    </Descriptions>
+
+            <Modal
+                title="Renew subscription"
+                open={!!renewing}
+                onCancel={() => setRenewing(null)}
+                onOk={submitRenewal}
+                okText="Confirm renewal"
+                confirmLoading={saving}
+                centered
+            >
+                <Form form={form} layout="vertical" className="mt-4">
+                    <Form.Item label="Member" required>
+                        <Select
+                            showSearch
+                            value={renewing?.id || undefined}
+                            placeholder="Select a member"
+                            optionFilterProp="label"
+                            options={members.map((m) => ({ value: m.id, label: `${m.name} (${m.email})` }))}
+                            onChange={(id) => openRenew(members.find((m) => m.id === id))}
+                        />
+                    </Form.Item>
+
+                    {renewing?.id && (
+                        <div className="mb-4 rounded-lg p-3 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
+                            <span className="text-text-muted">Current plan: </span>
+                            <span className="font-semibold text-text-primary">
+                                {renewing.plan ? `${renewing.plan.name} (${money(renewing.plan.priceMonthly, renewing.plan.currency)}/mo)` : 'No plan yet'}
+                            </span>
+                        </div>
+                    )}
+
+                    <Form.Item name="planId" label="Renewal plan" rules={[{ required: true, message: 'Select a plan' }]}>
+                        <Select
+                            placeholder="Select a plan"
+                            options={activePlans.map((p) => ({ value: p.id, label: `${p.name} — ${money(p.priceMonthly, p.currency)}/mo (${p.maxClients} clients, ${p.maxTrainers} trainers)` }))}
+                            onChange={onPlanChange}
+                        />
+                    </Form.Item>
+
+                    <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                        <Form.Item name="amount" label="Renewal amount" rules={[{ required: true, message: 'Enter the amount received' }]}>
+                            <InputNumber min={0} style={{ width: '100%' }} />
+                        </Form.Item>
+                        <Form.Item name="renewalDate" label="Renewal date" rules={[{ required: true, message: 'Pick the renewal date' }]}>
+                            <DatePicker style={{ width: '100%' }} />
+                        </Form.Item>
+                    </div>
+                </Form>
+            </Modal>
+
+            <Modal
+                title={historyFor ? `${historyFor.name} — payment history` : 'Payment history'}
+                open={!!historyFor}
+                onCancel={() => setHistoryFor(null)}
+                footer={[<Button key="close" onClick={() => setHistoryFor(null)}>Close</Button>]}
+                centered
+            >
+                {historyFor && (
+                    (paymentsByMember[historyFor.id] || []).length === 0 ? (
+                        <EmptyState title="No payments yet" description="This member hasn't made a payment." />
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            {(paymentsByMember[historyFor.id] || []).map((p) => (
+                                <div key={p.id} className="flex items-center justify-between rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--color-border)' }}>
+                                    <div>
+                                        <div className="font-semibold text-text-primary">{p.planName}</div>
+                                        <div className="text-xs text-text-muted">
+                                            {fmtDate(p.submittedAt)} · {p.source === 'admin_renewal' ? 'Admin renewal' : 'Self-signup'}
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="font-bold text-text-primary">{money(p.amount, p.currency)}</div>
+                                        <Tag color={p.status === 'approved' ? 'green' : p.status === 'rejected' ? 'red' : 'gold'} style={{ borderRadius: 999 }}>{p.status}</Tag>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )
                 )}
             </Modal>
         </div>

@@ -2,6 +2,7 @@ import {
     Trainer,
     Client,
     User,
+    Member,
     Payment,
     FollowUp,
     DailyLog,
@@ -100,6 +101,37 @@ export async function getAdminStats() {
             value: row.value,
         })),
         clientGrowth,
+    }
+}
+
+// ---- Member dashboard stats ----
+// Same shape as admin dashboard cards, scoped to the member's own trainers/clients,
+// with no revenue/payment figures (Payments & Sales stay Admin-only).
+export async function getMemberStats(memberId) {
+    const [member, trainers] = await Promise.all([
+        Member.findById(memberId, 'trainerLimit clientLimit'),
+        Trainer.find({ managedBy: memberId }),
+    ])
+    const trainerIds = trainers.map((t) => t._id)
+
+    const [totalClients, activeClients] = await Promise.all([
+        Client.countDocuments({ trainer: { $in: trainerIds } }),
+        Client.countDocuments({ trainer: { $in: trainerIds }, status: 'active' }),
+    ])
+
+    const totalCapacity = trainers.reduce((s, t) => s + (t.capacity || 0), 0)
+    const usedCapacity = trainers.reduce((s, t) => s + (t.clientCount || 0), 0)
+
+    return {
+        totalTrainers: trainers.length,
+        trainerLimit: member?.trainerLimit ?? 0,
+        activeTrainers: trainers.filter((t) => t.status === 'active').length,
+        totalClients,
+        clientLimit: member?.clientLimit ?? 0,
+        activeClients,
+        totalCapacity,
+        usedCapacity,
+        availableCapacity: totalCapacity - usedCapacity,
     }
 }
 

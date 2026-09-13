@@ -1,4 +1,4 @@
-import { Dropdown, Button, Rate } from 'antd'
+import { Dropdown, Button, Rate, Tag } from 'antd'
 import {
     MoreOutlined,
     EyeOutlined,
@@ -14,7 +14,11 @@ import StatusBadge from '../../../components/common/StatusBadge'
 import CapacityBar from '../../../components/common/CapacityBar'
 
 // Premium trainer summary card used on the Trainers page grid.
-export default function TrainerCard({ trainer, onAction }) {
+// `showType` surfaces the in-house / third-party badge — pass it only where
+// the distinction is actually informative (the admin Trainers page); a Member
+// viewing their own trainers, or a single Member's detail page, already knows
+// they're all "third-party" from Admin's perspective, so it's noise there.
+export default function TrainerCard({ trainer, onAction, showType = false }) {
     const atCapacity = trainer.clients >= trainer.capacity
     const isActive = trainer.status === 'active'
 
@@ -56,7 +60,17 @@ export default function TrainerCard({ trainer, onAction }) {
             </div>
 
             <div className="mt-3 flex items-center justify-between">
-                <StatusBadge status={trainer.status} />
+                <div className="flex items-center gap-1.5">
+                    <StatusBadge status={trainer.status} />
+                    {showType && (
+                        <Tag
+                            color={trainer.trainerType === 'third-party' ? 'purple' : 'default'}
+                            style={{ borderRadius: 999, margin: 0 }}
+                        >
+                            {trainer.trainerType === 'third-party' ? `Third-party${trainer.memberName ? ` — ${trainer.memberName}` : ''}` : 'In-house'}
+                        </Tag>
+                    )}
+                </div>
                 <div className="flex items-center gap-1">
                     <Rate disabled allowHalf value={trainer.rating} count={5} style={{ fontSize: 12 }} />
                     <span className="text-xs font-semibold text-text-secondary">{trainer.rating}</span>

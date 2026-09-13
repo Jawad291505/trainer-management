@@ -28,7 +28,21 @@ async function request(method, path, body) {
     }
 
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.message || `Request failed (${res.status})`)
+
+    // Temp-password accounts are locked out of everything except /auth/me until
+    // they set a real password (see backend middlewares/auth.js). Bounce there
+    // instead of surfacing a confusing 403 on whatever call triggered it.
+    if (res.status === 403 && data.code === 'PASSWORD_CHANGE_REQUIRED' && window.location.pathname !== '/set-password') {
+        window.location.href = '/set-password'
+        throw new Error(data.message || 'You must set a new password before continuing')
+    }
+
+    if (!res.ok) {
+        const err = new Error(data.message || data.error || `Request failed (${res.status})`)
+        err.code = data.code
+        err.status = res.status
+        throw err
+    }
     return data
 }
 

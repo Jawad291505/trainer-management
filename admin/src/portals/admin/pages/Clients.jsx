@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Select, Dropdown, Button, Progress, App, Modal, Form, Input, InputNumber, DatePicker } from 'antd'
+import { Select, Dropdown, Button, Progress, App, Modal, Form, Input, InputNumber, DatePicker, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import {
     MoreOutlined,
@@ -20,6 +20,7 @@ import UserAvatar from '../../../components/common/UserAvatar'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
+import { useAuth } from '../../../context/AuthContext'
 
 const CLIENT_GOALS = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
 const OTHER_GOAL = '__other__'
@@ -27,8 +28,11 @@ const OTHER_GOAL = '__other__'
 export default function Clients() {
     const { message } = App.useApp()
     const navigate = useNavigate()
+    const { user } = useAuth()
+    const isMember = user?.role === 'member'
     const [data, setData] = useState([])
     const [trainerList, setTrainerList] = useState([])
+    const [memberStats, setMemberStats] = useState(null)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
@@ -49,9 +53,14 @@ export default function Clients() {
     useEffect(() => {
         async function load() {
             try {
-                const [c, t] = await Promise.all([api.get('/clients'), api.get('/trainers')])
+                const [c, t, stats] = await Promise.all([
+                    api.get('/clients'),
+                    api.get('/trainers'),
+                    isMember ? api.get('/stats/member') : Promise.resolve(null),
+                ])
                 setData(c.items || [])
                 setTrainerList(t.items || [])
+                if (stats) setMemberStats(stats)
             } catch (err) {
                 message.error('Failed to load data')
             } finally {
@@ -60,6 +69,8 @@ export default function Clients() {
         }
         load()
     }, [])
+
+    const atClientLimit = isMember && memberStats?.clientLimit > 0 && memberStats.totalClients >= memberStats.clientLimit
 
     const openAdd = () => {
         addForm.resetFields()
@@ -85,7 +96,12 @@ export default function Clients() {
             })
             setData((prev) => [created, ...prev])
             setAddOpen(false)
-            message.success(`${v.name} added`)
+            if (isMember) setMemberStats((prev) => (prev ? { ...prev, totalClients: prev.totalClients + 1 } : prev))
+            if (created.inviteWarning) {
+                message.warning(`${v.name} added, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
+            } else {
+                message.success(`${v.name} added — an invite email was sent to ${v.email}`)
+            }
         } catch (err) {
             message.error(err.message)
         } finally {
@@ -204,8 +220,15 @@ export default function Clients() {
 
     return (
         <div>
-            <PageHeader title="Client Management" subtitle={`${filtered.length} clients found`}>
-                <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add client</Button>
+            <PageHeader
+                title="Client Management"
+                subtitle={isMember && memberStats
+                    ? `${memberStats.totalClients} / ${memberStats.clientLimit || 0} clients used on your plan`
+                    : `${filtered.length} clients found`}
+            >
+                <Tooltip title={atClientLimit ? `Your plan allows up to ${memberStats.clientLimit} clients. Upgrade your plan to add more.` : ''}>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={openAdd} disabled={atClientLimit}>Add client</Button>
+                </Tooltip>
             </PageHeader>
 
             <FilterBar>

@@ -20,6 +20,21 @@ const userSchema = new mongoose.Schema(
         role: { type: String, enum: ROLE_VALUES, required: true, index: true },
         status: { type: String, enum: ACCOUNT_STATUS, default: 'active', index: true },
 
+        // Invitation flow (Admin/Member/Trainer/Client are all provisioned the
+        // same way — see services/invite.service.js). true until the user sets
+        // their own password on first login; the temp password stops working
+        // (account-wise) once that happens, and outright expires after
+        // tempPasswordExpires regardless.
+        mustChangePassword: { type: Boolean, default: false },
+        tempPasswordExpires: { type: Date, default: null },
+
+        // Email OTP verification — only meaningful for self-signup (Member
+        // signup flow, controllers/memberSignup.controller.js). Accounts
+        // provisioned by an admin/Super Admin are trusted and default verified.
+        emailVerified: { type: Boolean, default: true },
+        otpCodeHash: { type: String, select: false },
+        otpExpires: { type: Date, select: false },
+
         // Cosmetic — every front-end renders a coloured avatar (UserAvatar.jsx).
         avatarColor: { type: String, default: '#0b2545' },
         phone: { type: String, trim: true },

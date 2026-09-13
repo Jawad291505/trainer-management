@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
-import { adminNav } from '../../constants/navigation'
+import { adminNav, memberNav } from '../../constants/navigation'
 
-const LABELS = adminNav.reduce((acc, n) => {
+const LABELS = [...adminNav, ...memberNav].reduce((acc, n) => {
     acc[n.key.replace('/', '') || 'dashboard'] = n.label
     return acc
 }, {})

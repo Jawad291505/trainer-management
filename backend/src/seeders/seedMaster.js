@@ -7,6 +7,7 @@ import {
     LibraryCategory,
     NutritionConfig,
     DietPlanTemplate,
+    SubscriptionPlan,
 } from '../models/index.js'
 
 // Idempotent master-data seed. Re-running updates existing rows (matched by their
@@ -166,9 +167,36 @@ async function seedDietPlanTemplates() {
     return { dietPlanTemplates: n }
 }
 
+// Starter Member subscription tiers (Member self-signup -> plan selection).
+// Matched by name so re-running never duplicates; Admin can edit prices/limits
+// or add more plans later from the Subscription Plans page without touching this.
+async function seedSubscriptionPlans() {
+    const defaults = [
+        { name: 'Starter', priceMonthly: 5000, maxClients: 20, maxTrainers: 5, sortOrder: 0, description: 'Up to 20 clients' },
+        { name: 'Growth', priceMonthly: 10000, maxClients: 40, maxTrainers: 10, sortOrder: 1, description: 'Up to 40 clients' },
+    ]
+    for (const plan of defaults) {
+        await SubscriptionPlan.updateOne(
+            { name: plan.name },
+            { $setOnInsert: plan },
+            { upsert: true },
+        )
+    }
+    // Backfill maxTrainers on plans created before it existed — default to
+    // maxClients (the safe upper bound the field can never exceed) so admins
+    // can then dial it down from the Subscription Plans page.
+    const stale = await SubscriptionPlan.find({ maxTrainers: { $exists: false } })
+    for (const plan of stale) {
+        plan.maxTrainers = plan.maxClients
+        await plan.save()
+    }
+    return { subscriptionPlans: defaults.length, backfilledMaxTrainers: stale.length }
+}
+
 export async function seedMasterData() {
     const a = await seedFoods()
     const b = await seedExercises()
     const c = await seedDietPlanTemplates()
-    return { ...a, ...b, ...c }
+    const d = await seedSubscriptionPlans()
+    return { ...a, ...b, ...c, ...d }
 }

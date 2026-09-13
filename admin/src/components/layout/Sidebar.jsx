@@ -1,11 +1,9 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { QuestionCircleOutlined } from '@ant-design/icons'
-import { adminNavGroups } from '../../constants/navigation'
+import { getNavGroups } from '../../constants/navigation'
+import { useAuth } from '../../context/AuthContext'
 
-const NAV_GROUPS = adminNavGroups
-const BRAND_SUBTITLE = 'Admin Console'
-
-function Logo({ collapsed }) {
+function Logo({ collapsed, subtitle }) {
     return (
         <div className={`flex items-center gap-3 px-5 py-6 ${collapsed ? 'justify-center px-0' : ''}`}>
             <div className="sidebar-brand flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base font-black">
@@ -15,7 +13,7 @@ function Logo({ collapsed }) {
                 <div className="leading-tight">
                     <div className="text-[15px] font-extrabold text-white">FitTrack</div>
                     <div className="text-[11px] font-medium" style={{ color: 'var(--sidebar-text)' }}>
-                        {BRAND_SUBTITLE}
+                        {subtitle}
                     </div>
                 </div>
             )}
@@ -29,13 +27,16 @@ function Logo({ collapsed }) {
 export default function Sidebar({ collapsed, onNavigate }) {
     const location = useLocation()
     const navigate = useNavigate()
+    const { user } = useAuth()
+    const NAV_GROUPS = getNavGroups(user?.role)
+    const brandSubtitle = user?.role === 'member' ? 'Member Console' : 'Admin Console'
 
     const isActive = (key) =>
         key === '/' ? location.pathname === '/' : location.pathname.startsWith(key)
 
     return (
         <div className="sidebar-shell relative flex h-full flex-col">
-            <Logo collapsed={collapsed} />
+            <Logo collapsed={collapsed} subtitle={brandSubtitle} />
 
             <nav className="flex-1 overflow-y-auto px-3 pb-4">
                 {NAV_GROUPS.map((group, gi) => (
