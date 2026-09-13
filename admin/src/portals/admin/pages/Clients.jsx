@@ -267,8 +267,18 @@ export default function Clients() {
                         </Form.Item>
                         {wGoal === OTHER_GOAL && <Form.Item name="customGoal" label="Custom goal" rules={[{ required: true, message: 'Enter a goal name' }]}><Input placeholder="e.g. Marathon Prep" /></Form.Item>}
                     </div>
-                    <Form.Item name="trainerId" label="Assign trainer">
-                        <Select allowClear showSearch optionFilterProp="label" placeholder="Leave empty for unassigned" options={trainerList.map((t) => ({ value: t.id, label: `${t.name} — ${t.clients}/${t.capacity} clients` }))} />
+                    <Form.Item
+                        name="trainerId"
+                        label="Assign trainer"
+                        rules={isMember ? [{ required: true, message: 'Pick a trainer — required so you can find and manage this client later' }] : []}
+                    >
+                        <Select
+                            allowClear={!isMember}
+                            showSearch
+                            optionFilterProp="label"
+                            placeholder={isMember ? 'Select a trainer' : 'Leave empty for unassigned'}
+                            options={trainerList.map((t) => ({ value: t.id, label: `${t.name} — ${t.clients}/${t.capacity} clients` }))}
+                        />
                     </Form.Item>
                 </Form>
             </Modal>

@@ -82,7 +82,8 @@
       "Bash(npx esbuild *)",
       "Bash(node --check src/controllers/subscriptionPlans.controller.js)",
       "Bash(node --check src/models/SubscriptionPlan.js)",
-      "Bash(node --check src/seeders/seedMaster.js)"
+      "Bash(node --check src/seeders/seedMaster.js)",
+      "Bash(node --check src/controllers/clients.controller.js)"
     ]
   }
 }

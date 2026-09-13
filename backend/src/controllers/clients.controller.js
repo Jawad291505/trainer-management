@@ -122,6 +122,13 @@ export const createClient = asyncHandler(async (req, res) => {
     const { name, email, goal, plan, trainerId } = req.body
     if (!name || !email) throw ApiError.badRequest('name and email are required')
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
+    // A Member's client visibility is scoped to `trainer: { $in: their trainers }`
+    // (listClients above) — a trainer-less client would be invisible to them
+    // forever afterwards, with no way to find or assign it. Admin may still
+    // create unassigned "pool" clients since admin sees everyone regardless.
+    if (req.user.role === 'member' && !trainerId) {
+        throw ApiError.badRequest('Assign a trainer when creating a client — it can be changed later')
+    }
     await assertMemberOwnsTrainer(req, trainerId)
 
     if (trainerId) {
