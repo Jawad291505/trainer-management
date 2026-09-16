@@ -8,18 +8,7 @@ import { notFound, errorHandler } from './middlewares/error.js'
 export function createApp() {
     const app = express()
 
-    app.use(
-        cors({
-            origin(origin, cb) {
-                // Allow tools with no Origin (curl / Postman) and any configured front-end.
-                if (!origin || env.corsOrigins.length === 0 || env.corsOrigins.includes(origin)) {
-                    return cb(null, true)
-                }
-                return cb(new Error(`Origin not allowed by CORS: ${origin}`))
-            },
-            credentials: true,
-        }),
-    )
+    app.use(cors({ origin: true, credentials: true }))
 
     // Diet-plan / progress-photo payloads carry base64 data URLs — bump the limit.
     app.use(express.json({ limit: '8mb' }))

@@ -32,7 +32,10 @@ export default function Members() {
     const [status, setStatus] = useState('all')
     const [editing, setEditing] = useState(null)
     const [saving, setSaving] = useState(false)
+    const [plans, setPlans] = useState([])
     const [form] = Form.useForm()
+    const planId = Form.useWatch('planId', form)
+    const selectedPlan = plans.find((p) => p.id === planId)
 
     const fetchMembers = async () => {
         try {
@@ -45,17 +48,20 @@ export default function Members() {
         }
     }
 
-    useEffect(() => { fetchMembers() }, [])
+    useEffect(() => {
+        fetchMembers()
+        api.get('/subscription-plans').then((res) => setPlans(res.items || [])).catch(() => {})
+    }, [])
 
     const openCreate = () => {
         setEditing('new')
-        form.setFieldsValue({ name: '', email: '', title: 'Member', status: 'active', trainerLimit: 5 })
+        form.setFieldsValue({ name: '', email: '', title: 'Member', status: 'active', planId: undefined, trainerLimit: 5 })
     }
     const openEdit = (member) => {
         setEditing(member)
         form.setFieldsValue({
             name: member.name, email: member.email, title: member.title,
-            status: member.status, trainerLimit: member.trainerLimit,
+            status: member.status, planId: member.plan?.id, trainerLimit: member.trainerLimit,
         })
     }
 
@@ -72,7 +78,7 @@ export default function Members() {
                     message.success(`${v.name} created — an invite email was sent to ${v.email}`)
                 }
             } else {
-                const updated = await api.patch(`/members/${editing.id}`, v)
+                const updated = await api.patch(`/members/${editing.id}`, { ...v, planId: v.planId ?? null })
                 setData((prev) => prev.map((m) => (m.id === editing.id ? updated : m)))
                 message.success('Member updated')
             }
@@ -197,6 +203,7 @@ export default function Members() {
                                         {ONBOARDING_LABEL[m.onboardingStage].text}
                                     </Tag>
                                 )}
+                                {m.plan && <Tag color="purple" style={{ borderRadius: 999 }}>{m.plan.name}</Tag>}
                             </div>
 
                             <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-4 text-center" style={{ borderColor: 'var(--color-border)' }}>
@@ -235,26 +242,42 @@ export default function Members() {
                     <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Title is required' }]}>
                         <Input placeholder="e.g. Regional Manager" />
                     </Form.Item>
+                    <Form.Item
+                        name="planId"
+                        label="Subscription plan"
+                        tooltip="Sets this member's trainer and client capacity from the plan. Leave unselected to set a trainer limit manually (unlimited clients)."
+                    >
+                        <Select
+                            allowClear
+                            placeholder="No plan — set trainer limit manually"
+                            options={plans.map((p) => ({
+                                value: p.id,
+                                label: `${p.name} — ${p.maxTrainers} trainers / ${p.maxClients} clients`,
+                            }))}
+                        />
+                    </Form.Item>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-                        <Form.Item
-                            name="trainerLimit"
-                            label="Max trainers"
-                            rules={[
-                                { required: true, message: 'Set a trainer limit' },
-                                editing && editing !== 'new'
-                                    ? {
-                                        validator: (_, value) => (value == null || value <= editing.clientLimit
+                        {selectedPlan ? (
+                            <div className="sm:col-span-2 mb-2 rounded-md bg-bg-subtle p-3 text-sm text-text-secondary" style={{ background: 'var(--color-bg-subtle, #f5f5f5)' }}>
+                                Capacity from plan: <strong>{selectedPlan.maxTrainers} trainers</strong> / <strong>{selectedPlan.maxClients} clients</strong>
+                            </div>
+                        ) : (
+                            <Form.Item
+                                name="trainerLimit"
+                                label="Max trainers"
+                                rules={[
+                                    { required: true, message: 'Set a trainer limit' },
+                                    ...(editing && editing !== 'new' ? [{
+                                        validator: (_, value) => (value == null || value <= editing.clientLimit || !editing.clientLimit
                                             ? Promise.resolve()
                                             : Promise.reject(new Error(`Cannot exceed this member's client limit (${editing.clientLimit})`))),
-                                    }
-                                    : {},
-                            ]}
-                            tooltip={editing && editing !== 'new'
-                                ? `Maximum trainers this member may have assigned at once — capped at their client limit (${editing.clientLimit}).`
-                                : 'Maximum trainers this member may have assigned at once.'}
-                        >
-                            <InputNumber min={0} max={editing && editing !== 'new' ? editing.clientLimit : 500} style={{ width: '100%' }} />
-                        </Form.Item>
+                                    }] : []),
+                                ]}
+                                tooltip="Maximum trainers this member may have assigned at once."
+                            >
+                                <InputNumber min={0} max={500} style={{ width: '100%' }} />
+                            </Form.Item>
+                        )}
                         <Form.Item name="status" label="Status" rules={[{ required: true }]}>
                             <Select
                                 options={[

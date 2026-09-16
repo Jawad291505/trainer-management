@@ -1,6 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
-import { User, Member, Trainer, Client } from '../models/index.js'
+import { User, Member, Trainer, Client, SubscriptionPlan } from '../models/index.js'
 import { createInvitedUser } from '../services/invite.service.js'
 
 // Shape a Member + its User (+ trainer/client counts) for the admin Member
@@ -66,12 +66,22 @@ export const getMember = asyncHandler(async (req, res) => {
 })
 
 // POST /api/members   (admin only) — provision a member account via the shared
-// invite flow (temp password emailed through Resend). `trainerLimit` sets how
-// many trainers this member may have assigned at once (default 5).
+// invite flow (temp password emailed through Resend), skipping the self-signup
+// onboarding/payment flow entirely (status 'active' immediately).
+// `planId` assigns a SubscriptionPlan, snapshotting its trainerLimit/clientLimit
+// onto the Member the same way payment-approval does for self-signup members;
+// omit it to set `trainerLimit` directly (clientLimit stays 0 — unlimited-clients
+// admin/legacy path).
 export const createMember = asyncHandler(async (req, res) => {
-    const { name, email, title, trainerLimit } = req.body
+    const { name, email, title, trainerLimit, planId } = req.body
     if (!name || !email) throw ApiError.badRequest('name and email are required')
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
+
+    let plan = null
+    if (planId) {
+        plan = await SubscriptionPlan.findById(planId)
+        if (!plan) throw ApiError.badRequest('Select a valid plan')
+    }
 
     const { user, tempPassword, inviteSent, inviteWarning } = await createInvitedUser({
         name,
@@ -84,9 +94,12 @@ export const createMember = asyncHandler(async (req, res) => {
         user: user._id,
         title: title || 'Member',
         status: req.body.status || 'active',
-        trainerLimit: trainerLimit ?? 5,
+        ...(plan
+            ? { plan: plan._id, trainerLimit: plan.maxTrainers, clientLimit: plan.maxClients }
+            : { trainerLimit: trainerLimit ?? 5 }),
     })
     await member.populate('user', 'name email avatarColor status')
+    await member.populate('plan')
     res.status(201).json({
         ...(await flatten(member)),
         ...(inviteSent ? {} : { inviteWarning, tempPassword }),
@@ -95,12 +108,26 @@ export const createMember = asyncHandler(async (req, res) => {
 
 // PATCH /api/members/:id   (admin only) — Super Admin can raise/lower
 // trainerLimit at any time; it never forces existing trainers off the member.
+// `planId` reassigns the member's plan, snapshotting its limits (same as create);
+// pass `planId: null` to detach the plan and fall back to a manual `trainerLimit`.
 export const updateMember = asyncHandler(async (req, res) => {
     const member = await Member.findById(req.params.id).populate('user', 'name email avatarColor status')
     if (!member) throw ApiError.notFound('Member not found')
 
     if (req.body.title !== undefined) member.title = req.body.title
     if (req.body.status !== undefined) member.status = req.body.status
+
+    if (req.body.planId !== undefined) {
+        if (req.body.planId === null) {
+            member.plan = null
+        } else {
+            const plan = await SubscriptionPlan.findById(req.body.planId)
+            if (!plan) throw ApiError.badRequest('Select a valid plan')
+            member.plan = plan._id
+            member.trainerLimit = plan.maxTrainers
+            member.clientLimit = plan.maxClients
+        }
+    }
     if (req.body.trainerLimit !== undefined) {
         if (req.body.trainerLimit < 0) throw ApiError.badRequest('Trainer limit cannot be negative')
         if (req.body.trainerLimit > member.clientLimit) {
@@ -109,6 +136,7 @@ export const updateMember = asyncHandler(async (req, res) => {
         member.trainerLimit = req.body.trainerLimit
     }
     await member.save()
+    await member.populate('plan')
 
     if (member.user && (req.body.name || req.body.email || req.body.status || req.body.avatarColor)) {
         if (req.body.name) member.user.name = req.body.name
