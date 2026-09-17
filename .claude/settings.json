@@ -83,7 +83,9 @@
       "Bash(node --check src/controllers/subscriptionPlans.controller.js)",
       "Bash(node --check src/models/SubscriptionPlan.js)",
       "Bash(node --check src/seeders/seedMaster.js)",
-      "Bash(node --check src/controllers/clients.controller.js)"
+      "Bash(node --check src/controllers/clients.controller.js)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id,StartTime,Path\")",
+      "Bash(curl -sS -m 5 http://localhost:8000/api/health -o /dev/null -w \"status:%{http_code} time:%{time_total}\\\\n\")"
     ]
   }
 }

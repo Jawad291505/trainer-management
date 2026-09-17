@@ -37,12 +37,29 @@ const cheatSchema = new mongoose.Schema(
     { _id: true },
 )
 
+// Blood glucose reading logged around a meal — diabetic clients can record a
+// "before" and/or "after" value per meal so the trainer can spot patterns
+// (e.g. a specific meal spiking post-meal sugar).
+const glucoseSchema = new mongoose.Schema(
+    {
+        mealId: { type: mongoose.Schema.Types.ObjectId, required: true },
+        mealName: { type: String, default: '' },
+        phase: { type: String, enum: ['before', 'after'], required: true },
+        valueMgDl: { type: Number, required: true, min: 0, max: 1000 },
+        note: { type: String, default: '' },
+        source: { type: String, enum: ['client', 'trainer'], default: 'client' },
+        takenAt: { type: Date, default: Date.now },
+    },
+    { timestamps: true },
+)
+
 const dailyLogSchema = new mongoose.Schema(
     {
         client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true, index: true },
         date: { type: Date, required: true }, // normalised to 00:00 local
         tasks: { type: [taskSchema], default: [] },
         cheats: { type: [cheatSchema], default: [] },
+        glucoseReadings: { type: [glucoseSchema], default: [] },
     },
     { timestamps: true },
 )

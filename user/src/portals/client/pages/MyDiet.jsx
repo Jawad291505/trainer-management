@@ -12,6 +12,7 @@ import {
   RightOutlined,
   CalendarOutlined,
   LoadingOutlined,
+  MedicineBoxOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
@@ -50,6 +51,20 @@ function addDaysToDateStr(dateStr, delta) {
   const d = new Date(`${dateStr}T12:00:00Z`) // noon UTC avoids DST/offset edge cases
   d.setUTCDate(d.getUTCDate() + delta)
   return pktDateStr(d)
+}
+
+// Typical mg/dL reference ranges: pre-meal 70-130, 2h post-meal under 180.
+// Mirrors GLUCOSE_RANGES in backend progress.controller.js.
+const GLUCOSE_RANGES = {
+  before: { low: 70, high: 130 },
+  after: { low: 70, high: 180 },
+}
+
+function glucoseFlag(phase, value) {
+  const range = GLUCOSE_RANGES[phase] || GLUCOSE_RANGES.before
+  if (value < range.low) return 'low'
+  if (value > range.high) return 'high'
+  return 'normal'
 }
 
 function weekdayNamesForDateStr(dateStr) {
@@ -91,6 +106,12 @@ export default function MyDiet() {
   const [savingCheat, setSavingCheat] = useState(false)
   const [revertingMealId, setRevertingMealId] = useState(null)
   const [togglingKey, setTogglingKey] = useState(null) // `${mealId}:${index}` currently syncing
+  // Diabetic glucose readings, keyed by `${mealId}:${phase}` — for selectedDate.
+  const [glucose, setGlucose] = useState({})
+  const [glucoseModal, setGlucoseModal] = useState(null) // { mealId, mealName, phase }
+  const [glucoseValue, setGlucoseValue] = useState('')
+  const [glucoseNote, setGlucoseNote] = useState('')
+  const [savingGlucose, setSavingGlucose] = useState(false)
   // Per-item completion, keyed by `${mealId}:${index}` — for selectedDate. Each
   // toggle is saved to the server immediately (a meal can be 2/3 eaten).
   const [checked, setChecked] = useState({})
@@ -142,6 +163,12 @@ export default function MyDiet() {
         loadedCheats[String(c.mealId)] = { on: true, note: c.note || '', items: c.items || [] }
       })
       setCheats(loadedCheats)
+
+      const loadedGlucose = {}
+      ;(daily?.glucoseReadings || []).forEach((g) => {
+        loadedGlucose[`${g.mealId}:${g.phase}`] = { valueMgDl: g.valueMgDl, note: g.note || '' }
+      })
+      setGlucose(loadedGlucose)
 
       const itemsByMeal = {}
       ;(daily?.tasks || []).filter((t) => t.type === 'meal').forEach((t) => {
@@ -209,6 +236,42 @@ export default function MyDiet() {
       message.error(err.message || 'Failed to revert — please try again')
     } finally {
       setRevertingMealId(null)
+    }
+  }
+
+  const openGlucoseModal = (mealId, mealName, phase) => {
+    if (isFuture) return
+    const existing = glucose[`${mealId}:${phase}`]
+    setGlucoseValue(existing?.valueMgDl != null ? String(existing.valueMgDl) : '')
+    setGlucoseNote(existing?.note || '')
+    setGlucoseModal({ mealId, mealName, phase })
+  }
+
+  const saveGlucose = async () => {
+    if (!glucoseModal || savingGlucose) return
+    const { mealId, mealName, phase } = glucoseModal
+    const value = Number(glucoseValue)
+    if (!glucoseValue.trim() || Number.isNaN(value) || value < 0) {
+      message.error('Enter a valid glucose value')
+      return
+    }
+    setSavingGlucose(true)
+    try {
+      await api.post('/progress/daily/glucose', {
+        date: selectedDate,
+        mealId,
+        mealName,
+        phase,
+        valueMgDl: value,
+        note: glucoseNote,
+      })
+      setGlucose((prev) => ({ ...prev, [`${mealId}:${phase}`]: { valueMgDl: value, note: glucoseNote } }))
+      message.success(`${phase === 'before' ? 'Pre' : 'Post'}-meal reading logged`)
+      setGlucoseModal(null)
+    } catch (err) {
+      message.error(err.message || 'Failed to save — please try again')
+    } finally {
+      setSavingGlucose(false)
     }
   }
 
@@ -517,6 +580,38 @@ export default function MyDiet() {
                   {cheat ? 'Back on plan' : 'Mark as cheat meal'}
                 </button>
               )}
+
+              {/* Blood glucose — optional before/after meal readings, visible to your trainer */}
+              {!isFuture && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
+                  <span className="flex items-center gap-1 text-xs font-semibold text-text-muted">
+                    <MedicineBoxOutlined /> Blood glucose
+                  </span>
+                  {['before', 'after'].map((phase) => {
+                    const entry = glucose[`${meal.id}:${phase}`]
+                    const flag = entry ? glucoseFlag(phase, entry.valueMgDl) : null
+                    const label = phase === 'before' ? 'Before' : 'After'
+                    return (
+                      <button
+                        key={phase}
+                        onClick={() => openGlucoseModal(meal.id, meal.name, phase)}
+                        className="rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+                        style={{
+                          background: entry
+                            ? flag === 'normal' ? 'var(--color-success-soft)' : 'var(--color-danger-soft)'
+                            : 'var(--color-surface-secondary)',
+                          color: entry
+                            ? flag === 'normal' ? 'var(--color-success)' : 'var(--color-danger)'
+                            : 'var(--color-text-secondary)',
+                          border: entry ? 'none' : '1px solid var(--color-border)',
+                        }}
+                      >
+                        {label}: {entry ? `${entry.valueMgDl} mg/dL` : 'Log'}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })}
@@ -580,6 +675,43 @@ export default function MyDiet() {
             value={cheatNote}
             onChange={(e) => setCheatNote(e.target.value)}
             placeholder="e.g. Birthday dinner, couldn't resist the cake"
+          />
+        </div>
+      </Modal>
+
+      {/* Blood glucose reading modal */}
+      <Modal
+        title={`${glucoseModal?.phase === 'before' ? 'Before' : 'After'} meal — ${glucoseModal?.mealName || ''}`}
+        open={!!glucoseModal}
+        onCancel={() => setGlucoseModal(null)}
+        onOk={saveGlucose}
+        okText="Save reading"
+        okButtonProps={{ loading: savingGlucose }}
+        cancelButtonProps={{ disabled: savingGlucose }}
+        confirmLoading={savingGlucose}
+        maskClosable={!savingGlucose}
+        closable={!savingGlucose}
+        centered
+        width={420}
+      >
+        <div className="mb-3">
+          <label className="mb-1 block text-sm font-medium text-text-secondary">Blood glucose (mg/dL)</label>
+          <Input
+            type="number"
+            min={0}
+            value={glucoseValue}
+            onChange={(e) => setGlucoseValue(e.target.value)}
+            placeholder="e.g. 110"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text-secondary">Note (optional)</label>
+          <Input.TextArea
+            rows={2}
+            value={glucoseNote}
+            onChange={(e) => setGlucoseNote(e.target.value)}
+            placeholder="e.g. Felt a bit shaky before eating"
           />
         </div>
       </Modal>

@@ -11,6 +11,7 @@ import {
     CalendarOutlined,
     EditOutlined,
     FireOutlined,
+    MedicineBoxOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -159,6 +160,7 @@ export default function ClientProfile() {
     const [dietPlan, setDietPlan] = useState(null)
     const [exercisePlan, setExercisePlan] = useState(null)
     const [todayCheats, setTodayCheats] = useState([])
+    const [glucoseHistory, setGlucoseHistory] = useState([]) // flattened before/after readings, last 14 days
     const [todayMealStatus, setTodayMealStatus] = useState({}) // { [mealId]: boolean }
     const [todayMealItems, setTodayMealItems] = useState({}) // { [mealId]: boolean[] } — per-item completion
     const [habitHistory, setHabitHistory] = useState([])
@@ -179,7 +181,7 @@ export default function ClientProfile() {
             // All six independent — fire them together instead of one long
             // waterfall of sequential awaits (each one adding its own round-trip
             // latency on top of the last, which is what made this page feel slow).
-            const [clientRes, weightRes, dietRes, exRes, dailyRes, historyRes, sessionsRes, adherenceRes] = await Promise.allSettled([
+            const [clientRes, weightRes, dietRes, exRes, dailyRes, historyRes, sessionsRes, adherenceRes, glucoseRes] = await Promise.allSettled([
                 api.get(`/clients/${id}`),
                 api.get(`/progress/weight?client=${id}`),
                 api.get(`/clients/${id}/diet-plan`),
@@ -188,6 +190,7 @@ export default function ClientProfile() {
                 api.get(`/progress/daily/history?client=${id}&days=14`),
                 api.get(`/workout-sessions?client=${id}&limit=10`),
                 api.get(`/clients/${id}/workout-adherence?weeks=6`),
+                api.get(`/progress/glucose?client=${id}&days=14`),
             ])
             if (cancelled) return
 
@@ -232,6 +235,7 @@ export default function ClientProfile() {
 
             if (sessionsRes.status === 'fulfilled') setWorkoutSessions(sessionsRes.value.items || [])
             if (adherenceRes.status === 'fulfilled') setWorkoutAdherence(adherenceRes.value)
+            if (glucoseRes.status === 'fulfilled') setGlucoseHistory(glucoseRes.value.items || [])
 
             setLoading(false)
         }
@@ -379,6 +383,16 @@ export default function ClientProfile() {
     const dietMealsTotal = todayDietMeals.length
     const dietAdherence = dietMealsTotal ? Math.round((dietMealsDone / dietMealsTotal) * 100) : 0
 
+    const todayGlucose = glucoseHistory.filter((g) => dayjs(g.date).isSame(dayjs(), 'day'))
+    const outOfRangeCount = glucoseHistory.filter((g) => g.flag !== 'normal').length
+    const glucoseChartData = glucoseHistory.map((g) => ({
+        label: dayjs(g.takenAt).format('D MMM, HH:mm'),
+        valueMgDl: g.valueMgDl,
+        phase: g.phase,
+        flag: g.flag,
+        mealName: g.mealName,
+    }))
+
     const dietTab = (
         <div>
             <div className="mb-4 flex items-center justify-between">
@@ -432,6 +446,94 @@ export default function ClientProfile() {
                     />
                 ))}
             </div>
+
+            {glucoseHistory.length > 0 && (
+                <div className="mt-6">
+                    <div className="mb-3 flex items-center justify-between">
+                        <h3 className="section-title m-0 flex items-center gap-2">
+                            <MedicineBoxOutlined /> Blood Glucose
+                        </h3>
+                        {outOfRangeCount > 0 && (
+                            <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ background: 'var(--color-danger-soft)', color: 'var(--color-danger)' }}>
+                                {outOfRangeCount} out-of-range in last 14 days
+                            </span>
+                        )}
+                    </div>
+
+                    {todayGlucose.length > 0 && (
+                        <div className="app-card mb-4 p-4">
+                            <div className="mb-2 text-sm font-semibold text-text-secondary">Today's readings</div>
+                            <div className="flex flex-wrap gap-2">
+                                {todayGlucose.map((g, i) => (
+                                    <div
+                                        key={i}
+                                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+                                        style={{ background: g.flag === 'normal' ? 'var(--color-success-soft)' : 'var(--color-danger-soft)' }}
+                                    >
+                                        <span className="font-semibold" style={{ color: g.flag === 'normal' ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                                            {g.valueMgDl} mg/dL
+                                        </span>
+                                        <span className="text-xs text-text-muted">
+                                            {g.phase === 'before' ? 'Before' : 'After'} · {g.mealName || 'Meal'}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <ChartCard title="Glucose Trend" subtitle="Before/after meal readings (mg/dL), last 14 days">
+                        <ResponsiveContainer width="100%" height={240}>
+                            <LineChart data={glucoseChartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={44} />
+                                <Tooltip
+                                    content={({ active, payload }) => {
+                                        if (!active || !payload?.length) return null
+                                        const d = payload[0].payload
+                                        return (
+                                            <div className="rounded-lg border px-3 py-2 shadow-sm" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                                                <div className="text-xs font-semibold text-text-primary">{d.valueMgDl} mg/dL</div>
+                                                <div className="mt-0.5 text-[11px] text-text-muted">
+                                                    {d.phase === 'before' ? 'Before' : 'After'} {d.mealName || 'meal'} · {d.label}
+                                                </div>
+                                            </div>
+                                        )
+                                    }}
+                                />
+                                <Line
+                                    type="monotone"
+                                    dataKey="valueMgDl"
+                                    name="Glucose"
+                                    stroke={primary}
+                                    strokeWidth={2}
+                                    dot={(props) => {
+                                        const { cx, cy, payload } = props
+                                        const outOfRange = payload.flag !== 'normal'
+                                        return (
+                                            <circle
+                                                key={props.key}
+                                                cx={cx}
+                                                cy={cy}
+                                                r={outOfRange ? 5 : 3}
+                                                fill={outOfRange ? 'var(--color-danger)' : primary}
+                                                stroke="#fff"
+                                                strokeWidth={outOfRange ? 2 : 1}
+                                            />
+                                        )
+                                    }}
+                                    activeDot={{ r: 6 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                        <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-text-muted">
+                            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: primary }} /> Normal range</span>
+                            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: 'var(--color-danger)' }} /> Out of range</span>
+                        </div>
+                    </ChartCard>
+                </div>
+            )}
         </div>
     )
 

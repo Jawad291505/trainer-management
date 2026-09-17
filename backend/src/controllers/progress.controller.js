@@ -155,7 +155,7 @@ export const getDailyLog = asyncHandler(async (req, res) => {
     if (!log && req.user.role === 'client') {
         log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id, date) })
     }
-    if (!log) return res.json({ date, tasks: [], cheats: [], completionPct: 0, done: 0, total: 0 })
+    if (!log) return res.json({ date, tasks: [], cheats: [], glucoseReadings: [], completionPct: 0, done: 0, total: 0 })
 
     const done = log.tasks.filter((t) => t.done).length
     res.json({
@@ -163,6 +163,7 @@ export const getDailyLog = asyncHandler(async (req, res) => {
         date: log.date,
         tasks: log.tasks,
         cheats: log.cheats || [],
+        glucoseReadings: log.glucoseReadings || [],
         done,
         total: log.tasks.length,
         completionPct: log.completionPct,
@@ -296,6 +297,99 @@ export const updateCheat = asyncHandler(async (req, res) => {
     await log.save()
 
     res.json({ id: String(log._id), cheats: log.cheats })
+})
+
+// ---- Blood glucose readings (before/after meal, diabetic clients) ----
+
+// Typical mg/dL reference ranges: pre-meal 70-130, 2h post-meal under 180.
+const GLUCOSE_RANGES = {
+    before: { low: 70, high: 130 },
+    after: { low: 70, high: 180 },
+}
+
+function glucoseFlag(phase, valueMgDl) {
+    const range = GLUCOSE_RANGES[phase] || GLUCOSE_RANGES.before
+    if (valueMgDl < range.low) return 'low'
+    if (valueMgDl > range.high) return 'high'
+    return 'normal'
+}
+
+// POST /api/progress/daily/glucose   Body: { mealId, mealName?, phase, valueMgDl, note?, date? }   (client)
+export const logGlucose = asyncHandler(async (req, res) => {
+    const clientId = req.client._id
+    const date = startOfDay(req.body.date ? new Date(req.body.date) : new Date())
+    const { mealId, mealName, phase, note } = req.body
+    const valueMgDl = Number(req.body.valueMgDl)
+    if (!mealId) throw ApiError.badRequest('mealId is required')
+    if (!['before', 'after'].includes(phase)) throw ApiError.badRequest('phase must be "before" or "after"')
+    if (!req.body.valueMgDl && req.body.valueMgDl !== 0) throw ApiError.badRequest('valueMgDl is required')
+    if (Number.isNaN(valueMgDl)) throw ApiError.badRequest('valueMgDl must be a number')
+
+    let log = await DailyLog.findOne({ client: clientId, date })
+    if (!log) log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id, date) })
+
+    // One reading per meal per phase — replace if one was already logged today.
+    log.glucoseReadings = log.glucoseReadings.filter(
+        (g) => !(String(g.mealId) === String(mealId) && g.phase === phase),
+    )
+    log.glucoseReadings.push({
+        mealId,
+        mealName: mealName || '',
+        phase,
+        valueMgDl,
+        note: note || '',
+        source: 'client',
+    })
+    log.markModified('glucoseReadings')
+    await log.save()
+
+    res.status(201).json({ id: String(log._id), glucoseReadings: log.glucoseReadings })
+})
+
+// DELETE /api/progress/daily/glucose/:mealId/:phase?date=   (client)
+export const removeGlucose = asyncHandler(async (req, res) => {
+    const clientId = req.client._id
+    const date = startOfDay(req.query.date ? new Date(req.query.date) : new Date())
+
+    const log = await DailyLog.findOne({ client: clientId, date })
+    if (!log) throw ApiError.notFound('No log for today')
+
+    log.glucoseReadings = log.glucoseReadings.filter(
+        (g) => !(String(g.mealId) === String(req.params.mealId) && g.phase === req.params.phase),
+    )
+    log.markModified('glucoseReadings')
+    await log.save()
+
+    res.json({ id: String(log._id), glucoseReadings: log.glucoseReadings })
+})
+
+// GET /api/progress/glucose?client=&days=14   — flattened trend for charts/monitoring (trainer + client)
+export const glucoseHistory = asyncHandler(async (req, res) => {
+    const clientId = await resolveClientId(req)
+    const days = Math.min(Number(req.query.days) || 14, 90)
+    const since = new Date(pktStartOfDay().getTime() - (days - 1) * 24 * 60 * 60 * 1000)
+
+    const logs = await DailyLog.find({ client: clientId, date: { $gte: since } }).sort({ date: 1 })
+
+    const items = []
+    for (const log of logs) {
+        for (const g of log.glucoseReadings || []) {
+            items.push({
+                date: log.date,
+                mealId: g.mealId,
+                mealName: g.mealName,
+                phase: g.phase,
+                valueMgDl: g.valueMgDl,
+                note: g.note,
+                source: g.source,
+                takenAt: g.takenAt,
+                flag: glucoseFlag(g.phase, g.valueMgDl),
+            })
+        }
+    }
+    items.sort((a, b) => new Date(a.takenAt) - new Date(b.takenAt))
+
+    res.json({ items, days })
 })
 
 // GET /api/progress/daily/history?client=&days=14
