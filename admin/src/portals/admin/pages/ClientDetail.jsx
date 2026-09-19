@@ -27,6 +27,9 @@ import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import DietDayProgress from '../../../components/progress/DietDayProgress'
+import GlucoseChart from '../../../components/progress/GlucoseChart'
+import HabitHistory from '../../../components/progress/HabitHistory'
 import { api } from '../../../services/api'
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA') : '—'
@@ -141,7 +144,22 @@ export default function ClientDetail() {
                 <StatCard label="Trainer" value={client.trainerName || '—'} />
             </div>
             <div className="mt-6">
-                <Tabs items={[{ key: 'overview', label: 'Overview', children: overview }]} />
+                <Tabs
+                    items={[
+                        { key: 'overview', label: 'Overview', children: overview },
+                        {
+                            key: 'diet',
+                            label: 'Diet Progress',
+                            children: (
+                                <div className="flex flex-col gap-6">
+                                    <DietDayProgress clientId={id} />
+                                    <GlucoseChart clientId={id} />
+                                </div>
+                            ),
+                        },
+                        { key: 'habits', label: 'Daily Progress', children: <HabitHistory clientId={id} /> },
+                    ]}
+                />
             </div>
         </div>
     )

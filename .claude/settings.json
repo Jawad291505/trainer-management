@@ -85,7 +85,14 @@
       "Bash(node --check src/seeders/seedMaster.js)",
       "Bash(node --check src/controllers/clients.controller.js)",
       "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id,StartTime,Path\")",
-      "Bash(curl -sS -m 5 http://localhost:8000/api/health -o /dev/null -w \"status:%{http_code} time:%{time_total}\\\\n\")"
+      "Bash(curl -sS -m 5 http://localhost:8000/api/health -o /dev/null -w \"status:%{http_code} time:%{time_total}\\\\n\")",
+      "Bash(node src/scripts/migrateDietPlanOptions.js)",
+      "Bash(npm start *)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(node -e 'const d=require\\(\"./data/foodLibrary.json\"\\); console.log\\(JSON.stringify\\(d.categories\\)\\)')",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8000/api/health)"
     ]
   }
 }

@@ -69,7 +69,7 @@ export default function MyExercises() {
     return (
         <div>
             <PageHeader title="My Exercise Plan" subtitle={exercisePlan?.title || 'No plan assigned'}>
-                <RequestCorrection area="exercise" items={exercises.map((e) => e.name)} />
+                <RequestCorrection area="exercise" targetKind="exercise" items={exercises.map((e) => ({ label: e.name, refId: e._id || e.id }))} />
             </PageHeader>
 
             {/* Trainer attribution */}

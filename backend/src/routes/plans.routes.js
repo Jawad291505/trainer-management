@@ -5,8 +5,9 @@ import {
 } from '../controllers/dietPlanTemplates.controller.js'
 import {
     listDietPlans, getDietPlan, getClientDietPlan, createDietPlan, createFromTemplate,
-    updateDietPlan, publishDietPlan, deleteDietPlan,
+    updateDietPlan, publishDietPlan, deleteDietPlan, selectMealOption,
 } from '../controllers/dietPlans.controller.js'
+import { getGroceryList, refreshGroceryList } from '../controllers/groceryList.controller.js'
 import {
     listExercisePlans, getExercisePlan, getClientExercisePlan, createExercisePlan,
     updateExercisePlan, setExerciseDone, publishExercisePlan, deleteExercisePlan,
@@ -55,6 +56,9 @@ router.post('/workout-sessions/:sessionId/finish', authorize('client'), finishWo
 
 // ---- Convenience: a client's current published plans ----
 router.get('/clients/:clientId/diet-plan', getClientDietPlan)
+router.patch('/clients/:clientId/diet-plan/select-option', selectMealOption)
+router.get('/clients/:clientId/grocery-list', getGroceryList)
+router.post('/clients/:clientId/grocery-list/refresh', refreshGroceryList)
 router.get('/clients/:clientId/exercise-plan', getClientExercisePlan)
 router.get('/clients/:clientId/workout-adherence', getWorkoutAdherence)
 

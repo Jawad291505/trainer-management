@@ -15,7 +15,7 @@ import {
 import {
     listWeight, addWeight, getDailyLog, setTask, setMealItem,
     logCheat, removeCheat, updateCheat, dailyHistory,
-    logGlucose, removeGlucose, glucoseHistory,
+    logGlucose, removeGlucose, glucoseHistory, getDietDay,
 } from '../controllers/progress.controller.js'
 
 const router = Router()
@@ -50,6 +50,7 @@ router.get('/progress/weight', listWeight)
 router.post('/progress/weight', authorize('trainer', 'client'), addWeight)
 router.get('/progress/daily/history', dailyHistory)
 router.get('/progress/daily', getDailyLog)
+router.get('/progress/diet-day', getDietDay)
 router.patch('/progress/daily', authorize('client'), setTask)
 router.patch('/progress/daily/meal-item', authorize('client'), setMealItem)
 router.post('/progress/daily/cheat', authorize('client'), logCheat)
@@ -57,7 +58,7 @@ router.patch('/progress/daily/cheat/:mealId', authorize('client'), updateCheat)
 router.delete('/progress/daily/cheat/:mealId', authorize('client'), removeCheat)
 
 // ---- Progress: diabetic glucose readings (before/after meal) ----
-router.get('/progress/glucose', authorize('trainer', 'client'), glucoseHistory)
+router.get('/progress/glucose', authorize('trainer', 'client', 'admin', 'member'), glucoseHistory)
 router.post('/progress/daily/glucose', authorize('client'), logGlucose)
 router.delete('/progress/daily/glucose/:mealId/:phase', authorize('client'), removeGlucose)
 

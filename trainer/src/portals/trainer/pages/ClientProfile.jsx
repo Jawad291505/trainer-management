@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { Button, Tabs, Progress, Checkbox, Tag, Image, Input, InputNumber, Modal, App, Collapse, Empty } from 'antd'
+import { Button, Tabs, Tag, Image, Input, InputNumber, Modal, App, Collapse, Empty } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -10,8 +10,6 @@ import {
     MessageOutlined,
     CalendarOutlined,
     EditOutlined,
-    FireOutlined,
-    MedicineBoxOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -23,7 +21,6 @@ import {
     YAxis,
     CartesianGrid,
     Tooltip,
-    Cell,
 } from 'recharts'
 import { useTheme } from '../../../context/ThemeContext'
 import { useCorrections } from '../../../context/CorrectionsContext'
@@ -35,9 +32,13 @@ import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
-import MealCard from '../components/MealCard'
 import ExerciseDayCard from '../components/ExerciseDayCard'
+import DietDayProgress from '../../../components/progress/DietDayProgress'
+import GlucoseChart from '../../../components/progress/GlucoseChart'
+import HabitHistory from '../../../components/progress/HabitHistory'
 import { api } from '../../../services/api'
+import { FOLLOWUP_TYPE_LABELS } from '../../../constants/followUp'
+import { formatTime } from '../../../utils/time'
 
 const correctionAreaLabels = { diet: 'Diet plan', exercise: 'Exercise plan', progress: 'Progress / weigh-in', general: 'General' }
 const correctionTypeLabels = { swap: 'Swap / substitute', 'too-hard': 'Too difficult', injury: 'Injury / pain', 'wrong-data': 'Wrong data', other: 'Other' }
@@ -151,6 +152,8 @@ function PhotosTab({ clientId, clientName }) {
 export default function ClientProfile() {
     const { id } = useParams()
     const navigate = useNavigate()
+    // ?tab=diet&date=YYYY-MM-DD deep-links here from the Requests page.
+    const [searchParams] = useSearchParams()
     const { primary } = useTheme()
     const { requests } = useCorrections()
     const { pendingCountForClient, fetchForClient: fetchPhotos } = useProgressPhotos()
@@ -159,16 +162,11 @@ export default function ClientProfile() {
     const [weightData, setWeightData] = useState([])
     const [dietPlan, setDietPlan] = useState(null)
     const [exercisePlan, setExercisePlan] = useState(null)
-    const [todayCheats, setTodayCheats] = useState([])
-    const [glucoseHistory, setGlucoseHistory] = useState([]) // flattened before/after readings, last 14 days
-    const [todayMealStatus, setTodayMealStatus] = useState({}) // { [mealId]: boolean }
-    const [todayMealItems, setTodayMealItems] = useState({}) // { [mealId]: boolean[] } — per-item completion
-    const [habitHistory, setHabitHistory] = useState([])
-    const [habitGoals, setHabitGoals] = useState({ waterGoal: 2, sleepGoal: 8 })
     const [goalModal, setGoalModal] = useState(null) // { type: 'water' | 'sleep', value }
     const [goalSaving, setGoalSaving] = useState(false)
     const [workoutSessions, setWorkoutSessions] = useState([])
     const [workoutAdherence, setWorkoutAdherence] = useState(null)
+    const [followUps, setFollowUps] = useState([])
     const [expandedSession, setExpandedSession] = useState(null) // sessionId
     const clientRequests = requests.filter((r) => r.clientId === id || String(r.client) === id)
     const pendingPhotos = pendingCountForClient(id)
@@ -178,19 +176,17 @@ export default function ClientProfile() {
         async function load() {
             setLoading(true)
             fetchPhotos(id)
-            // All six independent — fire them together instead of one long
+            // All independent — fire them together instead of one long
             // waterfall of sequential awaits (each one adding its own round-trip
             // latency on top of the last, which is what made this page feel slow).
-            const [clientRes, weightRes, dietRes, exRes, dailyRes, historyRes, sessionsRes, adherenceRes, glucoseRes] = await Promise.allSettled([
+            const [clientRes, weightRes, dietRes, exRes, sessionsRes, adherenceRes, followUpsRes] = await Promise.allSettled([
                 api.get(`/clients/${id}`),
                 api.get(`/progress/weight?client=${id}`),
                 api.get(`/clients/${id}/diet-plan`),
                 api.get(`/clients/${id}/exercise-plan`),
-                api.get(`/progress/daily?client=${id}`),
-                api.get(`/progress/daily/history?client=${id}&days=14`),
                 api.get(`/workout-sessions?client=${id}&limit=10`),
                 api.get(`/clients/${id}/workout-adherence?weeks=6`),
-                api.get(`/progress/glucose?client=${id}&days=14`),
+                api.get(`/followups?client=${id}`),
             ])
             if (cancelled) return
 
@@ -204,62 +200,15 @@ export default function ClientProfile() {
             if (dietRes.status === 'fulfilled' && dietRes.value) setDietPlan(dietRes.value)
             if (exRes.status === 'fulfilled' && exRes.value) setExercisePlan(exRes.value)
 
-            if (dailyRes.status === 'fulfilled') {
-                const daily = dailyRes.value
-                setTodayCheats(daily.cheats || [])
-                const mStatus = {}
-                const mItems = {}
-                    ; (daily.tasks || []).filter((t) => t.type === 'meal').forEach((t) => {
-                        mStatus[String(t.mealId)] = t.done
-                        mItems[String(t.mealId)] = t.itemsDone || []
-                    })
-                setTodayMealStatus(mStatus)
-                setTodayMealItems(mItems)
-            }
-
-            if (historyRes.status === 'fulfilled') {
-                const h = historyRes.value
-                setHabitHistory((h.history || []).map((d) => ({
-                    date: dayjs(d.date).format('DD MMM'),
-                    completionPct: d.completionPct,
-                    water: d.water,
-                    sleep: d.sleep,
-                    workout: d.workout,
-                    mealsDone: d.mealsDone,
-                    mealsTotal: d.mealsTotal,
-                    mealItemsDone: d.mealItemsDone,
-                    mealItemsTotal: d.mealItemsTotal,
-                })))
-                if (h.goals) setHabitGoals(h.goals)
-            }
-
             if (sessionsRes.status === 'fulfilled') setWorkoutSessions(sessionsRes.value.items || [])
             if (adherenceRes.status === 'fulfilled') setWorkoutAdherence(adherenceRes.value)
-            if (glucoseRes.status === 'fulfilled') setGlucoseHistory(glucoseRes.value.items || [])
+            if (followUpsRes.status === 'fulfilled') setFollowUps(followUpsRes.value.items || [])
 
             setLoading(false)
         }
         load()
         return () => { cancelled = true }
     }, [id, fetchPhotos])
-
-    const completion = useMemo(() => {
-        if (!habitHistory.length) return 0
-        return Math.round(habitHistory.reduce((s, d) => s + d.completionPct, 0) / habitHistory.length)
-    }, [habitHistory])
-
-    const habitStats = useMemo(() => {
-        const total = habitHistory.length || 1
-        const waterDone = habitHistory.filter((d) => d.water).length
-        const sleepDone = habitHistory.filter((d) => d.sleep).length
-        const workoutDone = habitHistory.filter((d) => d.workout).length
-        return {
-            waterPct: Math.round((waterDone / total) * 100),
-            sleepPct: Math.round((sleepDone / total) * 100),
-            workoutPct: Math.round((workoutDone / total) * 100),
-            waterDone, sleepDone, workoutDone, total: habitHistory.length,
-        }
-    }, [habitHistory])
 
     if (loading) return <LoadingSkeleton cards={4} rows={6} />
 
@@ -277,6 +226,7 @@ export default function ClientProfile() {
 
     // Alias for all below references
     const client = clientData
+    const nextFollowUpLabel = client.nextFollowUp ? dayjs(client.nextFollowUp).format('D MMM YYYY') : 'Not scheduled'
 
     const overview = (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -286,7 +236,7 @@ export default function ClientProfile() {
                     <div className="flex items-center gap-3"><MailOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.email}</span></div>
                     <div className="flex items-center gap-3"><PhoneOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.phone}</span></div>
                     <div className="flex items-center gap-3"><AimOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Goal: {client.goal}</span></div>
-                    <div className="flex items-center gap-3"><CalendarOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Next follow-up: {client.nextFollowUp}</span></div>
+                    <div className="flex items-center gap-3"><CalendarOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Next follow-up: {nextFollowUpLabel}</span></div>
                 </div>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-xl p-3 text-center" style={{ background: 'var(--color-surface-secondary)' }}>
@@ -319,7 +269,10 @@ export default function ClientProfile() {
             </div>
 
             <div className="lg:col-span-2">
-                <ChartCard title="Weight Progress" subtitle="Recent weigh-ins (kg)">
+                <ChartCard title="Weight Progress" subtitle={`${weightData.length} weigh-ins (kg)`}>
+                    {weightData.length === 0 ? (
+                        <div className="flex h-[260px] items-center justify-center text-sm text-text-muted">No weight entries yet</div>
+                    ) : (
                     <ResponsiveContainer width="100%" height={260}>
                         <LineChart data={weightData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
@@ -365,33 +318,17 @@ export default function ClientProfile() {
                             />
                         </LineChart>
                     </ResponsiveContainer>
+                    )}
+                    {weightData.length > 0 && (
                     <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-text-muted">
                         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: 'var(--color-info)' }} /> Client logged</span>
                         <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: primary }} /> Trainer logged</span>
                     </div>
+                    )}
                 </ChartCard>
             </div>
         </div>
     )
-
-    const todayDietDay = (dietPlan?.days || []).find((d) => (d.id || d._id) === dietPlan?.resolvedTodayDayId) || dietPlan?.days?.[0]
-    const todayDietMeals = todayDietDay?.meals || []
-    // Only count completion for meals still on today's plan — todayMealStatus
-    // can carry stale entries for meals the trainer has since edited/removed,
-    // which would otherwise inflate the count past the plan's current total.
-    const dietMealsDone = todayDietMeals.filter((m) => todayMealStatus[String(m._id || m.id)]).length
-    const dietMealsTotal = todayDietMeals.length
-    const dietAdherence = dietMealsTotal ? Math.round((dietMealsDone / dietMealsTotal) * 100) : 0
-
-    const todayGlucose = glucoseHistory.filter((g) => dayjs(g.date).isSame(dayjs(), 'day'))
-    const outOfRangeCount = glucoseHistory.filter((g) => g.flag !== 'normal').length
-    const glucoseChartData = glucoseHistory.map((g) => ({
-        label: dayjs(g.takenAt).format('D MMM, HH:mm'),
-        valueMgDl: g.valueMgDl,
-        phase: g.phase,
-        flag: g.flag,
-        mealName: g.mealName,
-    }))
 
     const dietTab = (
         <div>
@@ -400,140 +337,11 @@ export default function ClientProfile() {
                 <Button type="primary" onClick={() => navigate('/diet-plans')}>Edit plan</Button>
             </div>
 
-            {dietMealsTotal > 0 && (
-                <div className="app-card mb-4 p-4">
-                    <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span className="font-semibold text-text-secondary">Today's diet adherence</span>
-                        <span className="font-bold text-text-primary">{dietMealsDone}/{dietMealsTotal} meals · {dietAdherence}%</span>
-                    </div>
-                    <Progress percent={dietAdherence} strokeColor={dietAdherence === 100 ? 'var(--color-success)' : 'var(--color-primary)'} />
-                </div>
-            )}
+            <DietDayProgress clientId={id} initialDate={searchParams.get('date')} />
 
-            {todayCheats.length > 0 && (
-                <div className="app-card mb-4 p-4" style={{ borderLeft: '3px solid var(--color-warning)' }}>
-                    <div className="mb-2 flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--color-warning)' }}>
-                        <FireOutlined /> {todayCheats.length} cheat {todayCheats.length === 1 ? 'meal' : 'meals'} today
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        {todayCheats.map((c) => (
-                            <div key={String(c._id || c.mealId)} className="rounded-lg p-3" style={{ background: 'var(--color-surface-secondary)' }}>
-                                <div className="text-sm font-semibold text-text-primary">{c.mealName || 'Meal'}</div>
-                                {c.note && <div className="mt-0.5 text-sm text-text-secondary">{c.note}</div>}
-                                {c.items?.length > 0 && (
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                        {c.items.map((item, i) => (
-                                            <span key={i} className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
-                                                {item}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {todayDietMeals.map((m) => (
-                    <MealCard
-                        key={m.id}
-                        meal={m}
-                        cheat={todayCheats.find((c) => String(c.mealId) === String(m.id))}
-                        done={todayMealStatus[String(m._id || m.id)]}
-                        itemsDone={todayMealItems[String(m._id || m.id)]}
-                    />
-                ))}
+            <div className="mt-6">
+                <GlucoseChart clientId={id} />
             </div>
-
-            {glucoseHistory.length > 0 && (
-                <div className="mt-6">
-                    <div className="mb-3 flex items-center justify-between">
-                        <h3 className="section-title m-0 flex items-center gap-2">
-                            <MedicineBoxOutlined /> Blood Glucose
-                        </h3>
-                        {outOfRangeCount > 0 && (
-                            <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ background: 'var(--color-danger-soft)', color: 'var(--color-danger)' }}>
-                                {outOfRangeCount} out-of-range in last 14 days
-                            </span>
-                        )}
-                    </div>
-
-                    {todayGlucose.length > 0 && (
-                        <div className="app-card mb-4 p-4">
-                            <div className="mb-2 text-sm font-semibold text-text-secondary">Today's readings</div>
-                            <div className="flex flex-wrap gap-2">
-                                {todayGlucose.map((g, i) => (
-                                    <div
-                                        key={i}
-                                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
-                                        style={{ background: g.flag === 'normal' ? 'var(--color-success-soft)' : 'var(--color-danger-soft)' }}
-                                    >
-                                        <span className="font-semibold" style={{ color: g.flag === 'normal' ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                                            {g.valueMgDl} mg/dL
-                                        </span>
-                                        <span className="text-xs text-text-muted">
-                                            {g.phase === 'before' ? 'Before' : 'After'} · {g.mealName || 'Meal'}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    <ChartCard title="Glucose Trend" subtitle="Before/after meal readings (mg/dL), last 14 days">
-                        <ResponsiveContainer width="100%" height={240}>
-                            <LineChart data={glucoseChartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
-                                <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={44} />
-                                <Tooltip
-                                    content={({ active, payload }) => {
-                                        if (!active || !payload?.length) return null
-                                        const d = payload[0].payload
-                                        return (
-                                            <div className="rounded-lg border px-3 py-2 shadow-sm" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-                                                <div className="text-xs font-semibold text-text-primary">{d.valueMgDl} mg/dL</div>
-                                                <div className="mt-0.5 text-[11px] text-text-muted">
-                                                    {d.phase === 'before' ? 'Before' : 'After'} {d.mealName || 'meal'} · {d.label}
-                                                </div>
-                                            </div>
-                                        )
-                                    }}
-                                />
-                                <Line
-                                    type="monotone"
-                                    dataKey="valueMgDl"
-                                    name="Glucose"
-                                    stroke={primary}
-                                    strokeWidth={2}
-                                    dot={(props) => {
-                                        const { cx, cy, payload } = props
-                                        const outOfRange = payload.flag !== 'normal'
-                                        return (
-                                            <circle
-                                                key={props.key}
-                                                cx={cx}
-                                                cy={cy}
-                                                r={outOfRange ? 5 : 3}
-                                                fill={outOfRange ? 'var(--color-danger)' : primary}
-                                                stroke="#fff"
-                                                strokeWidth={outOfRange ? 2 : 1}
-                                            />
-                                        )
-                                    }}
-                                    activeDot={{ r: 6 }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
-                        <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-text-muted">
-                            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: primary }} /> Normal range</span>
-                            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: 'var(--color-danger)' }} /> Out of range</span>
-                        </div>
-                    </ChartCard>
-                </div>
-            )}
         </div>
     )
 
@@ -655,103 +463,42 @@ export default function ClientProfile() {
         </div>
     )
 
-    const progressTab = (
-        <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="app-card p-4 text-center">
-                    <div className="text-2xl font-extrabold" style={{ color: 'var(--color-info)' }}>{habitStats.waterPct}%</div>
-                    <div className="text-sm font-semibold text-text-primary">Water</div>
-                    <div className="text-xs text-text-muted">{habitStats.waterDone}/{habitStats.total} days — Goal: {habitGoals.waterGoal}L</div>
-                </div>
-                <div className="app-card p-4 text-center">
-                    <div className="text-2xl font-extrabold" style={{ color: '#7c3aed' }}>{habitStats.sleepPct}%</div>
-                    <div className="text-sm font-semibold text-text-primary">Sleep</div>
-                    <div className="text-xs text-text-muted">{habitStats.sleepDone}/{habitStats.total} days — Goal: {habitGoals.sleepGoal}h</div>
-                </div>
-                <div className="app-card p-4 text-center">
-                    <div className="text-2xl font-extrabold" style={{ color: 'var(--color-primary)' }}>{habitStats.workoutPct}%</div>
-                    <div className="text-sm font-semibold text-text-primary">Workout</div>
-                    <div className="text-xs text-text-muted">{habitStats.workoutDone}/{habitStats.total} days</div>
-                </div>
-            </div>
+    const progressTab = <HabitHistory clientId={id} />
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <ChartCard title="Daily Completion" subtitle="Last 14 days (%)">
-                    <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={habitHistory} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                            <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} axisLine={false} tickLine={false} width={40} />
-                            <Tooltip
-                                content={({ active, payload, label }) => {
-                                    if (!active || !payload?.length) return null
-                                    const d = payload[0].payload
-                                    return (
-                                        <div className="rounded-lg border px-3 py-2 shadow-sm" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
-                                            <div className="text-xs font-semibold text-text-primary">{label} — {d.completionPct}%</div>
-                                            <div className="mt-1 flex flex-col gap-0.5 text-[11px] text-text-muted">
-                                                <span>{d.water ? '✅' : '❌'} Water</span>
-                                                <span>{d.sleep ? '✅' : '❌'} Sleep</span>
-                                                <span>{d.workout ? '✅' : '❌'} Workout</span>
-                                                <span>🍽️ Meals: {d.mealsDone}/{d.mealsTotal} ({d.mealItemsDone}/{d.mealItemsTotal} items)</span>
-                                            </div>
-                                        </div>
-                                    )
-                                }}
-                            />
-                            <Bar dataKey="completionPct" name="Completion" radius={[6, 6, 0, 0]} maxBarSize={40}>
-                                {habitHistory.map((e, i) => (
-                                    <Cell key={i} fill={e.completionPct >= 80 ? 'var(--color-success)' : e.completionPct >= 50 ? primary : 'var(--color-warning)'} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
-                </ChartCard>
-
-                <ChartCard title="Today's Checklist" subtitle={`${completion}% avg. completion`}>
-                    <div className="mb-3">
-                        <Progress percent={completion} strokeColor="var(--color-primary)" />
-                    </div>
-                    <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
-                        {habitHistory.length > 0 && (() => {
-                            const latest = habitHistory[habitHistory.length - 1]
-                            const items = [
-                                { label: 'Water intake', done: latest.water },
-                                { label: 'Sleep goal', done: latest.sleep },
-                                { label: 'Workout', done: latest.workout },
-                                { label: `Meals (${latest.mealsDone}/${latest.mealsTotal})`, done: latest.mealsDone === latest.mealsTotal && latest.mealsTotal > 0 },
-                            ]
-                            return items.map((t, i) => (
-                                <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: 'var(--color-surface-secondary)' }}>
-                                    <Checkbox checked={t.done} disabled />
-                                    <span className={`text-sm ${t.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{t.label}</span>
-                                </div>
-                            ))
-                        })()}
-                    </div>
-                </ChartCard>
-            </div>
-        </div>
-    )
+    const followUpTagColor = { completed: 'green', overdue: 'red', today: 'blue', missed: 'default', upcoming: 'orange' }
+    // Open ones first (soonest first), then finished ones newest-first.
+    const sortedFollowUps = [...followUps].sort((a, b) => {
+        const aOpen = a.status === 'scheduled'
+        const bOpen = b.status === 'scheduled'
+        if (aOpen !== bOpen) return aOpen ? -1 : 1
+        return aOpen ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)
+    })
 
     const followUpTab = (
         <div className="app-card p-6">
             <h3 className="section-title mb-4">Follow-up history</h3>
-            <div className="flex flex-col gap-3">
-                {[
-                    { date: client.lastFollowUp, note: 'Reviewed weekly progress, adjusted calories.', status: 'completed' },
-                    { date: client.nextFollowUp, note: 'Upcoming check-in.', status: client.followUp < 0 ? 'overdue' : 'pending' },
-                ].map((f, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
-                        <div>
-                            <div className="text-sm font-semibold text-text-primary">{f.date}</div>
-                            <div className="text-xs text-text-muted">{f.note}</div>
+            {sortedFollowUps.length === 0 ? (
+                <EmptyState title="No follow-ups yet" description={`Schedule a check-in with ${client.name}.`} />
+            ) : (
+                <div className="flex flex-col gap-3">
+                    {sortedFollowUps.map((f) => (
+                        <div key={f.id} className="flex items-start justify-between gap-3 rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                            <div className="min-w-0">
+                                <div className="text-sm font-semibold text-text-primary">
+                                    {dayjs(f.date).format('ddd, D MMM YYYY')}{f.time ? ` · ${formatTime(f.time)}` : ''}
+                                </div>
+                                <div className="text-xs text-text-muted">{FOLLOWUP_TYPE_LABELS[f.type] || f.type}{f.note ? ` · ${f.note}` : ''}</div>
+                                {f.outcome && <div className="mt-1 text-xs text-text-secondary">Outcome: {f.outcome}</div>}
+                            </div>
+                            <Tag color={followUpTagColor[f.bucket]} className="m-0 capitalize">{f.bucket}</Tag>
                         </div>
-                        <Tag color={f.status === 'completed' ? 'green' : f.status === 'overdue' ? 'red' : 'orange'}>{f.status}</Tag>
-                    </div>
-                ))}
+                    ))}
+                </div>
+            )}
+            <div className="mt-4 flex gap-2">
+                <Button type="primary" onClick={() => navigate(`/follow-ups?new=${id}`)}>Schedule follow-up</Button>
+                <Button onClick={() => navigate('/follow-ups')}>Manage follow-ups</Button>
             </div>
-            <Button type="primary" className="mt-4" onClick={() => navigate('/follow-ups')}>Manage follow-ups</Button>
         </div>
     )
 
@@ -773,7 +520,7 @@ export default function ClientProfile() {
                                     <span className="text-xs font-medium text-text-muted">
                                         {correctionTypeLabels[r.type] || r.type}
                                     </span>
-                                    <span className="text-xs text-text-muted">· {r.createdAt}</span>
+                                    <span className="text-xs text-text-muted">· {dayjs(r.createdAt).format('D MMM, h:mm A')}</span>
                                 </div>
                                 {r.item && <div className="mt-1 text-sm font-medium text-text-secondary">{r.item}</div>}
                                 <p className="mt-1 mb-0 text-sm text-text-secondary">{r.note}</p>
@@ -812,7 +559,7 @@ export default function ClientProfile() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Button icon={<MessageOutlined />} onClick={() => navigate('/messages')}>Message</Button>
-                        <Button type="primary" onClick={() => navigate('/follow-ups')}>Schedule follow-up</Button>
+                        <Button type="primary" onClick={() => navigate(`/follow-ups?new=${id}`)}>Schedule follow-up</Button>
                     </div>
                 </div>
             </div>
@@ -821,11 +568,12 @@ export default function ClientProfile() {
                 <StatCard label="Progress" value={`${client.progress}%`} accent="var(--color-success)" />
                 <StatCard label="Current Weight" value={`${client.weight}kg`} hint={`Target ${client.target}kg`} />
                 <StatCard label="Plan" value={client.plan} />
-                <StatCard label="Next Follow-up" value={client.nextFollowUp} />
+                <StatCard label="Next Follow-up" value={nextFollowUpLabel} />
             </div>
 
             <div className="mt-6">
                 <Tabs
+                    defaultActiveKey={searchParams.get('tab') || 'overview'}
                     items={[
                         { key: 'overview', label: 'Overview', children: overview },
                         { key: 'diet', label: 'Diet Plan', children: dietTab },

@@ -236,9 +236,12 @@ export async function seedDemoData() {
                     day: 'Everyday',
                     meals: DEMO_DIET_PLAN.meals.map((m) => ({
                         name: m.name, time: m.time, notes: m.notes, taskKey: `meal:${m.name.toLowerCase()}`,
-                        items: m.items
-                            .filter((it) => byCode.has(it.foodCode))
-                            .map((it) => ({ food: byCode.get(it.foodCode)._id, foodCode: it.foodCode, qty: it.qty })),
+                        options: [{
+                            label: 'Option 1',
+                            items: m.items
+                                .filter((it) => byCode.has(it.foodCode))
+                                .map((it) => ({ food: byCode.get(it.foodCode)._id, foodCode: it.foodCode, qty: it.qty })),
+                        }],
                     })),
                 }],
             })
@@ -293,18 +296,36 @@ export async function seedDemoData() {
         }
     }
 
-    // ---- Follow-ups: one per client ----
+    // ---- Follow-ups: one completed (with outcome) + one open per client ----
+    // Buckets are derived from date + status on read, so only status matters here.
     for (const client of createdClients) {
         if (await FollowUp.exists({ client: client._id })) continue
-        const d = new Date()
-        d.setDate(d.getDate() + (Math.floor(Math.random() * 9) - 3))
+        const past = new Date()
+        past.setHours(0, 0, 0, 0)
+        past.setDate(past.getDate() - 7)
+        const next = new Date()
+        next.setHours(0, 0, 0, 0)
+        next.setDate(next.getDate() + (Math.floor(Math.random() * 9) - 3))
         await FollowUp.create({
             trainer: client.trainer,
             client: client._id,
-            date: d,
+            date: past,
+            time: '10:00',
             note: 'Weekly progress review',
-            bucket: 'upcoming',
+            outcome: 'Reviewed the week together. Adherence is good — keep hitting the daily checklist and log meals as you go.',
+            status: 'completed',
+            completedAt: past,
+            bucket: 'completed',
         })
+        await FollowUp.create({
+            trainer: client.trainer,
+            client: client._id,
+            date: next,
+            time: '10:00',
+            note: 'Weekly progress review',
+            reminders: { dayBefore: true, dayOf: true, overdue: false },
+        })
+        await Client.updateOne({ _id: client._id }, { lastFollowUp: past, nextFollowUp: next })
     }
 
     // ---- Payments: ~3 per client over the last 6 months ----

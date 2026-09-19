@@ -11,29 +11,26 @@ export function CorrectionsProvider({ children }) {
         api.get('/corrections').then((res) => setRequests(res.items || [])).catch(() => { })
     }, [])
 
-    const respond = useCallback(async (id, reply, status = 'resolved') => {
-        const updated = await api.patch(`/corrections/${id}`, { reply, status })
-        setRequests((prev) => prev.map((r) => ((r._id || r.id) === id ? updated : r)))
+    // PATCH /corrections/:id { action } and swap the returned request into state.
+    // Rejects with the API error so callers can show it (e.g. PLAN_NOT_CHANGED).
+    const act = useCallback(async (id, body) => {
+        const updated = await api.patch(`/corrections/${id}`, body)
+        setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)))
+        return updated
     }, [])
 
-    const resolve = useCallback(async (id, reply) => {
-        const updated = await api.patch(`/corrections/${id}`, { reply, status: 'resolved' })
-        setRequests((prev) => prev.map((r) => ((r._id || r.id) === id ? updated : r)))
-    }, [])
+    const resolve = useCallback((id, reply, { withoutChange = false } = {}) => act(id, { action: 'resolve', reply, withoutChange }), [act])
+    const decline = useCallback((id, reply) => act(id, { action: 'decline', reply }), [act])
+    const reopen = useCallback((id) => act(id, { action: 'reopen' }), [act])
+    // Best-effort and idempotent: stamps "seen" the first time only.
+    const markSeen = useCallback((id) => act(id, { action: 'seen' }).catch(() => { }), [act])
 
-    const decline = useCallback(async (id, reply) => {
-        const updated = await api.patch(`/corrections/${id}`, { reply, status: 'declined' })
-        setRequests((prev) => prev.map((r) => ((r._id || r.id) === id ? updated : r)))
-    }, [])
+    const openCount = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
 
-    const reopen = useCallback(async (id) => {
-        const updated = await api.patch(`/corrections/${id}`, { status: 'open' })
-        setRequests((prev) => prev.map((r) => ((r._id || r.id) === id ? updated : r)))
-    }, [])
-
-    const openCount = useMemo(() => requests.filter((r) => r.status === 'pending' || r.status === 'open').length, [requests])
-
-    const value = useMemo(() => ({ requests, respond, resolve, decline, reopen, openCount }), [requests, respond, resolve, decline, reopen, openCount])
+    const value = useMemo(
+        () => ({ requests, resolve, decline, reopen, markSeen, openCount }),
+        [requests, resolve, decline, reopen, markSeen, openCount],
+    )
     return <CorrectionsContext.Provider value={value}>{children}</CorrectionsContext.Provider>
 }
 

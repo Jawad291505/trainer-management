@@ -23,10 +23,15 @@ import { computeNutrition, formatQty, mealGL, glMealLevel, glItemLevel, giLevel,
 let mealSeq = 1
 const uid = (p) => `${p}${Date.now()}${mealSeq++}`
 
+// A template meal now stores its items under `options[0].items` (meal
+// options feature) — the admin editor still only authors a single option per
+// meal, so it just reads/writes that first option transparently.
+const mealItems = (m) => m.options?.[0]?.items || m.items || []
+
 const planTotals = (meals) =>
     meals.reduce(
         (acc, m) => {
-            m.items.forEach((it) => {
+            mealItems(m).forEach((it) => {
                 acc.cal += it.cal || 0
                 acc.protein += it.protein || 0
                 acc.carbs += it.carbs || 0
@@ -176,7 +181,7 @@ function PlanEditor({ plan, onSave, onBack }) {
     const [name, setName] = useState(plan.name)
     const [goal, setGoal] = useState(plan.goal)
     const [description, setDescription] = useState(plan.description || '')
-    const [meals, setMeals] = useState(() => plan.meals.map((m) => ({ ...m, items: m.items.map((it) => ({ ...it })) })))
+    const [meals, setMeals] = useState(() => plan.meals.map((m) => ({ ...m, items: mealItems(m).map((it) => ({ ...it })) })))
 
     const [mealModal, setMealModal] = useState(false)
     const [foodModal, setFoodModal] = useState(null) // mealId

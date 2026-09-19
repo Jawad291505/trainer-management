@@ -1,5 +1,6 @@
 import { ClockCircleOutlined, FireOutlined, CheckCircleFilled } from '@ant-design/icons'
 import { mealGL, glMealLevel } from '../../../utils/nutrition'
+import { formatMealTime } from '../../../utils/time'
 import GlycemicBadge from './GlycemicBadge'
 
 // Formats an item quantity with its unit (e.g. "150g", "2", "250ml").
@@ -48,7 +49,7 @@ export default function MealCard({ meal, cheat, done, itemsDone }) {
                         )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-text-muted">
-                        <ClockCircleOutlined /> {meal.time}
+                        <ClockCircleOutlined /> {formatMealTime(meal.time)}
                     </div>
                 </div>
                 <div className="rounded-lg px-2.5 py-1 text-xs font-bold" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>

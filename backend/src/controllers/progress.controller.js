@@ -2,21 +2,25 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { WeightEntry, DailyLog, Client, DietPlan, ExercisePlan, ScheduleActivity } from '../models/index.js'
 import { pktStartOfDay, pktDayName, resolveTodayDay } from '../utils/pktTime.js'
+import { assertClientAccess } from '../utils/clientAccess.js'
+import { serializeDietPlan } from '../services/dietPlan.service.js'
 
 const startOfDay = pktStartOfDay
+const DAY_MS = 24 * 60 * 60 * 1000
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-// Resolve which client the caller is acting on.
+// Resolve which client the caller is acting on (role-scoped — see clientAccess.js).
 async function resolveClientId(req) {
-    if (req.user.role === 'client') return req.client._id
-    const id = req.query.client || req.body.client || req.params.clientId
-    if (!id) throw ApiError.badRequest('client is required')
-    if (req.user.role === 'trainer') {
-        const client = await Client.findById(id)
-        if (!client || String(client.trainer) !== String(req.trainer._id)) {
-            throw ApiError.forbidden('Client not assigned to you')
-        }
-    }
-    return id
+    const client = await assertClientAccess(req, req.query.client || req.body?.client || req.params.clientId)
+    return client._id
+}
+
+// Strict YYYY-MM-DD -> the PKT day bucket used as DailyLog.date.
+function parseDateParam(raw) {
+    if (!raw) return startOfDay()
+    const d = DATE_RE.test(String(raw)) ? new Date(raw) : null
+    if (!d || Number.isNaN(d.getTime())) throw ApiError.badRequest('date must be YYYY-MM-DD')
+    return startOfDay(d)
 }
 
 // ---- Weight tracking ----
@@ -25,7 +29,8 @@ async function resolveClientId(req) {
 export const listWeight = asyncHandler(async (req, res) => {
     const clientId = await resolveClientId(req)
     const limit = Math.min(Number(req.query.limit) || 26, 200)
-    const entries = await WeightEntry.find({ client: clientId }).sort({ date: 1 }).limit(limit)
+    // Newest N entries, returned oldest-first for charting.
+    const entries = (await WeightEntry.find({ client: clientId }).sort({ date: -1 }).limit(limit)).reverse()
 
     const client = await Client.findById(clientId)
     const latest = entries.at(-1)?.weightKg ?? client?.weight ?? null
@@ -82,6 +87,9 @@ async function seedTasksForClient(clientId, userId, date = new Date()) {
         const todayDietDay = resolveTodayDay(plan.days, plan.todayDayId, date)
         if (todayDietDay?.meals?.length) {
             for (const m of todayDietDay.meals) {
+                const options = m.options || []
+                const selected =
+                    options.find((o) => String(o._id) === String(m.selectedOptionId)) || options[0] || null
                 tasks.push({
                     key: `meal:${m._id}`,
                     label: `${m.name}${m.time ? ` — ${m.time}` : ''}`,
@@ -89,7 +97,7 @@ async function seedTasksForClient(clientId, userId, date = new Date()) {
                     time: m.time || '',
                     done: false,
                     mealId: m._id,
-                    itemsDone: new Array(m.items?.length || 0).fill(false),
+                    itemsDone: new Array(selected?.items?.length || 0).fill(false),
                 })
             }
         }
@@ -332,6 +340,9 @@ export const logGlucose = asyncHandler(async (req, res) => {
     log.glucoseReadings = log.glucoseReadings.filter(
         (g) => !(String(g.mealId) === String(mealId) && g.phase === phase),
     )
+    // A reading logged for a past day is stamped at noon of that day, so charts
+    // place it on the day it belongs to rather than on the day it was entered.
+    const takenAt = date.getTime() === startOfDay().getTime() ? new Date() : new Date(date.getTime() + DAY_MS / 2)
     log.glucoseReadings.push({
         mealId,
         mealName: mealName || '',
@@ -339,6 +350,7 @@ export const logGlucose = asyncHandler(async (req, res) => {
         valueMgDl,
         note: note || '',
         source: 'client',
+        takenAt,
     })
     log.markModified('glucoseReadings')
     await log.save()
@@ -363,76 +375,301 @@ export const removeGlucose = asyncHandler(async (req, res) => {
     res.json({ id: String(log._id), glucoseReadings: log.glucoseReadings })
 })
 
-// GET /api/progress/glucose?client=&days=14   — flattened trend for charts/monitoring (trainer + client)
+const round1 = (n) => Math.round(n * 10) / 10
+
+// The instant a reading belongs to, for charting. Legacy readings backdated to
+// an earlier day were stamped with the entry time, not the day they describe —
+// those fall back to noon of the log's own day.
+function readingTime(log, g) {
+    const at = g.takenAt ? new Date(g.takenAt) : null
+    return at && startOfDay(at).getTime() === log.date.getTime() ? at : new Date(log.date.getTime() + DAY_MS / 2)
+}
+
+function flattenGlucose(log) {
+    return (log.glucoseReadings || []).map((g) => ({
+        id: String(g._id),
+        date: log.date,
+        mealId: g.mealId,
+        mealName: g.mealName,
+        phase: g.phase,
+        valueMgDl: g.valueMgDl,
+        note: g.note,
+        source: g.source,
+        takenAt: readingTime(log, g),
+        flag: glucoseFlag(g.phase, g.valueMgDl),
+    }))
+}
+
+function summarizeGlucose(items) {
+    const avg = (list) => (list.length ? Math.round(list.reduce((s, i) => s + i.valueMgDl, 0) / list.length) : null)
+    const values = items.map((i) => i.valueMgDl)
+    const outOfRange = items.filter((i) => i.flag !== 'normal').length
+    return {
+        count: items.length,
+        average: avg(items),
+        min: values.length ? Math.min(...values) : null,
+        max: values.length ? Math.max(...values) : null,
+        outOfRange,
+        inRangePct: items.length ? Math.round(((items.length - outOfRange) / items.length) * 100) : null,
+        beforeAverage: avg(items.filter((i) => i.phase === 'before')),
+        afterAverage: avg(items.filter((i) => i.phase === 'after')),
+        latest: items.at(-1) || null,
+    }
+}
+
+// GET /api/progress/glucose?client=&days=14   — flattened trend for charts/monitoring
+// (client: self; trainer: assigned clients; member: their trainers' clients; admin: any)
 export const glucoseHistory = asyncHandler(async (req, res) => {
     const clientId = await resolveClientId(req)
-    const days = Math.min(Number(req.query.days) || 14, 90)
-    const since = new Date(pktStartOfDay().getTime() - (days - 1) * 24 * 60 * 60 * 1000)
+    const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90)
+    const since = new Date(startOfDay().getTime() - (days - 1) * DAY_MS)
 
     const logs = await DailyLog.find({ client: clientId, date: { $gte: since } }).sort({ date: 1 })
 
-    const items = []
-    for (const log of logs) {
-        for (const g of log.glucoseReadings || []) {
-            items.push({
-                date: log.date,
-                mealId: g.mealId,
-                mealName: g.mealName,
-                phase: g.phase,
-                valueMgDl: g.valueMgDl,
-                note: g.note,
-                source: g.source,
-                takenAt: g.takenAt,
-                flag: glucoseFlag(g.phase, g.valueMgDl),
-            })
-        }
-    }
-    items.sort((a, b) => new Date(a.takenAt) - new Date(b.takenAt))
+    const items = logs.flatMap(flattenGlucose).sort((a, b) => a.takenAt - b.takenAt)
 
-    res.json({ items, days })
+    res.json({ items, days, from: since, ranges: GLUCOSE_RANGES, summary: summarizeGlucose(items) })
 })
 
+// Ids of the meals the published plan schedules on `date` (null = no plan/day).
+function planMealIdsFor(planDoc, date) {
+    if (!planDoc) return null
+    const isToday = date.getTime() === startOfDay().getTime()
+    const day = resolveTodayDay(planDoc.days, isToday ? planDoc.todayDayId : null, date)
+    return day ? new Set(day.meals.map((m) => String(m._id))) : null
+}
+
+// A DailyLog keeps a task for every meal it was ever seeded/merged with, so
+// after the trainer edits or replaces the plan it still holds tasks for meals
+// that are no longer planned — the client can't tick those any more. Drop them
+// so totals match what the plan asks for today. The one exception is a past day
+// where *none* of the recorded meals are in the current plan (plan fully
+// replaced since): there the recorded tasks are the only record of what was
+// submitted, so they are kept as-is.
+function currentTasks(log, mealIds, isPast) {
+    const tasks = log?.tasks || []
+    if (!mealIds) return tasks
+    const mealTasks = tasks.filter((t) => t.type === 'meal')
+    if (isPast && mealTasks.length && !mealTasks.some((t) => mealIds.has(String(t.mealId)))) return tasks
+    return tasks.filter((t) => t.type !== 'meal' || mealIds.has(String(t.mealId)))
+}
+
+const completionOf = (tasks) => (tasks.length ? Math.round((tasks.filter((t) => t.done).length / tasks.length) * 100) : 0)
+
+// Meal-level adherence from a day's tasks (see currentTasks), i.e. what the
+// client actually ticked. A cheat meal still counts towards the planned total
+// (its items were on the plan) but never as eaten, so it lowers adherence and is
+// also reported separately as `mealsCheat`. `adherencePct` is null when there
+// is nothing to measure, so the UI can show "no data" instead of a fake 0%.
+function summarizeDietLog(log, tasks = log?.tasks || []) {
+    const cheatIds = new Set((log?.cheats || []).map((c) => String(c.mealId)))
+    const s = { mealsTotal: 0, mealsDone: 0, mealsPartial: 0, mealsCheat: 0, itemsDone: 0, itemsTotal: 0 }
+    for (const t of tasks.filter((t) => t.type === 'meal')) {
+        s.mealsTotal += 1
+        if (cheatIds.has(String(t.mealId))) {
+            s.mealsCheat += 1
+            s.itemsTotal += (t.itemsDone || []).length
+            continue
+        }
+        const eaten = (t.itemsDone || []).filter(Boolean).length
+        s.itemsDone += eaten
+        s.itemsTotal += (t.itemsDone || []).length
+        if (t.done) s.mealsDone += 1
+        else if (eaten > 0) s.mealsPartial += 1
+    }
+    return { ...s, adherencePct: s.itemsTotal ? Math.round((s.itemsDone / s.itemsTotal) * 100) : null }
+}
+
 // GET /api/progress/daily/history?client=&days=14
-// Returns per-day water/sleep/workout completion + overall pct for charts.
+// Returns per-day water/sleep/workout/diet completion + overall pct for charts.
+// Days the client never opened the app have no DailyLog and are simply absent.
 export const dailyHistory = asyncHandler(async (req, res) => {
     const clientId = await resolveClientId(req)
-    const days = Math.min(Number(req.query.days) || 14, 90)
+    const days = Math.min(Math.max(Number(req.query.days) || 14, 1), 90)
 
     // PKT has no DST, so each calendar day is exactly 24h — safe to step back
     // by milliseconds instead of using Date's locale-dependent setDate().
-    const since = new Date(pktStartOfDay().getTime() - (days - 1) * 24 * 60 * 60 * 1000)
+    const since = new Date(startOfDay().getTime() - (days - 1) * DAY_MS)
 
-    const logs = await DailyLog.find({ client: clientId, date: { $gte: since } }).sort({ date: 1 })
-
-    const clientDoc = await Client.findById(clientId)
+    const [logs, clientDoc, planDoc] = await Promise.all([
+        DailyLog.find({ client: clientId, date: { $gte: since } }).sort({ date: 1 }),
+        Client.findById(clientId),
+        DietPlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 }),
+    ])
     const waterGoal = clientDoc?.waterGoal ?? 2
     const sleepGoal = clientDoc?.sleepGoal ?? 8
 
+    const todayMs = startOfDay().getTime()
     const history = logs.map((log) => {
-        const water = log.tasks.find((t) => t.key === 'water')
-        const sleep = log.tasks.find((t) => t.key === 'sleep')
-        const workout = log.tasks.find((t) => t.type === 'workout')
-        const mealTasks = log.tasks.filter((t) => t.type === 'meal')
-        const mealsDone = mealTasks.filter((t) => t.done).length
-        const mealsTotal = mealTasks.length
-        // Item-level counts across all meals — lets the trainer see partial
-        // adherence (e.g. 5 of 8 items eaten) even on days with no fully
-        // completed meals.
-        const mealItemsDone = mealTasks.reduce((s, t) => s + (t.itemsDone || []).filter(Boolean).length, 0)
-        const mealItemsTotal = mealTasks.reduce((s, t) => s + (t.itemsDone || []).length, 0)
-
+        const tasks = currentTasks(log, planMealIdsFor(planDoc, log.date), log.date.getTime() < todayMs)
+        const diet = summarizeDietLog(log, tasks)
+        const glucose = flattenGlucose(log)
         return {
             date: log.date,
-            completionPct: log.completionPct,
-            water: water?.done || false,
-            sleep: sleep?.done || false,
-            workout: workout?.done || false,
-            mealsDone,
-            mealsTotal,
-            mealItemsDone,
-            mealItemsTotal,
+            completionPct: completionOf(tasks),
+            water: tasks.find((t) => t.key === 'water')?.done || false,
+            sleep: tasks.find((t) => t.key === 'sleep')?.done || false,
+            workout: tasks.find((t) => t.type === 'workout')?.done || false,
+            // Item-level counts let the trainer see partial adherence (e.g. 5 of
+            // 8 items eaten) even on days with no fully completed meals.
+            mealsDone: diet.mealsDone,
+            mealsTotal: diet.mealsTotal,
+            mealsPartial: diet.mealsPartial,
+            mealsCheat: diet.mealsCheat,
+            mealItemsDone: diet.itemsDone,
+            mealItemsTotal: diet.itemsTotal,
+            dietAdherencePct: diet.adherencePct,
+            glucoseCount: glucose.length,
+            glucoseOutOfRange: glucose.filter((g) => g.flag !== 'normal').length,
         }
     })
 
     res.json({ history, goals: { waterGoal, sleepGoal }, days })
+})
+
+// GET /api/progress/diet-day?client=&date=YYYY-MM-DD
+// Everything the client submitted against their diet plan on one date: the
+// plan day that applied, per-meal / per-item completion, cheat meals, glucose
+// readings and a summary. Read-only — never creates a DailyLog (unlike the
+// client's own /progress/daily), so browsing past dates leaves no trace.
+export const getDietDay = asyncHandler(async (req, res) => {
+    const clientId = await resolveClientId(req)
+    const date = parseDateParam(req.query.date)
+    const today = startOfDay()
+    const isToday = date.getTime() === today.getTime()
+    const isFuture = date.getTime() > today.getTime()
+
+    const [planDoc, log] = await Promise.all([
+        DietPlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 }),
+        DailyLog.findOne({ client: clientId, date }),
+    ])
+    const plan = planDoc ? await serializeDietPlan(planDoc) : null
+    // Same day-matching rule that seeds the DailyLog (seedTasksForClient).
+    const dayDoc = planDoc ? resolveTodayDay(planDoc.days, isToday ? planDoc.todayDayId : null, date) : null
+    const planDay = dayDoc ? plan.days.find((d) => d.id === String(dayDoc._id)) : null
+
+    const tasks = currentTasks(log, planMealIdsFor(planDoc, date), !isToday && !isFuture)
+    const counted = new Set(tasks.map((t) => t.mealId && String(t.mealId)))
+    const cheatByMeal = new Map((log?.cheats || []).map((c) => [String(c.mealId), c]))
+    const taskByMeal = new Map((log?.tasks || []).filter((t) => t.type === 'meal').map((t) => [String(t.mealId), t]))
+    const glucose = log ? flattenGlucose(log).sort((a, b) => a.takenAt - b.takenAt) : []
+
+    const statusFor = (cheat, done, eaten) => {
+        if (cheat) return 'cheat'
+        if (done) return 'done'
+        if (eaten > 0) return 'partial'
+        if (isFuture) return 'upcoming'
+        return isToday ? 'pending' : 'missed'
+    }
+
+    const planned = { cal: 0, protein: 0, carbs: 0, fat: 0 }
+    const eatenTotals = { cal: 0, protein: 0, carbs: 0, fat: 0 }
+
+    const meals = (planDay?.meals || []).map((m) => {
+        const task = taskByMeal.get(m.id)
+        const cheat = cheatByMeal.get(m.id) || null
+        const flags = task?.itemsDone || []
+        const items = m.items.map((it, i) => ({
+            name: it.name,
+            qtyLabel: it.qtyLabel,
+            cal: it.cal,
+            protein: it.protein,
+            carbs: it.carbs,
+            fat: it.fat,
+            gl: it.gl,
+            eaten: !!flags[i],
+        }))
+        const itemsEaten = items.filter((i) => i.eaten).length
+        for (const it of items) {
+            for (const k of Object.keys(planned)) {
+                planned[k] += it[k] || 0
+                if (it.eaten && !cheat) eatenTotals[k] += it[k] || 0
+            }
+        }
+        return {
+            id: m.id,
+            name: m.name,
+            time: m.time,
+            notes: m.notes,
+            optionLabel: m.options.length > 1 ? m.options.find((o) => o.id === m.selectedOptionId)?.label || null : null,
+            items,
+            totals: m.totals,
+            glLevel: m.mealGLLevel,
+            removed: false,
+            status: statusFor(cheat, task?.done, itemsEaten),
+            itemsEaten,
+            cheat: cheat ? { note: cheat.note, items: cheat.items } : null,
+            glucose: {
+                before: glucose.find((g) => String(g.mealId) === m.id && g.phase === 'before') || null,
+                after: glucose.find((g) => String(g.mealId) === m.id && g.phase === 'after') || null,
+            },
+        }
+    })
+
+    // Meals the client logged against that day but the trainer has since
+    // removed from the plan — still real submitted data, so still shown.
+    const planMealIds = new Set(meals.map((m) => m.id))
+    for (const [mealId, task] of taskByMeal) {
+        if (planMealIds.has(mealId)) continue
+        const cheat = cheatByMeal.get(mealId) || null
+        const eaten = (task.itemsDone || []).filter(Boolean).length
+        meals.push({
+            id: mealId,
+            name: task.label.split(' — ')[0],
+            time: task.time,
+            notes: '',
+            optionLabel: null,
+            items: [],
+            totals: null,
+            glLevel: null,
+            removed: true,
+            // false = a leftover from an earlier version of the plan; shown for
+            // reference but excluded from the day's totals.
+            counted: counted.has(mealId),
+            status: statusFor(cheat, task.done, eaten),
+            itemsEaten: eaten,
+            itemsTotal: (task.itemsDone || []).length,
+            cheat: cheat ? { note: cheat.note, items: cheat.items } : null,
+            glucose: {
+                before: glucose.find((g) => String(g.mealId) === mealId && g.phase === 'before') || null,
+                after: glucose.find((g) => String(g.mealId) === mealId && g.phase === 'after') || null,
+            },
+        })
+    }
+
+    const diet = summarizeDietLog(log, tasks)
+    const habits = tasks
+        .filter((t) => t.type !== 'meal')
+        .map((t) => ({ key: t.key, label: t.label, type: t.type, time: t.time, done: t.done }))
+
+    // "Submitted" = the client actually did something that day (opening the app
+    // alone seeds an untouched log, which is not progress).
+    const hasActivity = !!log && (
+        diet.itemsDone > 0 || diet.mealsCheat > 0 || glucose.length > 0 || habits.some((h) => h.done)
+    )
+
+    res.json({
+        date,
+        weekday: pktDayName(date).full,
+        isToday,
+        isFuture,
+        hasLog: !!log,
+        hasActivity,
+        plan: planDoc ? { id: String(planDoc._id), title: planDoc.title } : null,
+        dayName: dayDoc?.day || null,
+        meals: meals.map((m) => ({ ...m, itemsTotal: m.itemsTotal ?? m.items.length })),
+        // Planned-vs-eaten macros are only meaningful while every counted meal
+        // still exists in the plan (removed meals have no item detail).
+        macrosComparable: !meals.some((m) => m.removed && m.counted),
+        habits,
+        glucose,
+        summary: {
+            ...diet,
+            completionPct: log ? completionOf(tasks) : null,
+            planned: { cal: Math.round(planned.cal), protein: round1(planned.protein), carbs: round1(planned.carbs), fat: round1(planned.fat) },
+            eaten: { cal: Math.round(eatenTotals.cal), protein: round1(eatenTotals.protein), carbs: round1(eatenTotals.carbs), fat: round1(eatenTotals.fat) },
+            glucose: summarizeGlucose(glucose),
+        },
+        ranges: GLUCOSE_RANGES,
+    })
 })

@@ -6,9 +6,11 @@ import SetPassword from '../pages/SetPassword'
 import { useAuth } from '../context/AuthContext'
 import Dashboard from '../portals/client/pages/Dashboard'
 import MyDiet from '../portals/client/pages/MyDiet'
+import GroceryList from '../portals/client/pages/GroceryList'
 import MyExercises from '../portals/client/pages/MyExercises'
 import WorkoutRunner from '../portals/client/pages/WorkoutRunner'
 import MySchedule from '../portals/client/pages/MySchedule'
+import FollowUps from '../portals/client/pages/FollowUps'
 import MyProgress from '../portals/client/pages/MyProgress'
 import Messages from '../portals/client/pages/Messages'
 import MyRequests from '../portals/client/pages/MyRequests'
@@ -35,9 +37,11 @@ export default function AppRoutes() {
             <Route element={authed ? (mustChangePassword ? <Navigate to="/set-password" replace /> : <AppLayout />) : <Navigate to="/login" replace />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/diet" element={<MyDiet />} />
+                <Route path="/grocery-list" element={<GroceryList />} />
                 <Route path="/exercises" element={<MyExercises />} />
                 <Route path="/workout" element={<WorkoutRunner />} />
                 <Route path="/schedule" element={<MySchedule />} />
+                <Route path="/follow-ups" element={<FollowUps />} />
                 <Route path="/progress" element={<MyProgress />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/requests" element={<MyRequests />} />

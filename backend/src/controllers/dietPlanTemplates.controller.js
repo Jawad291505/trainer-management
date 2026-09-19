@@ -4,19 +4,26 @@ import { DietPlanTemplate, Food } from '../models/index.js'
 import { MAX_DIET_PLAN_TEMPLATES } from '../config/constants.js'
 import { resolvePlanNutrition } from '../services/dietPlan.service.js'
 
-// Turn incoming meal payloads into stored meals, linking each item's foodCode to
-// a Food _id. Shared by templates and client diet plans.
+// A meal payload may arrive as `{ options: [{label, items}] }` (current shape)
+// or, from older callers, a flat `{ items }` — normalise to always be options.
+function mealOptionsInput(m) {
+    if (Array.isArray(m.options)) return m.options
+    return [{ label: 'Option 1', items: m.items || [] }]
+}
+
+// Turn incoming meal payloads into stored meals, linking each option item's
+// foodCode to a Food _id. Shared by templates and client diet plans.
 export async function normalizeMeals(meals = []) {
-    const codes = [...new Set(meals.flatMap((m) => (m.items || []).map((it) => it.foodCode)))]
+    const codes = [
+        ...new Set(
+            meals.flatMap((m) => mealOptionsInput(m).flatMap((o) => (o.items || []).map((it) => it.foodCode))),
+        ),
+    ]
     const foods = await Food.find({ code: { $in: codes } })
     const byCode = new Map(foods.map((f) => [f.code, f]))
 
-    return meals.map((m) => ({
-        name: m.name,
-        time: m.time || '',
-        notes: m.notes || '',
-        taskKey: m.taskKey ?? null,
-        items: (m.items || []).map((it) => {
+    const resolveItems = (items = []) =>
+        items.map((it) => {
             const food = byCode.get(it.foodCode)
             if (!food) throw ApiError.badRequest(`Unknown food code: ${it.foodCode}`)
             return {
@@ -26,7 +33,17 @@ export async function normalizeMeals(meals = []) {
                 qty: Number(it.qty) || 0,
                 unit: food.unit,
             }
-        }),
+        })
+
+    return meals.map((m) => ({
+        name: m.name,
+        time: m.time || '',
+        notes: m.notes || '',
+        taskKey: m.taskKey ?? null,
+        options: mealOptionsInput(m).map((o) => ({
+            label: o.label || 'Option 1',
+            items: resolveItems(o.items),
+        })),
     }))
 }
 

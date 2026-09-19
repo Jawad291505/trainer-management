@@ -9,6 +9,8 @@ import {
     UserOutlined,
     SettingOutlined,
     EditOutlined,
+    ShoppingOutlined,
+    CheckSquareOutlined,
 } from '@ant-design/icons'
 
 // Client sidebar navigation, split into labelled sections. Each group has a
@@ -24,8 +26,10 @@ export const clientNavGroups = [
         caption: 'Diet, training & schedule',
         items: [
             { key: '/diet', label: 'My Diet', icon: AppleOutlined },
+            { key: '/grocery-list', label: 'Grocery List', icon: ShoppingOutlined },
             { key: '/exercises', label: 'My Exercises', icon: ThunderboltOutlined },
             { key: '/schedule', label: 'My Schedule', icon: CalendarOutlined },
+            { key: '/follow-ups', label: 'Follow-ups', icon: CheckSquareOutlined },
             { key: '/progress', label: 'My Progress', icon: LineChartOutlined },
         ],
     },

@@ -3,16 +3,22 @@ import ApiError from '../utils/ApiError.js'
 import { DietPlan, DietPlanTemplate, Client } from '../models/index.js'
 import { serializeDietPlan } from '../services/dietPlan.service.js'
 import { normalizeMeals } from './dietPlanTemplates.controller.js'
+import { assertClientAccess } from '../utils/clientAccess.js'
 
 // Turn incoming day payloads (`[{ day, meals }]`) into stored days, running
 // each day's meals through the shared normalizeMeals() food-linking logic.
-async function normalizeDays(days = []) {
-    return Promise.all(
-        days.map(async (d) => ({
-            day: d.day,
-            meals: await normalizeMeals(d.meals || []),
-        })),
-    )
+// In 'same' mode, collapse to a single "Everyday" day regardless of what was
+// sent — the one place duplication across the 7 weekdays is avoided.
+async function normalizeDays(days = [], dayMode = 'same') {
+    if (dayMode === 'custom') {
+        return Promise.all(
+            days.map(async (d) => ({
+                day: d.day,
+                meals: await normalizeMeals(d.meals || []),
+            })),
+        )
+    }
+    return [{ day: 'Everyday', meals: await normalizeMeals(days[0]?.meals || []) }]
 }
 
 // Ensure the caller may act on `plan`. Trainers are scoped to their own plans;
@@ -69,6 +75,7 @@ export const getClientDietPlan = asyncHandler(async (req, res) => {
         throw ApiError.forbidden()
     }
     if (req.user.role === 'trainer') await assertTrainerOwnsClient(req, clientId)
+    if (req.user.role === 'member') await assertClientAccess(req, clientId)
 
     const plan = await DietPlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 })
     const fallback = plan ? null : await DietPlan.findOne({ client: clientId }).sort({ updatedAt: -1 })
@@ -79,15 +86,17 @@ export const getClientDietPlan = asyncHandler(async (req, res) => {
 
 // POST /api/diet-plans   (trainer)  Body: { clientId, title, days[] }
 export const createDietPlan = asyncHandler(async (req, res) => {
-    const { clientId, title, days, todayDayId } = req.body
+    const { clientId, title, days, todayDayId, dayMode } = req.body
     if (!clientId || !title) throw ApiError.badRequest('clientId and title are required')
     await assertTrainerOwnsClient(req, clientId)
 
+    const resolvedDayMode = dayMode === 'custom' ? 'custom' : 'same'
     const plan = await DietPlan.create({
         client: clientId,
         trainer: req.trainer._id,
         title,
-        days: await normalizeDays(days || []),
+        dayMode: resolvedDayMode,
+        days: await normalizeDays(days || [], resolvedDayMode),
         todayDayId: todayDayId || null,
         status: 'draft',
     })
@@ -112,6 +121,7 @@ export const createFromTemplate = asyncHandler(async (req, res) => {
         title: title || tpl.name,
         sourceTemplate: tpl._id,
         status: 'draft',
+        dayMode: 'same',
         days: [{
             day: 'Everyday',
             meals: tpl.meals.map((m) => ({
@@ -119,10 +129,13 @@ export const createFromTemplate = asyncHandler(async (req, res) => {
                 time: m.time,
                 notes: m.notes,
                 taskKey: null,
-                items: m.items.map((it) => ({
-                    food: it.food,
-                    foodCode: it.foodCode,
-                    qty: it.qty,
+                options: m.options.map((o) => ({
+                    label: o.label,
+                    items: o.items.map((it) => ({
+                        food: it.food,
+                        foodCode: it.foodCode,
+                        qty: it.qty,
+                    })),
                 })),
             })),
         }],
@@ -137,7 +150,8 @@ export const updateDietPlan = asyncHandler(async (req, res) => {
     if (req.user.role !== 'trainer') throw ApiError.forbidden('Only the trainer can edit a plan')
 
     if (req.body.title !== undefined) plan.title = req.body.title
-    if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days)
+    if (req.body.dayMode !== undefined) plan.dayMode = req.body.dayMode === 'custom' ? 'custom' : 'same'
+    if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days, plan.dayMode)
     if (req.body.todayDayId !== undefined) plan.todayDayId = req.body.todayDayId || null
     await plan.save()
     res.json(await serializeDietPlan(plan))
@@ -157,6 +171,35 @@ export const publishDietPlan = asyncHandler(async (req, res) => {
     )
     plan.status = 'published'
     plan.publishedAt = new Date()
+    await plan.save()
+    res.json(await serializeDietPlan(plan))
+})
+
+// PATCH /api/clients/:clientId/diet-plan/select-option   Body: { mealId, optionId }
+// The client (or their trainer) chooses which option of a meal to follow.
+// A standing per-weekday preference — see DietPlan.js mealSchema comment.
+export const selectMealOption = asyncHandler(async (req, res) => {
+    const clientId = req.params.clientId === 'me' ? req.client?._id : req.params.clientId
+    if (!clientId) throw ApiError.badRequest('Unknown client')
+    if (req.user.role === 'client' && String(clientId) !== String(req.client._id)) throw ApiError.forbidden()
+    if (req.user.role === 'trainer') await assertTrainerOwnsClient(req, clientId)
+
+    const { mealId, optionId } = req.body
+    if (!mealId || !optionId) throw ApiError.badRequest('mealId and optionId are required')
+
+    const plan = await DietPlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 })
+    if (!plan) throw ApiError.notFound('No diet plan for this client yet')
+
+    let meal = null
+    for (const day of plan.days) {
+        meal = day.meals.id(mealId)
+        if (meal) break
+    }
+    if (!meal) throw ApiError.notFound('Meal not found')
+    const option = meal.options.id(optionId)
+    if (!option) throw ApiError.badRequest('That option does not belong to this meal')
+
+    meal.selectedOptionId = option._id
     await plan.save()
     res.json(await serializeDietPlan(plan))
 })

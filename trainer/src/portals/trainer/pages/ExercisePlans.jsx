@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin } from 'antd'
 import {
     PlusOutlined,
@@ -27,7 +28,9 @@ let exSeq = 100
 export default function ExercisePlans() {
     const { message } = App.useApp()
     const { exercises: customExercises, updateExercise, removeExercise } = useLibrary()
-    const [clientId, setClientId] = useState(null)
+    // ?client=<id> pre-selects the client (used by the Requests page's "Open plan").
+    const [searchParams] = useSearchParams()
+    const [clientId, setClientId] = useState(() => searchParams.get('client'))
     const [clientList, setClientList] = useState([])
     const [days, setDays] = useState([])
     const [planId, setPlanId] = useState(null)
@@ -39,7 +42,7 @@ export default function ExercisePlans() {
         api.get('/clients').then((res) => {
             const items = res.items || []
             setClientList(items)
-            if (items.length > 0) setClientId(items[0].id)
+            if (items.length > 0) setClientId((cur) => (items.some((c) => c.id === cur) ? cur : items[0].id))
         }).catch(() => { })
     }, [])
 

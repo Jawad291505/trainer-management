@@ -13,7 +13,7 @@ export function CorrectionsProvider({ children }) {
 
     const addRequest = useCallback(async (data) => {
         const created = await api.post('/corrections', data)
-        setRequests((prev) => [created, ...prev])
+        setRequests((prev) => (prev.some((r) => r.id === created.id) ? prev : [created, ...prev]))
         return created
     }, [])
 

@@ -140,13 +140,16 @@ async function seedDietPlanTemplates() {
             name: m.name,
             time: m.time || '',
             notes: m.notes || '',
-            items: m.items.map((it) => ({
-                food: byCode.get(it.foodId)?._id || null,
-                foodCode: it.foodId,
-                food_name: it.food || byCode.get(it.foodId)?.name || '',
-                qty: it.qty,
-                unit: it.unit || 'g',
-            })),
+            options: [{
+                label: 'Option 1',
+                items: m.items.map((it) => ({
+                    food: byCode.get(it.foodId)?._id || null,
+                    foodCode: it.foodId,
+                    food_name: it.food || byCode.get(it.foodId)?.name || '',
+                    qty: it.qty,
+                    unit: it.unit || 'g',
+                })),
+            }],
         }))
 
         await DietPlanTemplate.updateOne(

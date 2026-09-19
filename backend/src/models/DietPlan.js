@@ -18,6 +18,18 @@ const itemSchema = new mongoose.Schema(
     { _id: false },
 )
 
+// A meal can offer several interchangeable options (e.g. Breakfast Option 1/2/3),
+// each with its own food items. The client picks one via selectMealOption() —
+// see dietPlans.controller.js — stored as `selectedOptionId` below, standing
+// per-weekday (the same as `day` itself is a weekday template, not a date).
+const optionSchema = new mongoose.Schema(
+    {
+        label: { type: String, default: 'Option 1', trim: true },
+        items: { type: [itemSchema], default: [] },
+    },
+    { _id: true },
+)
+
 const mealSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
@@ -25,7 +37,10 @@ const mealSchema = new mongoose.Schema(
         notes: { type: String, default: '' },
         // Links a meal to a client daily-checklist task key (user mockData taskId).
         taskKey: { type: String, default: null },
-        items: { type: [itemSchema], default: [] },
+        options: { type: [optionSchema], default: [] },
+        // Falls back to the first option when null/unset/stale (see
+        // dietPlan.service.js resolveMeals -> pickSelectedOption).
+        selectedOptionId: { type: mongoose.Schema.Types.ObjectId, default: null },
     },
     { _id: true },
 )
@@ -48,6 +63,13 @@ const dietPlanSchema = new mongoose.Schema(
 
         title: { type: String, required: true, trim: true }, // "Fat Loss — Week 6"
         status: { type: String, enum: DIET_PLAN_STATUS, default: 'draft', index: true },
+
+        // 'same': one shared meal set stored as a single "Everyday" day (no
+        // duplication across weekdays). 'custom': a real per-weekday entry in
+        // `days` for each of Monday–Sunday. Purely a UI-authoring concern —
+        // resolveTodayDay() already treats "everyday" as a fallback, so
+        // reading/resolving a plan needs no branching on this field.
+        dayMode: { type: String, enum: ['same', 'custom'], default: 'same' },
 
         // If this plan was seeded from an admin template, remember which one.
         sourceTemplate: { type: mongoose.Schema.Types.ObjectId, ref: 'DietPlanTemplate', default: null },

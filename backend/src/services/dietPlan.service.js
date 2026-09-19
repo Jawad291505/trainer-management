@@ -9,46 +9,77 @@ import {
     sumMacros,
 } from './nutrition.service.js'
 
+function resolveItems(items, thresholds, byCode) {
+    return (items || []).map((it) => {
+        const food = byCode.get(it.foodCode)
+        if (!food) {
+            return {
+                foodCode: it.foodCode,
+                name: it.food_name || 'Unknown food',
+                qty: it.qty,
+                qtyLabel: `${it.qty ?? ''}`,
+                unit: it.unit || '',
+                cal: 0, protein: 0, carbs: 0, fat: 0, gi: 0, gl: 0,
+                giLevel: 'low', glLevel: 'low',
+                missing: true,
+            }
+        }
+        const n = computeNutrition(food, it.qty)
+        return {
+            foodCode: food.code,
+            foodId: String(food._id),
+            name: food.name,
+            category: food.category,
+            qty: it.qty,
+            qtyLabel: formatQty(food, it.qty),
+            unit: food.unit,
+            step: food.step,
+            ...n,
+            giLevel: giLevel(n.gi, thresholds),
+            glLevel: glItemLevel(n.gl, thresholds),
+        }
+    })
+}
+
+// A meal's `selectedOptionId` wins when it names one of the meal's own
+// options; otherwise the first option is the default (also covers plans
+// saved before options existed, once wrapped by the migration script).
+function pickSelectedOption(options, selectedOptionId) {
+    if (!options.length) return null
+    if (selectedOptionId) {
+        const found = options.find((o) => o.id === String(selectedOptionId))
+        if (found) return found
+    }
+    return options[0]
+}
+
 async function resolveMeals(meals, thresholds, byCode) {
     return meals.map((meal) => {
-        const items = meal.items.map((it) => {
-            const food = byCode.get(it.foodCode)
-            if (!food) {
-                return {
-                    foodCode: it.foodCode,
-                    name: it.food_name || 'Unknown food',
-                    qty: it.qty,
-                    qtyLabel: `${it.qty ?? ''}`,
-                    unit: it.unit || '',
-                    cal: 0, protein: 0, carbs: 0, fat: 0, gi: 0, gl: 0,
-                    giLevel: 'low', glLevel: 'low',
-                    missing: true,
-                }
-            }
-            const n = computeNutrition(food, it.qty)
+        const options = (meal.options || []).map((opt) => {
+            const items = resolveItems(opt.items, thresholds, byCode)
+            const totals = sumMacros(items)
             return {
-                foodCode: food.code,
-                foodId: String(food._id),
-                name: food.name,
-                category: food.category,
-                qty: it.qty,
-                qtyLabel: formatQty(food, it.qty),
-                unit: food.unit,
-                step: food.step,
-                ...n,
-                giLevel: giLevel(n.gi, thresholds),
-                glLevel: glItemLevel(n.gl, thresholds),
+                id: opt._id ? String(opt._id) : undefined,
+                label: opt.label,
+                items,
+                totals,
+                optionGLLevel: glMealLevel(totals.gl, thresholds),
             }
         })
 
-        const totals = sumMacros(items)
+        // Top-level items/totals mirror the *selected* option so existing
+        // day/plan aggregate math (below) keeps working unchanged.
+        const selected = pickSelectedOption(options, meal.selectedOptionId)
+        const totals = selected ? selected.totals : sumMacros([])
         return {
             id: meal._id ? String(meal._id) : undefined,
             name: meal.name,
             time: meal.time,
             notes: meal.notes,
             taskKey: meal.taskKey,
-            items,
+            options,
+            selectedOptionId: selected ? selected.id : null,
+            items: selected ? selected.items : [],
             totals,
             mealGLLevel: glMealLevel(totals.gl, thresholds),
         }
@@ -64,7 +95,9 @@ async function resolveMeals(meals, thresholds, byCode) {
 export async function resolvePlanNutrition(plan) {
     const thresholds = await NutritionConfig.getDefault()
 
-    const codes = [...new Set(plan.meals.flatMap((m) => m.items.map((it) => it.foodCode)))]
+    const codes = [
+        ...new Set(plan.meals.flatMap((m) => (m.options || []).flatMap((o) => o.items.map((it) => it.foodCode)))),
+    ]
     const foods = await Food.find({ code: { $in: codes } })
     const byCode = new Map(foods.map((f) => [f.code, f]))
 
@@ -91,7 +124,11 @@ export async function resolveDietPlanNutrition(plan) {
 
     // Load every referenced food across every day in one query.
     const codes = [
-        ...new Set(plan.days.flatMap((d) => d.meals.flatMap((m) => m.items.map((it) => it.foodCode)))),
+        ...new Set(
+            plan.days.flatMap((d) =>
+                d.meals.flatMap((m) => (m.options || []).flatMap((o) => o.items.map((it) => it.foodCode))),
+            ),
+        ),
     ]
     const foods = await Food.find({ code: { $in: codes } })
     const byCode = new Map(foods.map((f) => [f.code, f]))

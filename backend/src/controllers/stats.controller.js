@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { getAdminStats, getMemberStats, getTrainerStats, getClientCompletion } from '../services/stats.service.js'
 import { Payment } from '../models/index.js'
+import { assertClientAccess } from '../utils/clientAccess.js'
 
 // GET /api/stats/admin   (admin) — dashboard + payment headline numbers
 export const adminStats = asyncHandler(async (_req, res) => {
@@ -37,7 +38,8 @@ export const trainerStats = asyncHandler(async (req, res) => {
 
 // GET /api/stats/client/completion?days=7   (client, or trainer/admin via ?client=)
 export const clientCompletion = asyncHandler(async (req, res) => {
-    const clientId = req.user.role === 'client' ? req.client._id : req.query.client
+    const client = await assertClientAccess(req, req.query.client)
+    const clientId = client._id
     const days = Number(req.query.days) || 7
     res.json(await getClientCompletion(clientId, days))
 })

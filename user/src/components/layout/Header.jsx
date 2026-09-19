@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext'
 
 const PAGE_TARGETS = [
     { value: 'page:/diet', label: 'My Diet Plan', sub: 'Meals & nutrition', path: '/diet' },
+    { value: 'page:/grocery-list', label: 'Grocery List', sub: 'Weekly shopping list', path: '/grocery-list' },
     { value: 'page:/exercises', label: 'My Exercise Plan', sub: 'Workouts', path: '/exercises' },
     { value: 'page:/schedule', label: 'My Schedule', sub: 'Today & upcoming', path: '/schedule' },
     { value: 'page:/progress', label: 'My Progress', sub: 'Weight & consistency', path: '/progress' },

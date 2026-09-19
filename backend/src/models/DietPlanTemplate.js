@@ -21,12 +21,22 @@ const templateItemSchema = new mongoose.Schema(
     { _id: false },
 )
 
+// Mirrors DietPlan's optionSchema — templates can also offer multiple options
+// per meal, copied verbatim (including all options) into a fresh client plan.
+const templateOptionSchema = new mongoose.Schema(
+    {
+        label: { type: String, default: 'Option 1', trim: true },
+        items: { type: [templateItemSchema], default: [] },
+    },
+    { _id: true },
+)
+
 const templateMealSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true }, // Breakfast / Lunch / ...
         time: { type: String, default: '' }, // "08:00"
         notes: { type: String, default: '' },
-        items: { type: [templateItemSchema], default: [] },
+        options: { type: [templateOptionSchema], default: [] },
     },
     { _id: true },
 )

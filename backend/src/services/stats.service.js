@@ -7,6 +7,8 @@ import {
     FollowUp,
     DailyLog,
 } from '../models/index.js'
+import { bucketFor } from './followUp.service.js'
+import { pktStartOfDay } from '../utils/pktTime.js'
 
 // ---- Admin dashboard + payments stats ----
 // Ports admin/src/services/mockData.js `getStats()`.
@@ -142,11 +144,13 @@ export async function getTrainerStats(trainerId) {
         Client.countDocuments({ trainer: trainerId }),
         Client.countDocuments({ trainer: trainerId, status: 'active' }),
         Client.countDocuments({ trainer: trainerId, status: 'active', progress: { $lt: 45 } }),
-        FollowUp.find({ trainer: trainerId }, 'bucket'),
+        FollowUp.find({ trainer: trainerId }, 'date status completedAt'),
     ])
 
-    const pendingFollowUps = followUps.filter((f) => f.bucket === 'overdue' || f.bucket === 'today').length
-    const completedFollowUps = followUps.filter((f) => f.bucket === 'completed').length
+    // Buckets are derived from date + status (the stored value goes stale).
+    const buckets = followUps.map(bucketFor)
+    const pendingFollowUps = buckets.filter((b) => b === 'overdue' || b === 'today').length
+    const completedFollowUps = buckets.filter((b) => b === 'completed').length
 
     return { total, active, attention, pendingFollowUps, completedFollowUps }
 }
@@ -154,9 +158,8 @@ export async function getTrainerStats(trainerId) {
 // ---- Client compliance / weekly completion ----
 // Ports user MyProgress: weeklyCompletion[] + complianceData[] + getTodayProgress.
 export async function getClientCompletion(clientId, days = 7) {
-    const since = new Date()
-    since.setHours(0, 0, 0, 0)
-    since.setDate(since.getDate() - (days - 1))
+    // DailyLog.date is a PKT day bucket, so the window must be PKT-aligned too.
+    const since = new Date(pktStartOfDay().getTime() - (days - 1) * 24 * 60 * 60 * 1000)
 
     const logs = await DailyLog.find({ client: clientId, date: { $gte: since } }).sort({ date: 1 })
 

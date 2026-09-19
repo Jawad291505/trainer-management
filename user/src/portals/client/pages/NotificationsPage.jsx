@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Segmented, Button, App } from 'antd'
 import {
     ThunderboltOutlined,
@@ -21,8 +22,12 @@ const ICONS = {
     progress: RiseOutlined,
 }
 
+// Where a notification's `ref.kind` should take the client when clicked.
+const ROUTES = { followup: '/follow-ups', conversation: '/messages', correction: '/requests' }
+
 export default function NotificationsPage() {
     const { message } = App.useApp()
+    const navigate = useNavigate()
     const [data, setData] = useState([])
     const [filter, setFilter] = useState('all')
     const [loading, setLoading] = useState(true)
@@ -33,9 +38,24 @@ export default function NotificationsPage() {
 
     const filtered = data.filter((n) => (filter === 'all' ? true : filter === 'unread' ? n.unread : !n.unread))
 
-    const markAll = () => {
-        setData((prev) => prev.map((n) => ({ ...n, unread: false })))
-        message.success('All marked as read')
+    const markAll = async () => {
+        try {
+            await api.patch('/notifications/read-all')
+            setData((prev) => prev.map((n) => ({ ...n, unread: false })))
+            message.success('All marked as read')
+        } catch (err) {
+            message.error(err.message || 'Could not mark notifications as read')
+        }
+    }
+
+    // Open the thing a notification is about, and mark it read on the way.
+    const open = (n) => {
+        if (n.unread) {
+            setData((prev) => prev.map((x) => (x.id === n.id ? { ...x, unread: false } : x)))
+            api.patch(`/notifications/${n.id}/read`).catch(() => { })
+        }
+        const target = ROUTES[n.ref?.kind]
+        if (target) navigate(target)
     }
 
     if (loading) return <PageSpin />
@@ -67,7 +87,12 @@ export default function NotificationsPage() {
                     {filtered.map((n) => {
                         const Icon = ICONS[n.type] || MessageOutlined
                         return (
-                            <div key={n.id} className="flex items-start gap-4 p-4" style={{ background: n.unread ? 'var(--color-surface-secondary)' : 'transparent' }}>
+                            <div
+                                key={n.id}
+                                className="flex cursor-pointer items-start gap-4 p-4"
+                                style={{ background: n.unread ? 'var(--color-surface-secondary)' : 'transparent' }}
+                                onClick={() => open(n)}
+                            >
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
                                     <Icon />
                                 </div>

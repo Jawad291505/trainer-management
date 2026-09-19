@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Progress, Input, Alert, Button, Modal, App } from 'antd'
+import { Progress, Input, Alert, Button, Modal, App, Segmented } from 'antd'
 import {
   ClockCircleOutlined,
   CheckOutlined,
@@ -22,6 +22,7 @@ import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { getFood } from '../../../services/foodLibrary'
 import { computeNutrition, formatQty, glMealLevel } from '../../../utils/nutrition'
+import { formatMealTime } from '../../../utils/time'
 
 // Use the pre-computed nutrition from the API response, or fall back to local resolution
 function resolveItem(it) {
@@ -105,6 +106,7 @@ export default function MyDiet() {
   const [cheatItems, setCheatItems] = useState([''])
   const [savingCheat, setSavingCheat] = useState(false)
   const [revertingMealId, setRevertingMealId] = useState(null)
+  const [switchingOptionMealId, setSwitchingOptionMealId] = useState(null)
   const [togglingKey, setTogglingKey] = useState(null) // `${mealId}:${index}` currently syncing
   // Diabetic glucose readings, keyed by `${mealId}:${phase}` — for selectedDate.
   const [glucose, setGlucose] = useState({})
@@ -239,6 +241,22 @@ export default function MyDiet() {
     }
   }
 
+  // A meal with several options — the client picks which to follow. A standing
+  // preference (kept until changed again), not a one-off for just this date.
+  const selectMealOption = async (mealId, optionId) => {
+    if (!client || switchingOptionMealId) return
+    setSwitchingOptionMealId(mealId)
+    try {
+      const clientId = client._id || client.id
+      const updated = await api.patch(`/clients/${clientId}/diet-plan/select-option`, { mealId, optionId })
+      setDietPlan(updated)
+    } catch (err) {
+      message.error(err.message || 'Failed to switch option — please try again')
+    } finally {
+      setSwitchingOptionMealId(null)
+    }
+  }
+
   const openGlucoseModal = (mealId, mealName, phase) => {
     if (isFuture) return
     const existing = glucose[`${mealId}:${phase}`]
@@ -347,7 +365,12 @@ export default function MyDiet() {
   return (
     <div>
       <PageHeader title="My Diet Plan" subtitle={dietPlan?.title || 'No diet plan assigned'}>
-        <RequestCorrection area="diet" items={(activeDay?.meals || []).map((m) => `${m.name} — ${m.time}`)} />
+        <RequestCorrection
+          area="diet"
+          targetKind="meal"
+          targetDate={selectedDate}
+          items={(activeDay?.meals || []).map((m) => ({ label: `${m.name} — ${m.time}`, refId: m.id || m._id }))}
+        />
       </PageHeader>
 
       {/* Trainer attribution — makes the plan feel assigned, not generic */}
@@ -447,7 +470,7 @@ export default function MyDiet() {
                   <div>
                     <div className="font-bold text-text-primary">{meal.name}</div>
                     <div className="flex items-center gap-1 text-xs text-text-muted">
-                      <ClockCircleOutlined /> {meal.time}
+                      <ClockCircleOutlined /> {formatMealTime(meal.time)}
                     </div>
                   </div>
                 </div>
@@ -463,6 +486,19 @@ export default function MyDiet() {
                   </span>
                 </div>
               </div>
+
+              {/* Option picker — shown only when the trainer set up alternatives */}
+              {!cheat && meal.options?.length > 1 && (
+                <div className="mt-3">
+                  <Segmented
+                    size="small"
+                    value={meal.selectedOptionId}
+                    onChange={(val) => selectMealOption(meal.id, val)}
+                    disabled={switchingOptionMealId === meal.id}
+                    options={meal.options.map((o) => ({ label: o.label, value: o.id }))}
+                  />
+                </div>
+              )}
 
               {/* Meal GI/GL alert */}
               {!cheat && glLevel !== 'low' && (

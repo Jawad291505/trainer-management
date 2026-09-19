@@ -43,12 +43,25 @@ export const LIBRARY_RESOURCE_CATEGORIES = [
 ]
 
 // trainer/src/services/mockData.js -> followUps buckets
-export const FOLLOWUP_BUCKETS = ['overdue', 'today', 'upcoming', 'completed']
+// Bucket is the display grouping derived from date + status (see
+// services/followUp.service.js); 'missed' is a trainer-marked no-show.
+export const FOLLOWUP_BUCKETS = ['overdue', 'today', 'upcoming', 'completed', 'missed']
+
+// FollowUp.status — lifecycle: scheduled -> completed | missed.
+export const FOLLOWUP_STATUS = ['scheduled', 'completed', 'missed']
+
+// FollowUp.type — how the check-in happens.
+export const FOLLOWUP_TYPES = ['check-in', 'call', 'in-person', 'plan-review']
 
 // {trainer,user}/src/services/mockData.js -> correctionAreaLabels / correctionTypeLabels
 export const CORRECTION_AREAS = ['diet', 'exercise', 'progress', 'general']
 export const CORRECTION_TYPES = ['swap', 'too-hard', 'injury', 'wrong-data', 'other']
 export const CORRECTION_STATUS = ['open', 'resolved', 'declined']
+// What a request points at (so the trainer can jump straight to it), how urgent
+// it is, and how long an open one may sit before it is flagged as overdue.
+export const CORRECTION_TARGET_KINDS = ['meal', 'exercise', 'weigh-in']
+export const CORRECTION_PRIORITY = ['normal', 'high']
+export const CORRECTION_STALE_HOURS = 48
 
 // {trainer,user}/src/services/mockData.js -> progressPhotoAngleLabels
 export const PROGRESS_PHOTO_ANGLES = ['front', 'side', 'back', 'other']

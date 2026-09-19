@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, App } from 'antd'
 import dayjs from 'dayjs'
-import { MessageOutlined, RightOutlined, FireOutlined } from '@ant-design/icons'
+import { MessageOutlined, RightOutlined, FireOutlined, CalendarOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import ChartCard from '../../../components/common/ChartCard'
 import GrowthChart from '../../../components/charts/GrowthChart'
@@ -12,6 +12,8 @@ import ProgressRing from '../components/ProgressRing'
 import TaskItem from '../components/TaskItem'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
+import { listFollowUps } from '../../../services/followUps'
+import { formatTime } from '../../../utils/time'
 
 export default function Dashboard() {
     const navigate = useNavigate()
@@ -21,14 +23,19 @@ export default function Dashboard() {
     const [tasks, setTasks] = useState([])
     const [weightData, setWeightData] = useState([])
     const [trainerInfo, setTrainerInfo] = useState(null)
+    const [nextFollowUp, setNextFollowUp] = useState(null)
 
     useEffect(() => {
         async function load() {
             try {
-                const [daily, weight] = await Promise.all([
+                const [daily, weight, followUps] = await Promise.all([
                     api.get('/progress/daily'),
                     api.get('/progress/weight'),
+                    listFollowUps().catch(() => []),
                 ])
+                setNextFollowUp(
+                    followUps.filter((f) => f.status === 'scheduled').sort((a, b) => a.date.localeCompare(b.date))[0] || null,
+                )
                 setTasks(daily.tasks || [])
                 setWeightData((weight.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })))
                 // Get trainer info from client profile
@@ -81,7 +88,20 @@ export default function Dashboard() {
                             {trainerSpec && <div className="text-xs text-text-muted">{trainerSpec}</div>}
                         </div>
                     </div>
-                    <Button type="primary" icon={<MessageOutlined />} className="mt-4" onClick={() => navigate('/messages')}>Message Trainer</Button>
+                    <button
+                        onClick={() => navigate('/follow-ups')}
+                        className="mt-4 flex items-center justify-between rounded-xl px-3 py-2.5 text-left"
+                        style={{ background: 'var(--color-surface-secondary)' }}
+                    >
+                        <span className="flex items-center gap-2 text-sm text-text-secondary">
+                            <CalendarOutlined style={{ color: 'var(--color-text-muted)' }} />
+                            {nextFollowUp
+                                ? <>Next follow-up: <b className="text-text-primary">{dayjs(nextFollowUp.date).format('ddd, D MMM')}{nextFollowUp.time ? ` · ${formatTime(nextFollowUp.time)}` : ''}</b></>
+                                : 'No follow-up scheduled yet'}
+                        </span>
+                        <RightOutlined style={{ fontSize: 11, color: 'var(--color-text-muted)' }} />
+                    </button>
+                    <Button type="primary" icon={<MessageOutlined />} className="mt-3" onClick={() => navigate('/messages')}>Message Trainer</Button>
                     <div className="mt-4 grid grid-cols-3 gap-3 border-t pt-4 text-center" style={{ borderColor: 'var(--color-border)' }}>
                         <div><div className="text-lg font-extrabold text-text-primary">{client?.progress || 0}%</div><div className="text-[11px] text-text-muted">Goal progress</div></div>
                         <div><div className="text-lg font-extrabold text-text-primary">{client?.weight || '—'}kg</div><div className="text-[11px] text-text-muted">Current</div></div>

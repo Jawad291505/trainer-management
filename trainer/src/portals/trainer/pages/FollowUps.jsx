@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Segmented, Button, App, Modal, Form, Select, DatePicker, Input } from 'antd'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Segmented, Button, App, Dropdown, Tag } from 'antd'
 import dayjs from 'dayjs'
 import {
     PlusOutlined,
@@ -8,87 +8,136 @@ import {
     MessageOutlined,
     CalendarOutlined,
     WarningFilled,
+    MoreOutlined,
+    LockOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import EmptyState from '../../../components/common/EmptyState'
 import UserAvatar from '../../../components/common/UserAvatar'
 import PageSpin from '../../../components/common/PageSpin'
+import { ScheduleFollowUpModal, CompleteFollowUpModal } from '../components/FollowUpModals'
 import { api } from '../../../services/api'
+import { FOLLOWUP_BUCKETS as BUCKETS, FOLLOWUP_TYPE_LABELS } from '../../../constants/followUp'
+import { formatTime } from '../../../utils/time'
 
-const BUCKETS = [
-    { key: 'today', label: 'Due Today' },
-    { key: 'upcoming', label: 'Upcoming' },
-    { key: 'overdue', label: 'Overdue' },
-    { key: 'completed', label: 'Completed' },
-]
+const byDate = (a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
 
 export default function FollowUps() {
-    const { message } = App.useApp()
+    const { message, modal } = App.useApp()
     const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
     const [data, setData] = useState([])
     const [clientList, setClientList] = useState([])
     const [active, setActive] = useState('today')
-    const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [scheduling, setScheduling] = useState(null) // { followUp?, clientId? }
+    const [completing, setCompleting] = useState(null) // follow-up being completed
 
     useEffect(() => {
-        Promise.all([api.get('/followups'), api.get('/clients')]).then(([f, c]) => {
-            setData(f.items || [])
-            setClientList(c.items || [])
-        }).catch(() => { }).finally(() => setLoading(false))
+        Promise.all([api.get('/followups'), api.get('/clients')])
+            .then(([f, c]) => {
+                const items = f.items || []
+                setData(items)
+                setClientList(c.items || [])
+                // Land on whatever needs attention first.
+                const count = (key) => items.filter((i) => i.bucket === key).length
+                setActive(count('overdue') ? 'overdue' : count('today') ? 'today' : 'upcoming')
+
+                // Deep link from a client profile: /follow-ups?new=<clientId>
+                const preset = searchParams.get('new')
+                if (preset) {
+                    setScheduling({ clientId: preset })
+                    setSearchParams({}, { replace: true })
+                }
+            })
+            .catch((err) => message.error(err.message || 'Could not load follow-ups'))
+            .finally(() => setLoading(false))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
-    const [form] = Form.useForm()
-
-    const openModal = () => {
-        form.setFieldsValue({ clientId: undefined, date: dayjs().add(1, 'day'), note: 'Weekly progress review' })
-        setOpen(true)
-    }
-
-    const createFollowUp = async () => {
-        const v = await form.validateFields()
-        const client = clientList.find((c) => c.id === v.clientId)
-        const diff = v.date.startOf('day').diff(dayjs().startOf('day'), 'day')
-        const bucket = diff < 0 ? 'overdue' : diff === 0 ? 'today' : 'upcoming'
-        setData((prev) => [
-            {
-                id: `FU-${Date.now()}`,
-                clientId: client.id,
-                clientName: client.name,
-                avatarColor: client.avatarColor,
-                goal: client.goal,
-                date: v.date.format('YYYY-MM-DD'),
-                bucket,
-                note: v.note || 'Weekly progress review',
-            },
-            ...prev,
-        ])
-        setOpen(false)
-        setActive(bucket)
-        message.success('Follow-up scheduled')
-    }
 
     const counts = BUCKETS.reduce((acc, b) => {
         acc[b.key] = data.filter((f) => f.bucket === b.key).length
         return acc
     }, {})
 
-    const list = data.filter((f) => f.bucket === active)
+    // Completed / missed read newest-first; everything else soonest-first.
+    const list = data
+        .filter((f) => f.bucket === active)
+        .sort((a, b) => (active === 'completed' || active === 'missed' ? byDate(b, a) : byDate(a, b)))
 
-    const complete = (id) => {
-        setData((prev) => prev.map((f) => (f.id === id ? { ...f, bucket: 'completed' } : f)))
-        message.success('Follow-up completed')
+    const upsert = (...rows) =>
+        setData((prev) => {
+            const map = new Map(prev.map((f) => [f.id, f]))
+            rows.filter(Boolean).forEach((r) => map.set(r.id, r))
+            return [...map.values()]
+        })
+
+    const onScheduled = (saved) => {
+        upsert(saved)
+        setScheduling(null)
+        setActive(saved.bucket)
     }
+
+    const onCompleted = (completed, next) => {
+        upsert(completed, next)
+        setCompleting(null)
+        setActive('completed')
+    }
+
+    const setStatus = async (f, status) => {
+        try {
+            const saved = await api.patch(`/followups/${f.id}`, { status })
+            upsert(saved)
+            message.success(status === 'missed' ? 'Marked as missed' : 'Follow-up reopened')
+        } catch (err) {
+            message.error(err.message || 'Could not update follow-up')
+        }
+    }
+
+    const remove = (f) =>
+        modal.confirm({
+            title: 'Delete this follow-up?',
+            content: `${f.clientName} — ${dayjs(f.date).format('D MMM YYYY')}`,
+            okText: 'Delete',
+            okButtonProps: { danger: true },
+            centered: true,
+            onOk: async () => {
+                try {
+                    await api.delete(`/followups/${f.id}`)
+                    setData((prev) => prev.filter((x) => x.id !== f.id))
+                    message.success('Follow-up deleted')
+                } catch (err) {
+                    message.error(err.message || 'Could not delete follow-up')
+                }
+            },
+        })
+
+    const menuFor = (f) => ({
+        items: [
+            { key: 'edit', label: 'Edit / reschedule' },
+            f.status === 'scheduled'
+                ? { key: 'missed', label: 'Mark as missed' }
+                : { key: 'reopen', label: 'Reopen' },
+            { key: 'delete', label: 'Delete', danger: true },
+        ],
+        onClick: ({ key }) => {
+            if (key === 'edit') setScheduling({ followUp: f })
+            else if (key === 'missed') setStatus(f, 'missed')
+            else if (key === 'reopen') setStatus(f, 'scheduled')
+            else if (key === 'delete') remove(f)
+        },
+    })
 
     if (loading) return <PageSpin />
 
     return (
         <div>
             <PageHeader title="Follow-ups" subtitle="Stay on top of client check-ins.">
-                <Button type="primary" icon={<PlusOutlined />} onClick={openModal}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setScheduling({})}>
                     New follow-up
                 </Button>
-            </PageHeader >
+            </PageHeader>
 
             <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <StatCard label="Due Today" value={counts.today} accent="var(--color-info)" />
@@ -105,75 +154,72 @@ export default function FollowUps() {
                 />
             </div>
 
-            {
-                list.length === 0 ? (
-                    <div className="app-card">
-                        <EmptyState title="Nothing here" description="No follow-ups in this bucket." />
-                    </div>
-                ) : (
-                    <div className="flex flex-col gap-3">
-                        {list.map((f) => {
-                            const overdue = f.bucket === 'overdue'
-                            const done = f.bucket === 'completed'
-                            return (
-                                <div
-                                    key={f.id}
-                                    className="app-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
-                                    style={overdue ? { borderLeft: '3px solid var(--color-danger)' } : undefined}
-                                >
-                                    <button className="flex flex-1 items-center gap-3 text-left" onClick={() => navigate(`/clients/${f.clientId}`)}>
-                                        <UserAvatar name={f.clientName} color={f.avatarColor} size={42} />
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="truncate font-semibold text-text-primary transition-colors hover:text-primary">{f.clientName}</span>
-                                                {overdue && <WarningFilled style={{ color: 'var(--color-danger)', fontSize: 12 }} />}
-                                            </div>
-                                            <div className="text-xs text-text-muted">{f.goal} · {f.note}</div>
+            {list.length === 0 ? (
+                <div className="app-card">
+                    <EmptyState title="Nothing here" description="No follow-ups in this bucket." />
+                </div>
+            ) : (
+                <div className="flex flex-col gap-3">
+                    {list.map((f) => {
+                        const overdue = f.bucket === 'overdue'
+                        const open = f.status === 'scheduled'
+                        return (
+                            <div
+                                key={f.id}
+                                className="app-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
+                                style={overdue ? { borderLeft: '3px solid var(--color-danger)' } : undefined}
+                            >
+                                <button className="flex flex-1 items-start gap-3 text-left" onClick={() => navigate(`/clients/${f.clientId}`)}>
+                                    <UserAvatar name={f.clientName} color={f.avatarColor} size={42} />
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="truncate font-semibold text-text-primary transition-colors hover:text-primary">{f.clientName}</span>
+                                            <Tag className="m-0">{FOLLOWUP_TYPE_LABELS[f.type] || f.type}</Tag>
+                                            {overdue && <WarningFilled style={{ color: 'var(--color-danger)', fontSize: 12 }} />}
                                         </div>
-                                    </button>
-                                    <div className="flex items-center gap-2">
-                                        <span className="flex items-center gap-1.5 text-xs" style={{ color: overdue ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
-                                            <CalendarOutlined /> {f.date}
-                                        </span>
-                                        <Button size="small" icon={<MessageOutlined />} onClick={() => navigate('/messages')} />
-                                        {!done && (
-                                            <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => complete(f.id)}>
-                                                Complete
-                                            </Button>
+                                        <div className="text-xs text-text-muted">{f.goal}{f.note ? ` · ${f.note}` : ''}</div>
+                                        {f.outcome && <div className="mt-1 text-xs text-text-secondary">Outcome: {f.outcome}</div>}
+                                        {f.privateNote && (
+                                            <div className="mt-1 flex items-center gap-1 text-xs italic text-text-muted">
+                                                <LockOutlined /> {f.privateNote}
+                                            </div>
                                         )}
                                     </div>
+                                </button>
+                                <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1.5 text-xs" style={{ color: overdue ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
+                                        <CalendarOutlined /> {dayjs(f.date).format('ddd, D MMM')}{f.time ? ` · ${formatTime(f.time)}` : ''}
+                                    </span>
+                                    <Button size="small" icon={<MessageOutlined />} onClick={() => navigate('/messages')} />
+                                    {open && (
+                                        <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => setCompleting(f)}>
+                                            Complete
+                                        </Button>
+                                    )}
+                                    <Dropdown menu={menuFor(f)} trigger={['click']}>
+                                        <Button size="small" icon={<MoreOutlined />} />
+                                    </Dropdown>
                                 </div>
-                            )
-                        })}
-                    </div>
-                )
-            }
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
 
-            <Modal
-                title="New follow-up"
-                open={open}
-                onCancel={() => setOpen(false)}
-                onOk={createFollowUp}
-                okText="Schedule"
-                centered
-            >
-                <Form form={form} layout="vertical" className="mt-4" requiredMark={false}>
-                    <Form.Item name="clientId" label="Client" rules={[{ required: true, message: 'Pick a client' }]}>
-                        <Select
-                            showSearch
-                            optionFilterProp="label"
-                            placeholder="Select a client"
-                            options={clientList.map((c) => ({ value: c.id, label: c.name }))}
-                        />
-                    </Form.Item>
-                    <Form.Item name="date" label="Date" rules={[{ required: true, message: 'Pick a date' }]}>
-                        <DatePicker className="w-full" format="YYYY-MM-DD" />
-                    </Form.Item>
-                    <Form.Item name="note" label="Note">
-                        <Input.TextArea rows={2} placeholder="What is this check-in about?" />
-                    </Form.Item>
-                </Form>
-            </Modal>
-        </div >
+            <ScheduleFollowUpModal
+                open={!!scheduling}
+                followUp={scheduling?.followUp}
+                initialClientId={scheduling?.clientId}
+                clients={clientList}
+                onClose={() => setScheduling(null)}
+                onSaved={onScheduled}
+            />
+            <CompleteFollowUpModal
+                open={!!completing}
+                followUp={completing}
+                onClose={() => setCompleting(null)}
+                onDone={onCompleted}
+            />
+        </div>
     )
 }
