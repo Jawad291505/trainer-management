@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Select, Segmented, Progress, Dropdown, Button, App, Modal, Form, Input, InputNumber } from 'antd'
+import { Select, Segmented, Progress, Dropdown, Button } from 'antd'
 import {
     AppstoreOutlined,
     UnorderedListOutlined,
@@ -10,7 +10,6 @@ import {
     ThunderboltOutlined,
     MessageOutlined,
     WarningFilled,
-    PlusOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
@@ -20,59 +19,25 @@ import StatusBadge from '../../../components/common/StatusBadge'
 import UserAvatar from '../../../components/common/UserAvatar'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import ClientCard from '../components/ClientCard'
-import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
-
-const CLIENT_GOALS = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
-const OTHER_GOAL = '__other__'
 
 export default function Clients() {
     const navigate = useNavigate()
-    const { message } = App.useApp()
-    const { user } = useAuth()
     const [data, setData] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
     const [view, setView] = useState('table')
-    const [addOpen, setAddOpen] = useState(false)
-    const [addSaving, setAddSaving] = useState(false)
-    const [form] = Form.useForm()
-    const wGoal = Form.useWatch('goal', form)
 
-    useEffect(() => {
-        api.get('/clients').then((res) => setData(res.items || [])).catch(() => { }).finally(() => setLoading(false))
+    const load = useCallback(() => {
+        setLoading(true)
+        setLoadError(null)
+        api.get('/clients').then((res) => setData(res.items || [])).catch(setLoadError).finally(() => setLoading(false))
     }, [])
-
-    const openAdd = () => {
-        form.resetFields()
-        form.setFieldsValue({ goal: 'Fat Loss', plan: 'Standard' })
-        setAddOpen(true)
-    }
-
-    const createClient = async () => {
-        const v = await form.validateFields()
-        setAddSaving(true)
-        try {
-            const goal = v.goal === OTHER_GOAL ? v.customGoal.trim() : v.goal
-            // The backend auto-assigns to this trainer via the auth context
-            const created = await api.post('/clients', {
-                name: v.name, email: v.email, phone: v.phone,
-                goal, plan: v.plan,
-                startWeight: v.weight, weight: v.weight, target: v.target,
-            })
-            // Re-fetch to get the full list with populated trainer name
-            const res = await api.get('/clients')
-            setData(res.items || [])
-            setAddOpen(false)
-            message.success(`${v.name.trim()} added`)
-        } catch (err) {
-            message.error(err.message)
-        } finally {
-            setAddSaving(false)
-        }
-    }
+    useEffect(() => { load() }, [load])
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -130,12 +95,11 @@ export default function Clients() {
     ]
 
     if (loading) return <LoadingSkeleton />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load your clients" error={loadError} onRetry={load} /></div>
 
     return (
         <div>
-            <PageHeader title="My Clients" subtitle={`${filtered.length} clients assigned to you`}>
-                <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Add client</Button>
-            </PageHeader>
+            <PageHeader title="My Clients" subtitle={`${filtered.length} clients assigned to you`} />
             <FilterBar>
                 <SearchInput value={search} onChange={setSearch} placeholder="Search clients…" />
                 <Select value={status} onChange={setStatus} style={{ width: 150 }} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
@@ -157,23 +121,6 @@ export default function Clients() {
                     <div className="grid grid-cols-1 gap-4 sm:hidden">{filtered.map((c) => <ClientCard key={c.id} client={c} />)}</div>
                 </>
             )}
-            <Modal title="Add client" open={addOpen} onCancel={() => setAddOpen(false)} onOk={createClient} okText="Add client" confirmLoading={addSaving} width={560} centered>
-                <p className="mb-3 text-sm text-text-secondary">New clients are assigned to you ({user?.name}) automatically.</p>
-                <Form form={form} layout="vertical">
-                    <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-                        <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}><Input placeholder="e.g. Jordan Blake" /></Form.Item>
-                        <Form.Item name="phone" label="Phone"><Input placeholder="+1 (555) 000-0000" /></Form.Item>
-                    </div>
-                    <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}><Input placeholder="jordan.blake@gmail.com" /></Form.Item>
-                    <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-                        <Form.Item name="goal" label="Goal" rules={[{ required: true }]}><Select options={[...CLIENT_GOALS.map((g) => ({ value: g, label: g })), { value: OTHER_GOAL, label: 'Other…' }]} /></Form.Item>
-                        <Form.Item name="plan" label="Plan" rules={[{ required: true }]}><Select options={['Starter', 'Standard', 'Premium', 'Elite'].map((p) => ({ value: p, label: p }))} /></Form.Item>
-                        {wGoal === OTHER_GOAL && <Form.Item name="customGoal" label="Custom goal" rules={[{ required: true }]}><Input placeholder="e.g. Marathon Prep" /></Form.Item>}
-                        <Form.Item name="weight" label="Weight (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="82" /></Form.Item>
-                        <Form.Item name="target" label="Target weight (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="75" /></Form.Item>
-                    </div>
-                </Form>
-            </Modal>
         </div>
     )
 }

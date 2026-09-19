@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, Tag, App } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, Tag, App, Skeleton } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
+import SectionError from '../../../components/feedback/SectionError'
 import GlycemicBadge from '../../../components/common/GlycemicBadge'
 import ModalTitle from '../../../components/common/ModalTitle'
 import { confirmDelete } from '../../../utils/confirm'
@@ -47,7 +48,7 @@ const r1 = (n) => Math.round((Number(n) || 0) * 10) / 10
 
 export default function DietPlans() {
     const { message } = App.useApp()
-    const { dietPlans, addDietPlan, updateDietPlan, removeDietPlan } = useLibrary()
+    const { dietPlans, addDietPlan, updateDietPlan, removeDietPlan, loading, error, reload } = useLibrary(['dietPlans'])
     const [editingId, setEditingId] = useState(null)
 
     const editing = dietPlans.find((p) => (p._id || p.id) === editingId) || null
@@ -116,7 +117,13 @@ export default function DietPlans() {
                 </div>
             )}
 
-            {dietPlans.length === 0 ? (
+            {loading ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {[0, 1].map((i) => <div key={i} className="app-card p-5"><Skeleton active paragraph={{ rows: 4 }} /></div>)}
+                </div>
+            ) : error ? (
+                <div className="app-card"><SectionError title="Couldn't load diet-plan templates" error={error} onRetry={reload} /></div>
+            ) : dietPlans.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No templates yet"
@@ -392,7 +399,7 @@ function PlanEditor({ plan, onSave, onBack }) {
 /* Food picker: category -> food -> quantity, with live nutrition     */
 /* ------------------------------------------------------------------ */
 function FoodPickerModal({ open, onCancel, onAdd }) {
-    const { foods } = useLibrary()
+    const { foods } = useLibrary(['foods'])
     const [cat, setCat] = useState(foodCategories[0])
     const [foodId, setFoodId] = useState(null)
     const [qty, setQty] = useState(0)

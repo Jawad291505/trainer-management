@@ -4,17 +4,10 @@ import ApiError from '../utils/ApiError.js'
 import { Food, LibraryCategory, NutritionConfig } from '../models/index.js'
 import { foodCode as makeCode } from '../utils/slugify.js'
 import { computeNutrition, giLevel, glItemLevel } from '../services/nutrition.service.js'
+import { masterFoods } from '../services/libraryCache.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
-// Visibility rule (matches trainer/src/context/LibraryContext.jsx `foods` =
-// [...master, ...ownCustom]):
-//   - admin & client: master library only
-//   - trainer: master library + their own custom foods
-function visibilityFilter(req) {
-    if (req.user?.role === 'trainer' && req.trainer) {
-        return { $or: [{ isMaster: true }, { owner: req.trainer._id }] }
-    }
-    return { isMaster: true }
-}
+// Master foods are served from memory (see services/libraryCache.js).
 
 async function findFoodOr404(idOrCode) {
     const query = mongoose.isValidObjectId(idOrCode) ? { _id: idOrCode } : { code: idOrCode }
@@ -23,15 +16,27 @@ async function findFoodOr404(idOrCode) {
     return food
 }
 
-// GET /api/foods?category=&search=&source=
+// GET /api/foods?category=&search=&source=&page=&limit=   (pagination is opt-in — see utils/pagination.js)
 export const listFoods = asyncHandler(async (req, res) => {
-    const filter = { ...visibilityFilter(req) }
-    if (req.query.category && req.query.category !== 'all') filter.category = req.query.category
-    if (req.query.source) filter.source = req.query.source
-    if (req.query.search) filter.name = { $regex: String(req.query.search).trim(), $options: 'i' }
+    // Visibility (matches trainer/src/context/LibraryContext.jsx `foods` = [...master, ...ownCustom]):
+    //   - admin & client: master library only
+    //   - trainer: master library + their own custom foods
+    const isTrainer = req.user?.role === 'trainer' && req.trainer
+    const [master, own] = await Promise.all([
+        masterFoods.get(),
+        isTrainer ? Food.find({ isMaster: { $ne: true }, owner: req.trainer._id }).sort({ name: 1 }) : [],
+    ])
 
-    const items = await Food.find(filter).sort({ isMaster: -1, name: 1 })
-    res.json({ count: items.length, items })
+    const { category, source, search } = req.query
+    const needle = search ? String(search).trim().toLowerCase() : ''
+    const items = [...master, ...own.map((d) => d.toJSON())].filter((x) =>
+        (!category || category === 'all' || x.category === category) &&
+        (!source || x.source === source) &&
+        (!needle || x.name.toLowerCase().includes(needle)),
+    )
+    const paging = pageParams(req.query)
+    if (!paging) return res.json({ count: items.length, items })
+    res.json(pagedBody(items.slice(paging.skip, paging.skip + paging.limit), items.length, paging))
 })
 
 // GET /api/foods/categories
@@ -83,6 +88,7 @@ export const createFood = asyncHandler(async (req, res) => {
     if (isTrainer) doc.code = `${doc.code}-t${Date.now().toString(36)}`
 
     const food = await Food.create(doc)
+    if (food.isMaster) masterFoods.invalidate()
     res.status(201).json(food)
 })
 
@@ -102,6 +108,7 @@ export const updateFood = asyncHandler(async (req, res) => {
     ]
     for (const key of editable) if (req.body[key] !== undefined) food[key] = req.body[key]
     await food.save()
+    if (food.isMaster) masterFoods.invalidate()
     res.json(food)
 })
 
@@ -114,6 +121,7 @@ export const deleteFood = asyncHandler(async (req, res) => {
         }
     }
     await food.deleteOne()
+    if (food.isMaster) masterFoods.invalidate()
     res.json({ ok: true })
 })
 

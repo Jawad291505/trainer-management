@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, App } from 'antd'
+import { Button, App, Skeleton } from 'antd'
 import dayjs from 'dayjs'
 import { MessageOutlined, RightOutlined, FireOutlined, CalendarOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import ChartCard from '../../../components/common/ChartCard'
 import GrowthChart from '../../../components/charts/GrowthChart'
-import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
+import { useAsyncData } from '../../../hooks/useAsyncData'
 import UserAvatar from '../../../components/common/UserAvatar'
 import ProgressRing from '../components/ProgressRing'
 import TaskItem from '../components/TaskItem'
@@ -19,45 +20,32 @@ export default function Dashboard() {
     const navigate = useNavigate()
     const { message } = App.useApp()
     const { user, client } = useAuth()
-    const [loading, setLoading] = useState(true)
-    const [tasks, setTasks] = useState([])
-    const [weightData, setWeightData] = useState([])
-    const [trainerInfo, setTrainerInfo] = useState(null)
-    const [nextFollowUp, setNextFollowUp] = useState(null)
+    // Today's tasks, the weight chart and the next follow-up are independent
+    // requests — each section renders (or fails) on its own. The trainer card
+    // comes straight from the signed-in client profile, no request needed.
+    const dailyRes = useAsyncData(() => api.get('/progress/daily'), [])
+    const weightRes = useAsyncData(() => api.get('/progress/weight'), [])
+    const followUpsRes = useAsyncData(() => listFollowUps(), [])
 
-    useEffect(() => {
-        async function load() {
-            try {
-                const [daily, weight, followUps] = await Promise.all([
-                    api.get('/progress/daily'),
-                    api.get('/progress/weight'),
-                    listFollowUps().catch(() => []),
-                ])
-                setNextFollowUp(
-                    followUps.filter((f) => f.status === 'scheduled').sort((a, b) => a.date.localeCompare(b.date))[0] || null,
-                )
-                setTasks(daily.tasks || [])
-                setWeightData((weight.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })))
-                // Get trainer info from client profile
-                if (client?.trainer) {
-                    setTrainerInfo(client.trainer)
-                }
-            } catch { /* */ }
-            finally { setLoading(false) }
-        }
-        load()
-    }, [client])
+    const tasks = useMemo(() => dailyRes.data?.tasks || [], [dailyRes.data])
+    const weightData = useMemo(
+        () => (weightRes.data?.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })),
+        [weightRes.data],
+    )
+    const nextFollowUp = useMemo(
+        () => (followUpsRes.data || []).filter((f) => f.status === 'scheduled').sort((a, b) => a.date.localeCompare(b.date))[0] || null,
+        [followUpsRes.data],
+    )
+    const trainerInfo = client?.trainer || null
 
     const toggle = async (key) => {
         const task = tasks.find((t) => t.key === key)
         if (!task) return
         try {
             const res = await api.patch('/progress/daily', { taskKey: key, done: !task.done })
-            setTasks(res.tasks || [])
+            dailyRes.setData((prev) => ({ ...prev, tasks: res.tasks || [] }))
         } catch { /* */ }
     }
-
-    if (loading) return <LoadingSkeleton cards={2} />
 
     const done = tasks.filter((t) => t.done).length
     const total = tasks.length
@@ -72,11 +60,19 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="app-card animate-rise flex flex-col items-center justify-center p-6 lg:col-span-1">
-                    <ProgressRing value={pct} size={150} sublabel="completed" />
-                    <div className="mt-4 text-center">
-                        <div className="text-sm font-semibold text-text-primary">{done} of {total} tasks done</div>
-                        <div className="text-xs text-text-muted">{pct === 100 ? 'Amazing work today! 🎉' : 'Keep going, you\'ve got this!'}</div>
-                    </div>
+                    {dailyRes.loading ? (
+                        <Skeleton active avatar={{ shape: 'circle', size: 120 }} title={false} paragraph={{ rows: 1 }} />
+                    ) : dailyRes.error ? (
+                        <SectionError title="Couldn't load today's progress" error={dailyRes.error} onRetry={dailyRes.reload} />
+                    ) : (
+                        <>
+                            <ProgressRing value={pct} size={150} sublabel="completed" />
+                            <div className="mt-4 text-center">
+                                <div className="text-sm font-semibold text-text-primary">{done} of {total} tasks done</div>
+                                <div className="text-xs text-text-muted">{pct === 100 ? 'Amazing work today! 🎉' : 'Keep going, you\'ve got this!'}</div>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 <div className="app-card animate-rise flex flex-col p-5 lg:col-span-2">
@@ -95,7 +91,11 @@ export default function Dashboard() {
                     >
                         <span className="flex items-center gap-2 text-sm text-text-secondary">
                             <CalendarOutlined style={{ color: 'var(--color-text-muted)' }} />
-                            {nextFollowUp
+                            {followUpsRes.loading
+                                ? 'Checking your next follow-up…'
+                                : followUpsRes.error
+                                    ? 'Couldn\'t load your follow-ups'
+                                    : nextFollowUp
                                 ? <>Next follow-up: <b className="text-text-primary">{dayjs(nextFollowUp.date).format('ddd, D MMM')}{nextFollowUp.time ? ` · ${formatTime(nextFollowUp.time)}` : ''}</b></>
                                 : 'No follow-up scheduled yet'}
                         </span>
@@ -127,7 +127,11 @@ export default function Dashboard() {
                 </button>
             </div>
 
-            {weightData.length > 0 && (
+            {weightRes.loading ? (
+                <div className="app-card mt-6 p-5"><Skeleton active paragraph={{ rows: 6 }} /></div>
+            ) : weightRes.error ? (
+                <div className="mt-6"><SectionError title="Couldn't load your weight history" error={weightRes.error} onRetry={weightRes.reload} /></div>
+            ) : weightData.length > 0 && (
                 <div className="mt-6">
                     <ChartCard title="Weight Journey" subtitle={`${weightData.length} weigh-ins (kg)`}>
                         <GrowthChart data={weightData} dataKey="weight" xKey="date" name="Weight" height={260} />
@@ -141,8 +145,16 @@ export default function Dashboard() {
                     <button className="flex items-center gap-1 text-sm font-semibold text-primary" onClick={() => navigate('/schedule')}>Schedule <RightOutlined style={{ fontSize: 11 }} /></button>
                 </div>
                 <div className="flex flex-col gap-2.5">
-                    {tasks.map((t) => (<TaskItem key={t.key} task={{ ...t, id: t.key }} onToggle={() => toggle(t.key)} />))}
-                    {tasks.length === 0 && <p className="text-sm text-text-muted">No tasks for today yet.</p>}
+                    {dailyRes.loading ? (
+                        <Skeleton active paragraph={{ rows: 3 }} title={false} />
+                    ) : dailyRes.error ? (
+                        <SectionError title="Couldn't load today's tasks" error={dailyRes.error} onRetry={dailyRes.reload} />
+                    ) : (
+                        <>
+                            {tasks.map((t) => (<TaskItem key={t.key} task={{ ...t, id: t.key }} onToggle={() => toggle(t.key)} />))}
+                            {tasks.length === 0 && <p className="text-sm text-text-muted">No tasks for today yet.</p>}
+                        </>
+                    )}
                 </div>
             </div>
         </div>

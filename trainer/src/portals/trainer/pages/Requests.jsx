@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Segmented, Button, Modal, Input, Checkbox, App, Tag } from 'antd'
+import { Segmented, Button, Modal, Input, Checkbox, App, Tag, Skeleton } from 'antd'
 import {
     CheckOutlined,
     CloseOutlined,
@@ -11,12 +11,15 @@ import {
     WarningFilled,
     ClockCircleOutlined,
     CheckCircleFilled,
+    InboxOutlined,
+    CloseCircleOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import StatusBadge from '../../../components/common/StatusBadge'
 import EmptyState from '../../../components/common/EmptyState'
+import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { useCorrections } from '../../../context/CorrectionsContext'
 
@@ -59,7 +62,7 @@ function Pill({ color, soft, icon, children }) {
 export default function Requests() {
     const { message } = App.useApp()
     const navigate = useNavigate()
-    const { requests, resolve, decline, reopen, markSeen } = useCorrections()
+    const { requests, resolve, decline, reopen, markSeen, loading, error, reload } = useCorrections()
     const [active, setActive] = useState('open')
     const [action, setAction] = useState(null) // { req, mode: 'resolve' | 'decline' }
     const [reply, setReply] = useState('')
@@ -133,10 +136,10 @@ export default function Requests() {
             />
 
             <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <StatCard label="Open" value={counts.open} accent="var(--color-warning)" />
-                <StatCard label="Needs attention" value={counts.attention} accent="var(--color-danger)" hint="Priority or open 48h+" />
-                <StatCard label="Resolved" value={counts.resolved} accent="var(--color-success)" />
-                <StatCard label="Declined" value={counts.declined} />
+                <StatCard icon={<InboxOutlined />} label="Open" value={loading ? '—' : counts.open} accent="var(--color-warning)" />
+                <StatCard icon={<WarningFilled />} label="Needs attention" value={loading ? '—' : counts.attention} accent="var(--color-danger)" hint="Priority or open 48h+" />
+                <StatCard icon={<CheckCircleFilled />} label="Resolved" value={loading ? '—' : counts.resolved} accent="var(--color-success)" />
+                <StatCard icon={<CloseCircleOutlined />} label="Declined" value={loading ? '—' : counts.declined} />
             </div>
 
             <div className="mb-4 overflow-x-auto">
@@ -150,7 +153,11 @@ export default function Requests() {
                 />
             </div>
 
-            {list.length === 0 ? (
+            {loading ? (
+                <div className="app-card p-5"><Skeleton active paragraph={{ rows: 5 }} /></div>
+            ) : error ? (
+                <div className="app-card"><SectionError title="Couldn't load requests" error={error} onRetry={reload} /></div>
+            ) : list.length === 0 ? (
                 <div className="app-card">
                     <EmptyState title="Nothing here" description="No requests in this view." />
                 </div>

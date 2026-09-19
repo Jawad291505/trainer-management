@@ -21,4 +21,7 @@ const notificationSchema = new mongoose.Schema(
     { timestamps: true },
 )
 
+// Bell/list reads: a user's newest notifications.
+notificationSchema.index({ user: 1, createdAt: -1 })
+
 export const Notification = mongoose.model('Notification', notificationSchema)

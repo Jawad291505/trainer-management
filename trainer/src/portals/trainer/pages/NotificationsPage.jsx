@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Segmented, Button, App } from 'antd'
 import {
@@ -11,6 +11,7 @@ import {
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
 import PageSpin from '../../../components/common/PageSpin'
+import SectionError from '../../../components/feedback/SectionError'
 import { api } from '../../../services/api'
 
 const ICONS = {
@@ -29,10 +30,14 @@ export default function NotificationsPage() {
     const [data, setData] = useState([])
     const [filter, setFilter] = useState('all')
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
 
-    useEffect(() => {
-        api.get('/notifications').then((res) => setData(res.items || [])).catch(() => { }).finally(() => setLoading(false))
+    const load = useCallback(() => {
+        setLoading(true)
+        setError(null)
+        api.get('/notifications').then((res) => setData(res.items || [])).catch(setError).finally(() => setLoading(false))
     }, [])
+    useEffect(() => { load() }, [load])
 
     const filtered = data.filter((n) => (filter === 'all' ? true : filter === 'unread' ? n.unread : !n.unread))
 
@@ -57,6 +62,7 @@ export default function NotificationsPage() {
     }
 
     if (loading) return <PageSpin />
+    if (error) return <div className="app-card"><SectionError title="Couldn't load notifications" error={error} onRetry={load} /></div>
 
     return (
         <div>

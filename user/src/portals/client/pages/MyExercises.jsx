@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Progress, Segmented } from 'antd'
 import { PlayCircleOutlined, CheckCircleFilled, CalendarOutlined, ThunderboltOutlined, RightOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import PageSpin from '../../../components/common/PageSpin'
+import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { getTechnique } from '../../../services/exerciseLibrary'
@@ -15,15 +16,22 @@ export default function MyExercises() {
     const [exercisePlan, setExercisePlan] = useState(null)
     const [daySession, setDaySession] = useState(null) // { session, day } for the active day
     const [loading, setLoading] = useState(true)
+    const [planError, setPlanError] = useState(null)
 
     const planId = exercisePlan?._id || exercisePlan?.id
 
-    useEffect(() => {
-        if (!client) return
-        api.get(`/clients/${client._id || client.id}/exercise-plan`).then((plan) => {
-            setExercisePlan(plan)
-        }).catch(() => { }).finally(() => setLoading(false))
-    }, [client])
+    // A 404 just means "no plan assigned yet"; anything else is a real failure.
+    const clientId = client?._id || client?.id
+    const loadPlan = useCallback(() => {
+        if (!clientId) return
+        setLoading(true)
+        setPlanError(null)
+        api.get(`/clients/${clientId}/exercise-plan`)
+            .then(setExercisePlan)
+            .catch((err) => { if (err.status !== 404) setPlanError(err) })
+            .finally(() => setLoading(false))
+    }, [clientId])
+    useEffect(() => { loadPlan() }, [loadPlan])
 
     const [activeDay, setActiveDay] = useState(null)
 
@@ -49,11 +57,9 @@ export default function MyExercises() {
     const completed = exercises.filter((e) => e.done).length
     const pct = exercises.length ? Math.round((completed / exercises.length) * 100) : 0
 
-    const startWorkout = async () => {
+    const startWorkout = () => {
         if (!planId || !activeDay) return
-        try {
-            await api.post(`/exercise-plans/${planId}/sessions/start`, { dayId: activeDay })
-        } catch { /* no-op */ }
+        // The workout page starts (or resumes) the session itself.
         navigate('/workout', { state: { planId, dayId: activeDay } })
     }
 
@@ -63,6 +69,7 @@ export default function MyExercises() {
     }))
 
     if (loading) return <PageSpin />
+    if (planError) return <div className="app-card"><SectionError title="Couldn't load your exercise plan" error={planError} onRetry={loadPlan} /></div>
 
     const session = daySession?.session
 

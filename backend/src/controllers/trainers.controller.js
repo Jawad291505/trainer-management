@@ -3,6 +3,7 @@ import ApiError from '../utils/ApiError.js'
 import { User, Member, Trainer, Client } from '../models/index.js'
 import { ensureReferralCode } from '../services/referral.service.js'
 import { createInvitedUser } from '../services/invite.service.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 // Shape a Trainer + its User into the flat object the admin Trainers table wants
 // (admin/src/services/mockData.js trainers[]).
@@ -47,26 +48,35 @@ function assertMemberOwns(req, trainer) {
     }
 }
 
-// GET /api/trainers?status=&search=&member=&type=in-house|third-party
+// GET /api/trainers?status=&search=&member=&type=in-house|third-party&page=&limit=
 // (admin sees all, optionally filtered by ?member= or ?type=; member sees only their own trainers)
+// Pagination is opt-in (see utils/pagination.js) — many screens load the full roster.
 export const listTrainers = asyncHandler(async (req, res) => {
     const filter = {}
-    if (req.query.status) filter.status = req.query.status
+    if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
     if (req.user.role === 'member') filter.managedBy = req.member._id
     else if (req.query.member) filter.managedBy = req.query.member
     else if (req.query.type === 'in-house') filter.managedBy = null
     else if (req.query.type === 'third-party') filter.managedBy = { $ne: null }
 
-    let trainers = await Trainer.find(filter)
+    const search = String(req.query.search || '').trim()
+    if (search) {
+        const rx = new RegExp(escapeRegex(search), 'i')
+        const userIds = await User.find({ role: 'trainer', $or: [{ name: rx }, { email: rx }] }).distinct('_id')
+        filter.$or = [{ user: { $in: userIds } }, { specialization: rx }]
+    }
+
+    const paging = pageParams(req.query)
+    let query = Trainer.find(filter)
         .populate('user', 'name email avatarColor status')
         .populate(MANAGED_BY_POPULATE)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
+        .lean()
+    if (paging) query = query.skip(paging.skip).limit(paging.limit)
 
-    if (req.query.search) {
-        const rx = new RegExp(String(req.query.search).trim(), 'i')
-        trainers = trainers.filter((t) => rx.test(t.user?.name || '') || rx.test(t.user?.email || ''))
-    }
-    res.json({ count: trainers.length, items: trainers.map(flatten) })
+    const [trainers, total] = await Promise.all([query, paging ? Trainer.countDocuments(filter) : null])
+    const items = trainers.map(flatten)
+    res.json(paging ? pagedBody(items, total, paging) : { count: items.length, items })
 })
 
 // GET /api/trainers/:id   (admin, the trainer's assigned member, or the trainer themselves)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Select, Button, Modal, App, Empty } from 'antd'
 import {
     PlusOutlined,
@@ -12,6 +12,8 @@ import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
 import CapacityBar from '../../../components/common/CapacityBar'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
+import EmptyState from '../../../components/common/EmptyState'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
 
@@ -20,22 +22,23 @@ export default function Assignments() {
     const [trainers, setTrainers] = useState([])
     const [clients, setClients] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [selectedId, setSelectedId] = useState(null)
     const [assignOpen, setAssignOpen] = useState(false)
     const [toAssign, setToAssign] = useState(null)
 
-    useEffect(() => {
-        async function load() {
-            try {
-                const [t, c] = await Promise.all([api.get('/trainers'), api.get('/clients')])
-                setTrainers(t.items || [])
-                setClients(c.items || [])
-                if (t.items?.length) setSelectedId(t.items[0].id)
-            } catch { message.error('Failed to load data') }
-            finally { setLoading(false) }
-        }
-        load()
+    const load = useCallback(async () => {
+        setLoading(true)
+        setLoadError(null)
+        try {
+            const [t, c] = await Promise.all([api.get('/trainers'), api.get('/clients')])
+            setTrainers(t.items || [])
+            setClients(c.items || [])
+            if (t.items?.length) setSelectedId((cur) => cur || t.items[0].id)
+        } catch (err) { setLoadError(err) }
+        finally { setLoading(false) }
     }, [])
+    useEffect(() => { load() }, [load])
 
     const selected = trainers.find((t) => t.id === selectedId)
     const assignedClients = useMemo(() => clients.filter((c) => c.trainerId === selectedId), [clients, selectedId])
@@ -74,7 +77,9 @@ export default function Assignments() {
         } catch (err) { message.error(err.message) }
     }
 
-    if (loading || !selected) return <LoadingSkeleton />
+    if (loading) return <LoadingSkeleton />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load assignments" error={loadError} onRetry={load} /></div>
+    if (!selected) return <div className="app-card"><EmptyState title="No trainers yet" description="Add a trainer first, then assign clients to them here." /></div>
     const atCapacity = selected.clients >= selected.capacity
 
     return (

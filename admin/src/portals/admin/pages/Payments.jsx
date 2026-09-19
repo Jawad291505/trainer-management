@@ -16,8 +16,12 @@ import StatCard from '../../../components/common/StatCard'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
+import { useAsyncData } from '../../../hooks/useAsyncData'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { api } from '../../../services/api'
 
@@ -32,18 +36,6 @@ const SUB_STATUS = {
     no_plan: { label: 'No plan', color: 'default' },
 }
 
-// Derive a display subscription status from the member's own status + plan +
-// expiry — there's no separate "subscription status" field, it's computed.
-function subscriptionStatus(member) {
-    if (!member.plan) return 'no_plan'
-    if (member.status !== 'active') return 'inactive'
-    if (!member.planExpiryDate) return 'active'
-    const daysLeft = dayjs(member.planExpiryDate).diff(dayjs(), 'day')
-    if (daysLeft < 0) return 'expired'
-    if (daysLeft <= 7) return 'expiring'
-    return 'active'
-}
-
 // Admin's Payments page: Members and their SubscriptionPlan purchase/renewal
 // history, backed by Member + SubscriptionPlan + MemberPayment (the same
 // domain PaymentApprovals.jsx reviews self-signup submissions against — see
@@ -51,75 +43,51 @@ function subscriptionStatus(member) {
 // MemberPayment (source: 'admin_renewal') rather than mutating history.
 export default function Payments() {
     const { message } = App.useApp()
-    const [loading, setLoading] = useState(true)
-    const [members, setMembers] = useState([])
-    const [payments, setPayments] = useState([])
-    const [plans, setPlans] = useState([])
     const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
     const [planFilter, setPlanFilter] = useState('all')
+
+    // Search + subscription-status + plan filters and paging all run on the backend
+    // (GET /members). `subscriptionStatus`, `purchasedAt` and `paymentCount` come back on each row.
+    const list = usePagedList('/members', {
+        params: { subscription: statusFilter, plan: planFilter, include: 'payments' },
+        search,
+        pageSize: 10,
+    })
+    const rows = list.items
+    // Headline numbers cover every member / payment, not just the visible page.
+    const summaryRes = useAsyncData(() => api.get('/members/subscription-summary'), [])
+    const plansRes = useAsyncData(() => api.get('/subscription-plans'), [])
+    const plans = plansRes.data?.items || []
+    const summary = summaryRes.data || { active: 0, expiring: 0, expired: 0, totalRevenue: 0, approvedPayments: 0 }
 
     const [renewing, setRenewing] = useState(null) // member being renewed, or 'new'
     const [saving, setSaving] = useState(false)
     const [form] = Form.useForm()
     const [historyFor, setHistoryFor] = useState(null)
 
-    const load = async () => {
-        setLoading(true)
-        try {
-            const [m, p, pl] = await Promise.all([
-                api.get('/members'),
-                api.get('/member-payments'),
-                api.get('/subscription-plans'),
-            ])
-            setMembers(m.items || [])
-            setPayments(p.items || [])
-            setPlans(pl.items || [])
-        } catch (err) {
-            message.error('Failed to load payments')
-        } finally {
-            setLoading(false)
-        }
-    }
+    const reloadAll = () => { list.reload(); summaryRes.reload() }
 
-    useEffect(() => { load() }, [])
+    // Payment history is fetched for the one member being viewed.
+    const historyRes = useAsyncData(() => api.get(`/member-payments?member=${historyFor.id}`), [historyFor?.id], { enabled: !!historyFor })
+    const history = historyRes.data?.items || []
 
-    const paymentsByMember = useMemo(() => {
-        const map = {}
-        for (const p of payments) {
-            if (!map[p.memberId]) map[p.memberId] = []
-            map[p.memberId].push(p)
-        }
-        return map
-    }, [payments])
-
-    const rows = useMemo(() => members.map((m) => {
-        const history = paymentsByMember[m.id] || []
-        const lastApproved = history.find((p) => p.status === 'approved')
-        return {
-            ...m,
-            purchasedAt: lastApproved?.submittedAt || m.joinDate,
-            subStatus: subscriptionStatus(m),
-            historyCount: history.length,
-        }
-    }), [members, paymentsByMember])
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return rows.filter((r) => {
-            const matchQ = !q || r.name?.toLowerCase().includes(q) || r.email?.toLowerCase().includes(q)
-            const matchS = statusFilter === 'all' || r.subStatus === statusFilter
-            const matchP = planFilter === 'all' || r.plan?.id === planFilter
-            return matchQ && matchS && matchP
-        })
-    }, [rows, search, statusFilter, planFilter])
-
-    const summary = useMemo(() => ({
-        active: rows.filter((r) => r.subStatus === 'active').length,
-        expiringSoon: rows.filter((r) => r.subStatus === 'expiring').length,
-        expired: rows.filter((r) => r.subStatus === 'expired').length,
-        totalRevenue: payments.filter((p) => p.status === 'approved').reduce((sum, p) => sum + Number(p.amount || 0), 0),
-    }), [rows, payments])
+    // The renew modal's member picker searches on the backend as you type.
+    const [pickerSearch, setPickerSearch] = useState('')
+    const [pickerQuery, setPickerQuery] = useState('')
+    useEffect(() => {
+        const t = setTimeout(() => setPickerQuery(pickerSearch.trim()), 300)
+        return () => clearTimeout(t)
+    }, [pickerSearch])
+    const pickerRes = useAsyncData(
+        () => api.get(`/members?page=1&limit=20${pickerQuery ? `&search=${encodeURIComponent(pickerQuery)}` : ''}`),
+        [pickerQuery],
+        { enabled: !!renewing },
+    )
+    const pickerMembers = useMemo(() => {
+        const found = pickerRes.data?.items || []
+        return renewing?.id && !found.some((m) => m.id === renewing.id) ? [renewing, ...found] : found
+    }, [pickerRes.data, renewing])
 
     const activePlans = useMemo(() => plans.filter((p) => p.active), [plans])
 
@@ -153,7 +121,7 @@ export default function Payments() {
             })
             message.success(`${renewing.name}'s subscription was renewed`)
             setRenewing(null)
-            await load()
+            reloadAll()
         } catch (err) {
             message.error(err.message)
         } finally {
@@ -161,10 +129,12 @@ export default function Payments() {
         }
     }
 
-    if (loading) return <LoadingSkeleton />
+    const loadError = list.error || summaryRes.error || plansRes.error
+    if (list.loading || summaryRes.loading || plansRes.loading) return <LoadingSkeleton />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load payments" error={loadError} onRetry={() => { list.reload(); summaryRes.reload(); plansRes.reload() }} /></div>
 
     const cards = [
-        { icon: <DollarOutlined />, label: 'Revenue Collected', value: money(summary.totalRevenue), hint: `${payments.filter((p) => p.status === 'approved').length} approved payments` },
+        { icon: <DollarOutlined />, label: 'Revenue Collected', value: money(summary.totalRevenue), hint: `${summary.approvedPayments} approved payments` },
         { icon: <CheckCircleOutlined />, label: 'Active Subscriptions', value: summary.active, accent: 'var(--color-success)' },
         { icon: <ClockCircleOutlined />, label: 'Expiring Soon', value: summary.expiringSoon, hint: 'Within 7 days', accent: 'var(--color-warning)' },
         { icon: <CloseCircleOutlined />, label: 'Expired', value: summary.expired, accent: 'var(--color-danger)' },
@@ -200,7 +170,7 @@ export default function Payments() {
         { title: 'Purchased', dataIndex: 'purchasedAt', width: 130, render: fmtDate },
         {
             title: 'Status',
-            dataIndex: 'subStatus',
+            dataIndex: 'subscriptionStatus',
             width: 130,
             render: (s) => <Tag color={SUB_STATUS[s].color} style={{ borderRadius: 999 }}>{SUB_STATUS[s].label}</Tag>,
         },
@@ -216,7 +186,7 @@ export default function Payments() {
                     menu={{
                         items: [
                             { key: 'renew', icon: <SyncOutlined />, label: 'Renew subscription' },
-                            { key: 'history', icon: <HistoryOutlined />, label: `Payment history (${r.historyCount})` },
+                            { key: 'history', icon: <HistoryOutlined />, label: `Payment history (${r.paymentCount})` },
                         ],
                         onClick: ({ key }) => (key === 'renew' ? openRenew(r) : setHistoryFor(r)),
                     }}
@@ -230,7 +200,7 @@ export default function Payments() {
     return (
         <div>
             <PageHeader title="Payments" subtitle="Member subscriptions, plan purchases and renewals.">
-                <Button type="primary" icon={<TeamOutlined />} onClick={() => openRenew({ id: null })} disabled={!members.length}>
+                <Button type="primary" icon={<TeamOutlined />} onClick={() => openRenew({ id: null })}>
                     Renew subscription
                 </Button>
             </PageHeader>
@@ -256,12 +226,15 @@ export default function Payments() {
                     />
                 </FilterBar>
 
-                {filtered.length === 0 ? (
+                {rows.length === 0 ? (
                     <div className="app-card">
                         <EmptyState title="No members found" description="Try adjusting your search or filters." />
                     </div>
                 ) : (
-                    <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1100} />
+                    <>
+                        <DataTable columns={columns} dataSource={rows} loading={list.fetching} pagination={false} scrollX={1100} />
+                        <Pager list={list} pageSizeOptions={[10, 20, 50]} />
+                    </>
                 )}
             </div>
 
@@ -280,9 +253,11 @@ export default function Payments() {
                             showSearch
                             value={renewing?.id || undefined}
                             placeholder="Select a member"
-                            optionFilterProp="label"
-                            options={members.map((m) => ({ value: m.id, label: `${m.name} (${m.email})` }))}
-                            onChange={(id) => openRenew(members.find((m) => m.id === id))}
+                            filterOption={false}
+                            onSearch={setPickerSearch}
+                            loading={pickerRes.loading}
+                            options={pickerMembers.map((m) => ({ value: m.id, label: `${m.name} (${m.email})` }))}
+                            onChange={(id) => openRenew(pickerMembers.find((m) => m.id === id))}
                         />
                     </Form.Item>
 
@@ -322,11 +297,13 @@ export default function Payments() {
                 centered
             >
                 {historyFor && (
-                    (paymentsByMember[historyFor.id] || []).length === 0 ? (
+                    historyRes.loading ? (
+                        <LoadingSkeleton cards={0} rows={3} />
+                    ) : history.length === 0 ? (
                         <EmptyState title="No payments yet" description="This member hasn't made a payment." />
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {(paymentsByMember[historyFor.id] || []).map((p) => (
+                            {history.map((p) => (
                                 <div key={p.id} className="flex items-center justify-between rounded-lg border p-3 text-sm" style={{ borderColor: 'var(--color-border)' }}>
                                     <div>
                                         <div className="font-semibold text-text-primary">{p.planName}</div>

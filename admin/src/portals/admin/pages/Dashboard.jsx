@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Skeleton } from 'antd'
 import {
     TeamOutlined,
     IdcardOutlined,
@@ -16,90 +16,91 @@ import GrowthChart from '../../../components/charts/GrowthChart'
 import RevenueChart from '../../../components/charts/RevenueChart'
 import DonutChart from '../../../components/charts/DonutChart'
 import CapacityBar from '../../../components/common/CapacityBar'
-import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import AsyncSection from '../../../components/feedback/AsyncSection'
+import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { api } from '../../../services/api'
+import { useAsyncData } from '../../../hooks/useAsyncData'
 import { useAuth } from '../../../context/AuthContext'
 
 const money = (v) => `${(v || 0).toLocaleString()}`
 
+// Placeholder tiles while the headline stats load.
+const StatCardSkeletons = ({ count }) =>
+    Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="app-card p-5"><Skeleton active paragraph={{ rows: 1 }} title={{ width: '50%' }} /></div>
+    ))
+
+// Trainer capacity list — shared by the admin and member dashboards.
+function TrainerCapacity({ trainersRes, emptyText }) {
+    const trainerList = trainersRes.data?.items || []
+    return (
+        <AsyncSection loading={trainersRes.loading} error={trainersRes.error} onRetry={trainersRes.reload} errorTitle="Couldn't load trainers">
+            {trainerList.length === 0 ? (
+                <div className="py-6 text-center text-sm text-text-muted">{emptyText}</div>
+            ) : (
+                <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
+                    {trainerList.map((t) => (
+                        <div key={t.id} className="flex items-center gap-3">
+                            <UserAvatar name={t.name} color={t.avatarColor} size={40} />
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between">
+                                    <span className="truncate text-sm font-semibold text-text-primary">{t.name}</span>
+                                    <span className="text-xs text-text-muted">{t.specialization}</span>
+                                </div>
+                                <div className="mt-1.5">
+                                    <CapacityBar current={t.clients} max={t.capacity} size="sm" />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </AsyncSection>
+    )
+}
+
 export default function Dashboard() {
     const { user } = useAuth()
     const isMember = user?.role === 'member'
-    const [loading, setLoading] = useState(true)
-    const [stats, setStats] = useState(null)
-    const [revTrend, setRevTrend] = useState([])
-    const [trainerList, setTrainerList] = useState([])
 
-    useEffect(() => {
-        async function load() {
-            try {
-                if (isMember) {
-                    const [s, tr] = await Promise.all([api.get('/stats/member'), api.get('/trainers')])
-                    setStats(s)
-                    setTrainerList(tr.items || [])
-                } else {
-                    const [s, rev, tr] = await Promise.all([
-                        api.get('/stats/admin'),
-                        api.get('/stats/admin/revenue-trend'),
-                        api.get('/trainers'),
-                    ])
-                    setStats(s)
-                    setRevTrend(rev.items || [])
-                    setTrainerList(tr.items || [])
-                }
-            } catch (err) {
-                console.error('Dashboard load failed:', err)
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
-    }, [isMember])
-
-    if (loading || !stats) return <LoadingSkeleton />
+    // Each block below is its own request — the headline cards, the revenue
+    // chart and the trainer list render (or fail) independently.
+    const statsRes = useAsyncData(() => api.get(isMember ? '/stats/member' : '/stats/admin'), [isMember])
+    const revenueRes = useAsyncData(() => api.get('/stats/admin/revenue-trend'), [], { enabled: !isMember })
+    const trainersRes = useAsyncData(() => api.get('/trainers'), [isMember])
+    const stats = statsRes.data
 
     if (isMember) {
         return (
             <div>
                 <PageHeader title="Dashboard" subtitle="Your trainers and clients at a glance." />
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard icon={<UsergroupAddOutlined />} label="Clients" value={stats.clientLimit ? `${stats.totalClients} / ${stats.clientLimit}` : stats.totalClients} hint={stats.clientLimit && stats.totalClients >= stats.clientLimit ? 'Plan limit reached' : `${stats.activeClients} active`} />
-                    <StatCard icon={<IdcardOutlined />} label="Trainers" value={`${stats.totalTrainers} / ${stats.trainerLimit}`} hint={stats.totalTrainers >= stats.trainerLimit ? 'Limit reached' : `${stats.trainerLimit - stats.totalTrainers} slots left`} />
-                    <StatCard icon={<ThunderboltOutlined />} label="Available Capacity" value={stats.availableCapacity} hint={`${stats.usedCapacity}/${stats.totalCapacity} slots used`} />
-                    <StatCard icon={<CheckCircleOutlined />} label="Active Clients" value={stats.activeClients} />
-                </div>
+                {statsRes.error ? (
+                    <SectionError title="Couldn't load your stats" error={statsRes.error} onRetry={statsRes.reload} />
+                ) : (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        {statsRes.loading || !stats ? <StatCardSkeletons count={4} /> : (
+                            <>
+                                <StatCard icon={<UsergroupAddOutlined />} label="Clients" value={stats.clientLimit ? `${stats.totalClients} / ${stats.clientLimit}` : stats.totalClients} hint={stats.clientLimit && stats.totalClients >= stats.clientLimit ? 'Plan limit reached' : `${stats.activeClients} active`} />
+                                <StatCard icon={<IdcardOutlined />} label="Trainers" value={`${stats.totalTrainers} / ${stats.trainerLimit}`} hint={stats.totalTrainers >= stats.trainerLimit ? 'Limit reached' : `${stats.trainerLimit - stats.totalTrainers} slots left`} />
+                                <StatCard icon={<ThunderboltOutlined />} label="Available Capacity" value={stats.availableCapacity} hint={`${stats.usedCapacity}/${stats.totalCapacity} slots used`} />
+                                <StatCard icon={<CheckCircleOutlined />} label="Active Clients" value={stats.activeClients} />
+                            </>
+                        )}
+                    </div>
+                )}
 
                 <div className="mt-6">
                     <ChartCard title="Trainer Capacity" subtitle="Live utilisation across your team">
-                        {trainerList.length === 0 ? (
-                            <div className="py-6 text-center text-sm text-text-muted">No trainers assigned to you yet.</div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
-                                {trainerList.map((t) => (
-                                    <div key={t.id} className="flex items-center gap-3">
-                                        <UserAvatar name={t.name} color={t.avatarColor} size={40} />
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center justify-between">
-                                                <span className="truncate text-sm font-semibold text-text-primary">{t.name}</span>
-                                                <span className="text-xs text-text-muted">{t.specialization}</span>
-                                            </div>
-                                            <div className="mt-1.5">
-                                                <CapacityBar current={t.clients} max={t.capacity} size="sm" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <TrainerCapacity trainersRes={trainersRes} emptyText="No trainers assigned to you yet." />
                     </ChartCard>
                 </div>
             </div>
         )
     }
 
-    const cards = [
+    const cards = stats ? [
         { icon: <UsergroupAddOutlined />, label: 'Total Clients', value: stats.totalClients, hint: `${stats.activeClients} active` },
         { icon: <IdcardOutlined />, label: 'Total Trainers', value: stats.totalTrainers, hint: `${stats.activeTrainers} active now` },
         { icon: <ThunderboltOutlined />, label: 'Available Capacity', value: stats.availableCapacity, hint: `${stats.usedCapacity}/${stats.totalCapacity} slots used` },
@@ -108,10 +109,10 @@ export default function Dashboard() {
         { icon: <TeamOutlined />, label: 'Active Trainers', value: stats.activeTrainers, hint: `of ${stats.totalTrainers} total` },
         { icon: <ClockCircleOutlined />, label: 'Pending Payments', value: money(stats.pendingAmount), hint: `${stats.pendingCount} invoices` },
         { icon: <RiseOutlined />, label: 'Completed Payments', value: stats.paidCount },
-    ]
+    ] : []
 
-    // Build growth chart from stats if available
-    const clientGrowth = stats.clientGrowth || []
+    // Shared by every stats-driven card below.
+    const statsProps = { loading: statsRes.loading, error: statsRes.error, onRetry: statsRes.reload, errorTitle: "Couldn't load platform stats" }
 
     return (
         <div>
@@ -120,11 +121,15 @@ export default function Dashboard() {
                 subtitle="Platform overview and performance at a glance."
             />
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {cards.map((c, i) => (
-                    <StatCard key={i} {...c} />
-                ))}
-            </div>
+            {statsRes.error ? (
+                <SectionError title="Couldn't load platform stats" error={statsRes.error} onRetry={statsRes.reload} />
+            ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {statsRes.loading ? <StatCardSkeletons count={8} /> : cards.map((c, i) => (
+                        <StatCard key={i} {...c} />
+                    ))}
+                </div>
+            )}
 
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <ChartCard
@@ -132,10 +137,14 @@ export default function Dashboard() {
                     title="Client Growth"
                     subtitle="New clients onboarded per month"
                 >
-                    <GrowthChart data={clientGrowth} />
+                    <AsyncSection {...statsProps} rows={6}>
+                        <GrowthChart data={stats?.clientGrowth || []} />
+                    </AsyncSection>
                 </ChartCard>
                 <ChartCard title="Payment Status" subtitle="Distribution by state">
-                    <DonutChart data={stats.paymentStatusData || []} useStatusColors centerLabel="payments" />
+                    <AsyncSection {...statsProps} rows={6}>
+                        <DonutChart data={stats?.paymentStatusData || []} useStatusColors centerLabel="payments" />
+                    </AsyncSection>
                 </ChartCard>
             </div>
 
@@ -145,31 +154,20 @@ export default function Dashboard() {
                     title="Revenue"
                     subtitle="Monthly revenue trend"
                 >
-                    <RevenueChart data={revTrend} />
+                    <AsyncSection loading={revenueRes.loading} error={revenueRes.error} onRetry={revenueRes.reload} errorTitle="Couldn't load the revenue trend" rows={6}>
+                        <RevenueChart data={revenueRes.data?.items || []} />
+                    </AsyncSection>
                 </ChartCard>
                 <ChartCard title="Client Distribution" subtitle="Clients per trainer">
-                    <DonutChart data={stats.clientDistribution || []} centerLabel="clients" />
+                    <AsyncSection {...statsProps} rows={6}>
+                        <DonutChart data={stats?.clientDistribution || []} centerLabel="clients" />
+                    </AsyncSection>
                 </ChartCard>
             </div>
 
             <div className="mt-6">
                 <ChartCard title="Trainer Capacity" subtitle="Live utilisation across your team">
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
-                        {trainerList.map((t) => (
-                            <div key={t.id} className="flex items-center gap-3">
-                                <UserAvatar name={t.name} color={t.avatarColor} size={40} />
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center justify-between">
-                                        <span className="truncate text-sm font-semibold text-text-primary">{t.name}</span>
-                                        <span className="text-xs text-text-muted">{t.specialization}</span>
-                                    </div>
-                                    <div className="mt-1.5">
-                                        <CapacityBar current={t.clients} max={t.capacity} size="sm" />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <TrainerCapacity trainersRes={trainersRes} emptyText="No trainers yet." />
                 </ChartCard>
             </div>
         </div>

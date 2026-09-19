@@ -38,20 +38,8 @@ export function initRealtime(httpServer) {
         const { actor, user } = socket.data
         socket.join(userRoom(actor.userId))
 
-        // ---- Presence: announce myself + snapshot my counterparts ----
+        // Filled in by the presence step at the bottom of this handler.
         let counterparts = []
-        try {
-            counterparts = await counterpartUserIds(actor)
-        } catch {
-            counterparts = []
-        }
-        const justCameOnline = addSocket(actor.userId, socket.id)
-        if (justCameOnline) {
-            counterparts.forEach((uid) =>
-                io.to(userRoom(uid)).emit('presence:update', { userId: actor.userId, online: true }),
-            )
-        }
-        socket.emit('presence:snapshot', { online: onlineAmong(counterparts) })
 
         // ---- Open a conversation (join its room + mark the other side read) ----
         socket.on('conversation:open', (payload = {}, cb) =>
@@ -150,6 +138,25 @@ export function initRealtime(httpServer) {
                 )
             }
         })
+
+        // ---- Presence: announce myself + snapshot my counterparts ----
+        // Runs only after every handler above is registered. It awaits the DB, and a
+        // client emits (e.g. conversation:open) the moment it connects — handlers
+        // attached after that await would miss those events, leaving the chat thread
+        // stuck loading whenever the DB is a network hop away.
+        try {
+            counterparts = await counterpartUserIds(actor)
+        } catch {
+            counterparts = []
+        }
+        if (socket.disconnected) return
+        const justCameOnline = addSocket(actor.userId, socket.id)
+        if (justCameOnline) {
+            counterparts.forEach((uid) =>
+                io.to(userRoom(uid)).emit('presence:update', { userId: actor.userId, online: true }),
+            )
+        }
+        socket.emit('presence:snapshot', { online: onlineAmong(counterparts) })
     })
 
     console.log('[realtime] Socket.IO ready on path /socket.io')

@@ -1,20 +1,22 @@
-import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api, getToken } from '../services/api'
+import { createContext, useContext, useCallback, useMemo, useState } from 'react'
+import { api } from '../services/api'
+import { useLazyResource, useEnsureLoaded } from '../hooks/useLazyResource'
 
 const ScheduleContext = createContext(null)
 export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+const emptyWeek = () => Object.fromEntries(WEEK_DAYS.map((d) => [d, []]))
+
+// Fetched the first time the Schedule page mounts — not on every page load.
 export function ScheduleProvider({ children }) {
     const [today, setToday] = useState([])
-    const [week, setWeek] = useState(Object.fromEntries(WEEK_DAYS.map((d) => [d, []])))
+    const [week, setWeek] = useState(emptyWeek)
 
-    useEffect(() => {
-        if (!getToken()) return
-        api.get('/schedule').then((res) => {
-            setToday(res.today || [])
-            setWeek(res.week || Object.fromEntries(WEEK_DAYS.map((d) => [d, []])))
-        }).catch(() => { })
-    }, [])
+    const { status, error, ensureLoaded, reload } = useLazyResource(useCallback(async () => {
+        const res = await api.get('/schedule')
+        setToday(res.today || [])
+        setWeek(res.week || emptyWeek())
+    }, []))
 
     const addActivity = useCallback(async (activity) => {
         try {
@@ -50,12 +52,17 @@ export function ScheduleProvider({ children }) {
         } catch { /* */ }
     }, [])
 
-    const value = useMemo(() => ({ today, week, addActivity, removeActivity }), [today, week, addActivity, removeActivity])
+    const loading = status === 'idle' || status === 'loading'
+    const value = useMemo(
+        () => ({ today, week, addActivity, removeActivity, loading, error, reload, ensureLoaded }),
+        [today, week, addActivity, removeActivity, loading, error, reload, ensureLoaded],
+    )
     return <ScheduleContext.Provider value={value}>{children}</ScheduleContext.Provider>
 }
 
 export function useSchedule() {
     const ctx = useContext(ScheduleContext)
     if (!ctx) throw new Error('useSchedule must be used within ScheduleProvider')
+    useEnsureLoaded(ctx.ensureLoaded)
     return ctx
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Progress, Input, Alert, Button, Modal, App, Segmented } from 'antd'
 import {
   ClockCircleOutlined,
@@ -18,6 +18,7 @@ import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import GlycemicBadge from '../components/GlycemicBadge'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { getFood } from '../../../services/foodLibrary'
@@ -98,6 +99,7 @@ export default function MyDiet() {
   const { client } = useAuth()
   const [dietPlan, setDietPlan] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [planError, setPlanError] = useState(null)
   const [dayLoading, setDayLoading] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => pktDateStr())
   const [cheats, setCheats] = useState({}) // { [mealId]: { on, note, items } } — for selectedDate
@@ -144,21 +146,39 @@ export default function MyDiet() {
     [activeDay],
   )
 
-  // Fetch the diet plan once per client, and the daily log for whichever date
-  // is being viewed — bundled together on first load so the page never paints
-  // with a default/empty state before the real data arrives. Re-runs (with
-  // dayLoading, not the full-page spinner) whenever the viewed date changes.
+  // The diet plan is fetched once per client. A 404 just means "no plan
+  // assigned yet" (the page shows that state); anything else is a real failure.
+  const clientId = client?._id || client?.id
+  const loadPlan = useCallback(() => {
+    if (!clientId) return
+    setLoading(true)
+    setPlanError(null)
+    api.get(`/clients/${clientId}/diet-plan`)
+      .then(setDietPlan) // stay on the skeleton until the day's log below has loaded too
+      .catch((err) => {
+        if (err.status !== 404) setPlanError(err)
+        setLoading(false)
+      })
+  }, [clientId])
+  useEffect(() => { loadPlan() }, [loadPlan])
+
+  // The daily log is fetched for whichever date is being viewed — on first load
+  // together with the plan (so the page never paints a default/empty state), and
+  // afterwards on every date change with dayLoading, not the full-page skeleton.
+  // Keyed on the plan's id, so switching a meal option doesn't refetch the day.
+  const planKey = dietPlan ? (dietPlan._id || dietPlan.id || 'plan') : null
+  const planRef = useRef(dietPlan)
+  planRef.current = dietPlan
   useEffect(() => {
-    if (!client) return
+    const plan = planRef.current
+    if (!plan) return undefined
     let cancelled = false
-    const clientId = client._id || client.id
     setDayLoading(true)
-    Promise.all([
-      api.get(`/clients/${clientId}/diet-plan`),
-      api.get(`/progress/daily?date=${selectedDate}`).catch(() => null),
-    ]).then(([plan, daily]) => {
+    api.get(`/progress/daily?date=${selectedDate}`).catch(() => {
+      if (!cancelled) message.warning("Couldn't load your log for this day")
+      return null
+    }).then((daily) => {
       if (cancelled) return
-      setDietPlan(plan)
 
       const loadedCheats = {}
       ;(daily?.cheats || []).forEach((c) => {
@@ -186,13 +206,12 @@ export default function MyDiet() {
         })
       })
       setChecked(seed)
-    }).catch(() => { }).finally(() => {
-      if (cancelled) return
       setLoading(false)
       setDayLoading(false)
     })
     return () => { cancelled = true }
-  }, [client, selectedDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planKey, selectedDate])
 
   const isCheat = (mealId) => !!cheats[mealId]?.on
 
@@ -357,6 +376,7 @@ export default function MyDiet() {
   }, [cheats, meals])
 
   if (loading) return <LoadingSkeleton cards={4} rows={6} />
+  if (planError) return <div className="app-card"><SectionError title="Couldn't load your diet plan" error={planError} onRetry={loadPlan} /></div>
 
   const dateLabel = isToday
     ? 'Today'

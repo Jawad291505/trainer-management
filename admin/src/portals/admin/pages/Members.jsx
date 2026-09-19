@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Select, Button, App, Modal, Form, Input, InputNumber, Dropdown, Tag } from 'antd'
 import { PlusOutlined, MoreOutlined, EyeOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
@@ -7,6 +7,10 @@ import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
+import Pager from '../../../components/common/Pager'
+import { useAsyncData } from '../../../hooks/useAsyncData'
+import { usePagedList } from '../../../hooks/usePagedList'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
 import { confirmDelete } from '../../../utils/confirm'
@@ -26,32 +30,23 @@ const ONBOARDING_LABEL = {
 export default function Members() {
     const { message } = App.useApp()
     const navigate = useNavigate()
-    const [data, setData] = useState([])
-    const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
+    const list = usePagedList('/members', { params: { status }, search, pageSize: 12 })
+    const { items: data, total, loading, error: loadError, setItems: setData, reload: fetchMembers } = list
     const [editing, setEditing] = useState(null)
     const [saving, setSaving] = useState(false)
-    const [plans, setPlans] = useState([])
     const [form] = Form.useForm()
     const planId = Form.useWatch('planId', form)
+
+    // Subscription plans only feed the create/edit modal's plan picker — fetched
+    // the first time the modal opens, not with the page.
+    const [wantPlans, setWantPlans] = useState(false)
+    const plansRes = useAsyncData(() => api.get('/subscription-plans', { ttl: 60_000 }), [], { enabled: wantPlans })
+    const plans = plansRes.data?.items || []
     const selectedPlan = plans.find((p) => p.id === planId)
 
-    const fetchMembers = async () => {
-        try {
-            const res = await api.get('/members')
-            setData(res.items || [])
-        } catch (err) {
-            message.error('Failed to load members')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        fetchMembers()
-        api.get('/subscription-plans').then((res) => setPlans(res.items || [])).catch(() => {})
-    }, [])
+    useEffect(() => { if (editing) setWantPlans(true) }, [editing])
 
     const openCreate = () => {
         setEditing('new')
@@ -71,7 +66,8 @@ export default function Members() {
         try {
             if (editing === 'new') {
                 const created = await api.post('/members', v)
-                setData((prev) => [created, ...prev])
+                list.setPage(1)
+                fetchMembers()
                 if (created.inviteWarning) {
                     message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
                 } else {
@@ -80,6 +76,7 @@ export default function Members() {
             } else {
                 const updated = await api.patch(`/members/${editing.id}`, { ...v, planId: v.planId ?? null })
                 setData((prev) => prev.map((m) => (m.id === editing.id ? updated : m)))
+                if (status !== 'all' && updated.status !== status) fetchMembers()
                 message.success('Member updated')
             }
             setEditing(null)
@@ -89,15 +86,6 @@ export default function Members() {
             setSaving(false)
         }
     }
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return data.filter((m) => {
-            const matchQ = !q || m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q)
-            const matchS = status === 'all' || m.status === status
-            return matchQ && matchS
-        })
-    }, [data, search, status])
 
     const handleAction = async (key, member) => {
         switch (key) {
@@ -112,6 +100,7 @@ export default function Members() {
                 try {
                     const res = await api.patch(`/members/${member.id}`, { status: next })
                     setData((prev) => prev.map((m) => (m.id === member.id ? res : m)))
+                    if (status !== 'all') fetchMembers()
                     message.success(`${member.name} ${next === 'active' ? 'activated' : 'deactivated'}`)
                 } catch (err) { message.error(err.message) }
                 break
@@ -124,7 +113,7 @@ export default function Members() {
                     onOk: async () => {
                         try {
                             await api.delete(`/members/${member.id}`)
-                            setData((prev) => prev.filter((m) => m.id !== member.id))
+                            fetchMembers()
                             message.success('Member deleted')
                         } catch (err) { message.error(err.message) }
                     },
@@ -136,10 +125,11 @@ export default function Members() {
     }
 
     if (loading) return <LoadingSkeleton />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load members" error={loadError} onRetry={fetchMembers} /></div>
 
     return (
         <div>
-            <PageHeader title="Member Management" subtitle={`${filtered.length} members on the platform`}>
+            <PageHeader title="Member Management" subtitle={`${total} members on the platform`}>
                 <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
                     Create member
                 </Button>
@@ -159,13 +149,13 @@ export default function Members() {
                 />
             </FilterBar>
 
-            {filtered.length === 0 ? (
+            {data.length === 0 ? (
                 <div className="app-card">
                     <EmptyState title="No members found" description="Try adjusting your search or filters." />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {filtered.map((m) => (
+                    {data.map((m) => (
                         <div key={m.id} className="app-card app-card-hover animate-rise flex flex-col p-5">
                             <div className="flex items-start justify-between">
                                 <button className="flex items-center gap-3 text-left" onClick={() => handleAction('view', m)}>
@@ -222,6 +212,8 @@ export default function Members() {
                     ))}
                 </div>
             )}
+
+            <Pager list={list} />
 
             <Modal
                 title={editing === 'new' ? 'Create member' : 'Edit member'}

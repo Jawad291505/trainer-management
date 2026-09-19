@@ -1,17 +1,84 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
-import { User, Member, Trainer, Client, SubscriptionPlan } from '../models/index.js'
+import { User, Member, Trainer, Client, SubscriptionPlan, MemberPayment } from '../models/index.js'
 import { createInvitedUser } from '../services/invite.service.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 // Shape a Member + its User (+ trainer/client counts) for the admin Member
 // Management page — the replacement primary view for what used to be a flat
 // Trainers list (admin/src/portals/admin/pages/Members.jsx).
-async function flatten(member) {
+//
+// Trainer/client counts for a whole batch of members come from two grouped
+// queries (not two per member) — `countsFor` — so a list page costs a constant
+// number of round trips regardless of how many members it shows.
+async function countsFor(memberIds) {
+    const counts = new Map(memberIds.map((id) => [String(id), { trainerCount: 0, clientCount: 0 }]))
+    if (!memberIds.length) return counts
+
+    const trainers = await Trainer.find({ managedBy: { $in: memberIds } }, '_id managedBy').lean()
+    const memberOfTrainer = new Map()
+    for (const t of trainers) {
+        memberOfTrainer.set(String(t._id), String(t.managedBy))
+        counts.get(String(t.managedBy)).trainerCount += 1
+    }
+    if (trainers.length) {
+        const perTrainer = await Client.aggregate([
+            { $match: { trainer: { $in: trainers.map((t) => t._id) } } },
+            { $group: { _id: '$trainer', n: { $sum: 1 } } },
+        ])
+        for (const row of perTrainer) counts.get(memberOfTrainer.get(String(row._id))).clientCount += row.n
+    }
+    return counts
+}
+
+// Subscription status is derived (there is no stored field): no plan -> 'no_plan',
+// account not active -> 'inactive', then by planExpiryDate. `subscriptionFilter`
+// is the same rule as a Mongo query so the Payments page can filter on it server-side.
+const EXPIRING_DAYS = 7
+const DAY_MS = 86_400_000
+
+function subscriptionStatus(member, now = new Date()) {
+    if (!member.plan) return 'no_plan'
+    if (member.status !== 'active') return 'inactive'
+    if (!member.planExpiryDate) return 'active'
+    const expiry = new Date(member.planExpiryDate)
+    if (expiry < now) return 'expired'
+    if (expiry <= new Date(now.getTime() + EXPIRING_DAYS * DAY_MS)) return 'expiring'
+    return 'active'
+}
+
+function subscriptionFilter(status, now = new Date()) {
+    const soon = new Date(now.getTime() + EXPIRING_DAYS * DAY_MS)
+    const paying = { plan: { $ne: null }, status: 'active' }
+    switch (status) {
+        case 'no_plan': return { plan: null }
+        case 'inactive': return { plan: { $ne: null }, status: { $ne: 'active' } }
+        case 'expired': return { ...paying, planExpiryDate: { $lt: now } }
+        case 'expiring': return { ...paying, planExpiryDate: { $gte: now, $lte: soon } }
+        case 'active': return { ...paying, $or: [{ planExpiryDate: null }, { planExpiryDate: { $gt: soon } }] }
+        default: return {}
+    }
+}
+
+// Purchase-history extras for a batch of members (Payments page): the last
+// approved payment's date and how many payments each member has on record.
+async function paymentExtrasFor(memberIds) {
+    const rows = await MemberPayment.aggregate([
+        { $match: { member: { $in: memberIds } } },
+        {
+            $group: {
+                _id: '$member',
+                paymentCount: { $sum: 1 },
+                purchasedAt: { $max: { $cond: [{ $eq: ['$status', 'approved'] }, '$submittedAt', null] } },
+            },
+        },
+    ])
+    return new Map(rows.map((r) => [String(r._id), r]))
+}
+
+async function flatten(member, counts, extras) {
     const u = member.user
-    const trainerIds = await Trainer.find({ managedBy: member._id }, '_id')
-    const clientCount = trainerIds.length
-        ? await Client.countDocuments({ trainer: { $in: trainerIds.map((t) => t._id) } })
-        : 0
+    const { trainerCount, clientCount } = (counts || (await countsFor([member._id]))).get(String(member._id))
     return {
         id: String(member._id),
         userId: u ? String(u._id) : null,
@@ -20,7 +87,7 @@ async function flatten(member) {
         avatarColor: u?.avatarColor,
         title: member.title,
         status: member.status,
-        trainerCount: trainerIds.length,
+        trainerCount,
         trainerLimit: member.trainerLimit,
         clientCount,
         clientLimit: member.clientLimit,
@@ -36,22 +103,73 @@ async function flatten(member) {
             maxTrainers: member.plan.maxTrainers,
         } : null,
         planExpiryDate: member.planExpiryDate,
+        subscriptionStatus: subscriptionStatus(member),
         joinDate: member.joinDate,
+        ...(extras ? {
+            purchasedAt: extras.get(String(member._id))?.purchasedAt || member.joinDate,
+            paymentCount: extras.get(String(member._id))?.paymentCount || 0,
+        } : {}),
     }
 }
 
-// GET /api/members?status=&search=   (admin only)
+// GET /api/members?status=&search=&subscription=&plan=&include=payments&page=&limit=   (admin only)
+// `subscription` = active|expiring|expired|inactive|no_plan, `plan` = SubscriptionPlan id
+// (Payments page filters); `include=payments` adds purchasedAt/paymentCount to each row.
+// Pagination is opt-in (see utils/pagination.js).
 export const listMembers = asyncHandler(async (req, res) => {
-    let members = await Member.find(req.query.status ? { status: req.query.status } : {})
+    const filter = {}
+    if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
+
+    if (req.query.plan && req.query.plan !== 'all') filter.plan = req.query.plan
+    if (req.query.subscription && req.query.subscription !== 'all') {
+        Object.assign(filter, subscriptionFilter(req.query.subscription))
+    }
+
+    const search = String(req.query.search || '').trim()
+    if (search) {
+        const rx = new RegExp(escapeRegex(search), 'i')
+        filter.user = { $in: await User.find({ role: 'member', $or: [{ name: rx }, { email: rx }] }).distinct('_id') }
+    }
+
+    const paging = pageParams(req.query)
+    let query = Member.find(filter)
         .populate('user', 'name email avatarColor status')
         .populate('plan')
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
+        .lean()
+    if (paging) query = query.skip(paging.skip).limit(paging.limit)
 
-    if (req.query.search) {
-        const rx = new RegExp(String(req.query.search).trim(), 'i')
-        members = members.filter((m) => rx.test(m.user?.name || '') || rx.test(m.user?.email || ''))
-    }
-    res.json({ count: members.length, items: await Promise.all(members.map(flatten)) })
+    const [members, total] = await Promise.all([query, paging ? Member.countDocuments(filter) : null])
+    const ids = members.map((m) => m._id)
+    const [counts, extras] = await Promise.all([
+        countsFor(ids),
+        req.query.include === 'payments' ? paymentExtrasFor(ids) : null,
+    ])
+    const items = await Promise.all(members.map((m) => flatten(m, counts, extras)))
+
+    res.json(paging ? pagedBody(items, total, paging) : { count: items.length, items })
+})
+
+// GET /api/members/subscription-summary   (admin only) — headline numbers for the
+// Payments page, computed over ALL members / payments (not just the visible page).
+export const subscriptionSummary = asyncHandler(async (_req, res) => {
+    const now = new Date()
+    const [active, expiring, expired, revenue] = await Promise.all([
+        Member.countDocuments(subscriptionFilter('active', now)),
+        Member.countDocuments(subscriptionFilter('expiring', now)),
+        Member.countDocuments(subscriptionFilter('expired', now)),
+        MemberPayment.aggregate([
+            { $match: { status: 'approved' } },
+            { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+        ]),
+    ])
+    res.json({
+        active,
+        expiring,
+        expired,
+        totalRevenue: revenue[0]?.total || 0,
+        approvedPayments: revenue[0]?.count || 0,
+    })
 })
 
 // GET /api/members/:id   (admin only) — includes the trainers assigned to this member

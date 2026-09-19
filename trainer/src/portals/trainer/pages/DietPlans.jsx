@@ -13,6 +13,8 @@ import {
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
 import ModalTitle from '../../../components/common/ModalTitle'
+import SectionError from '../../../components/feedback/SectionError'
+import { useClientList } from '../../../hooks/useClientList'
 import { api } from '../../../services/api'
 import { useLibrary } from '../../../context/LibraryContext'
 import {
@@ -122,11 +124,11 @@ function OptionPane({ option, onAddFood, onChangeQty, onRemoveFood, foods }) {
 
 export default function DietPlans() {
     const { message, modal } = App.useApp()
-    const { foods } = useLibrary()
+    const { foods, loading: foodsLoading, error: foodsError, reload: reloadFoods } = useLibrary(['foods'])
     // ?client=<id> pre-selects the client (used by the Requests page's "Open plan").
     const [searchParams] = useSearchParams()
     const [clientId, setClientId] = useState(() => searchParams.get('client'))
-    const [clientList, setClientList] = useState([])
+    const { clients: clientList, loading: clientsLoading, error: clientsError, reload: reloadClients } = useClientList()
     const [dayMode, setDayMode] = useState('same') // 'same' | 'custom'
     const [days, setDays] = useState([])
     const [activeDayId, setActiveDayId] = useState(null)
@@ -135,6 +137,8 @@ export default function DietPlans() {
     const [saving, setSaving] = useState(false)
     const [publishing, setPublishing] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [planError, setPlanError] = useState(null)
+    const [planTick, setPlanTick] = useState(0)
     const [templates, setTemplates] = useState([])
 
     const activeDay = useMemo(() => days.find((d) => d.id === activeDayId) || null, [days, activeDayId])
@@ -148,15 +152,17 @@ export default function DietPlans() {
     }
 
     useEffect(() => {
-        api.get('/clients').then((res) => {
-            const items = res.items || []
-            setClientList(items)
-            if (items.length > 0) setClientId((cur) => (items.some((c) => c.id === cur) ? cur : items[0].id))
-        }).catch(() => { })
-        api.get('/diet-plan-templates').then((res) => {
+        api.get('/diet-plan-templates', { ttl: 60_000 }).then((res) => {
             setTemplates(res.items || [])
         }).catch(() => { })
     }, [])
+
+    // Default to the first client once the roster arrives (or if the ?client= one isn't theirs).
+    useEffect(() => {
+        if (clientsLoading) return
+        if (clientList.length > 0) setClientId((cur) => (clientList.some((c) => c.id === cur) ? cur : clientList[0].id))
+        else setLoading(false) // no clients — nothing to load a plan for
+    }, [clientsLoading, clientList])
 
     // Build local day state from an API plan's `days`. Falls back to wrapping
     // a legacy flat `items` array into a single "Option 1" if a plan predates
@@ -222,16 +228,17 @@ export default function DietPlans() {
     useEffect(() => {
         if (!clientId) return
         setLoading(true)
+        setPlanError(null)
         setTemplateId(undefined)
-        api.get(`/diet-plans?client=${clientId}`).then(async (res) => {
+        api.get(`/diet-plans?client=${clientId}&summary=1`).then(async (res) => {
             const plans = res.items || []
             const plan = plans.find((p) => p.status === 'draft') || plans[0]
             if (!plan) { hydratePlan(null); return }
             // Fetch the full plan with computed nutrition
             const full = await api.get(`/diet-plans/${plan._id || plan.id}`)
             hydratePlan(full)
-        }).catch(() => hydratePlan(null)).finally(() => setLoading(false))
-    }, [clientId])
+        }).catch((err) => setPlanError(err)).finally(() => setLoading(false))
+    }, [clientId, planTick])
     const [templateId, setTemplateId] = useState(undefined)
     const [templateName, setTemplateName] = useState('')
     const [mealModal, setMealModal] = useState(false)
@@ -599,8 +606,14 @@ export default function DietPlans() {
                 ))}
             </div>
 
-            {loading ? (
+            {loading || (foodsLoading && !clientsError) ? (
                 <div className="flex justify-center py-16"><Spin size="large" /></div>
+            ) : clientsError ? (
+                <div className="app-card"><SectionError title="Couldn't load your clients" error={clientsError} onRetry={reloadClients} /></div>
+            ) : planError ? (
+                <div className="app-card"><SectionError title="Couldn't load this client's diet plan" error={planError} onRetry={() => setPlanTick((t) => t + 1)} /></div>
+            ) : foodsError ? (
+                <div className="app-card"><SectionError title="Couldn't load the food library" error={foodsError} onRetry={reloadFoods} /></div>
             ) : meals.length === 0 ? (
                 <div className="app-card">
                     <EmptyState

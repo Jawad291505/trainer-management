@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, App, Dropdown, Divider } from 'antd'
+import { useState } from 'react'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Dropdown, Divider, Skeleton } from 'antd'
 import {
     PlusOutlined,
     EditOutlined,
@@ -12,32 +12,30 @@ import ModalTitle from '../../../components/common/ModalTitle'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
 import EmptyState from '../../../components/common/EmptyState'
+import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
-import { useLibrary } from '../../../context/LibraryContext'
+import { useLibrary, normalize } from '../../../context/LibraryContext'
 import { foodCategories, foodUnits } from '../../../services/foodLibrary'
 
 // Admin food & nutrition management. Foods added/edited here feed the shared
 // library that trainers read when building diet plans.
 export default function Foods() {
     const { message } = App.useApp()
-    const { foods, addFood, updateFood, removeFood } = useLibrary()
+    // Mutations go through the shared library context; the visible page (search,
+    // category filter and paging) is fetched from the backend.
+    const { addFood, updateFood, removeFood } = useLibrary([])
     const [search, setSearch] = useState('')
     const [category, setCategory] = useState('all')
+    const list = usePagedList('/foods', { params: { category }, search, pageSize: 10, transform: normalize })
+    const { items: foods, total, loading, error, reload } = list
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState(null)
     const [form] = Form.useForm()
 
     const unit = Form.useWatch('unit', form)
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return foods.filter((f) => {
-            const matchQ = !q || f.name.toLowerCase().includes(q)
-            const matchC = category === 'all' || f.category === category
-            return matchQ && matchC
-        })
-    }, [foods, search, category])
 
     const openAdd = () => {
         setEditing(null)
@@ -56,9 +54,12 @@ export default function Foods() {
         try {
             if (editing) {
                 await updateFood(editing.id, v)
+                reload()
                 message.success('Food updated')
             } else {
                 await addFood(v)
+                list.setPage(1)
+                reload()
                 message.success('Food added')
             }
             setModalOpen(false)
@@ -74,6 +75,7 @@ export default function Foods() {
             onOk: async () => {
                 try {
                     await removeFood(f.id)
+                    reload()
                     message.success('Food deleted')
                 } catch (err) {
                     message.error(err.message || 'Failed to delete')
@@ -141,7 +143,7 @@ export default function Foods() {
 
     return (
         <div>
-            <PageHeader title="Food Library" subtitle={`${filtered.length} foods · shared with trainers`}>
+            <PageHeader title="Food Library" subtitle={loading ? 'Loading foods…' : `${total} foods · shared with trainers`}>
                 <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
                     Add food
                 </Button>
@@ -157,7 +159,11 @@ export default function Foods() {
                 />
             </FilterBar>
 
-            {filtered.length === 0 ? (
+            {loading ? (
+                <div className="app-card p-5"><Skeleton active paragraph={{ rows: 8 }} /></div>
+            ) : error ? (
+                <div className="app-card"><SectionError title="Couldn't load the food library" error={error} onRetry={reload} /></div>
+            ) : foods.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No foods found"
@@ -166,7 +172,10 @@ export default function Foods() {
                     />
                 </div>
             ) : (
-                <DataTable columns={columns} dataSource={filtered} pageSize={10} scrollX={760} />
+                <>
+                    <DataTable columns={columns} dataSource={foods} loading={list.fetching} pagination={false} scrollX={760} />
+                    <Pager list={list} pageSizeOptions={[10, 20, 50]} />
+                </>
             )}
 
             <Modal

@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { User, Member, Trainer, Client, DailyLog } from '../models/index.js'
 import { createInvitedUser } from '../services/invite.service.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 function flatten(client) {
     const u = client.user
@@ -44,28 +45,40 @@ async function memberTrainerIds(memberId) {
     return trainers.map((t) => t._id)
 }
 
-// GET /api/clients?status=&goal=&plan=&trainer=&search=&unassigned=1
-// admin: all;  member: only clients of their own trainers;  trainer: only their own (ignores `trainer` query)
+// GET /api/clients?status=&goal=&plan=&trainer=&search=&unassigned=1&page=&limit=
+// admin: all;  member: only clients of their own trainers (may narrow with `trainer`);
+// trainer: only their own (ignores `trainer` query)
+// Pagination is opt-in (see utils/pagination.js) — other screens load the full list.
 export const listClients = asyncHandler(async (req, res) => {
     const filter = {}
     if (req.user.role === 'trainer') filter.trainer = req.trainer._id
-    else if (req.user.role === 'member') filter.trainer = { $in: await memberTrainerIds(req.member._id) }
-    else if (req.query.trainer) filter.trainer = req.query.trainer
+    else if (req.user.role === 'member') {
+        const own = await memberTrainerIds(req.member._id)
+        // Narrowing to one trainer must stay inside the member's own scope.
+        filter.trainer = { $in: req.query.trainer ? own.filter((id) => String(id) === req.query.trainer) : own }
+    } else if (req.query.trainer && req.query.trainer !== 'all') filter.trainer = req.query.trainer
     if (req.query.unassigned === '1') filter.trainer = null
-    if (req.query.status) filter.status = req.query.status
+    if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
     if (req.query.goal) filter.goal = req.query.goal
     if (req.query.plan) filter.plan = req.query.plan
 
-    let clients = await Client.find(filter)
+    const search = String(req.query.search || '').trim()
+    if (search) {
+        const rx = new RegExp(escapeRegex(search), 'i')
+        filter.user = { $in: await User.find({ role: 'client', $or: [{ name: rx }, { email: rx }] }).distinct('_id') }
+    }
+
+    const paging = pageParams(req.query)
+    let query = Client.find(filter)
         .populate('user', 'name email avatarColor phone status')
         .populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
+        .lean()
+    if (paging) query = query.skip(paging.skip).limit(paging.limit)
 
-    if (req.query.search) {
-        const rx = new RegExp(String(req.query.search).trim(), 'i')
-        clients = clients.filter((c) => rx.test(c.user?.name || '') || rx.test(c.user?.email || ''))
-    }
-    res.json({ count: clients.length, items: clients.map(flatten) })
+    const [clients, total] = await Promise.all([query, paging ? Client.countDocuments(filter) : null])
+    const items = clients.map(flatten)
+    res.json(paging ? pagedBody(items, total, paging) : { count: items.length, items })
 })
 
 // GET /api/clients/:id   (admin; member if one of their trainers; trainer if assigned; client if self)

@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { User, Member, MemberPayment, SubscriptionPlan } from '../models/index.js'
 import { uploadPaymentProof } from '../services/cloudinary.service.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 function flatten(payment) {
     const m = payment.member
@@ -80,16 +81,33 @@ export const myPayments = asyncHandler(async (req, res) => {
     res.json({ count: payments.length, items: payments.map(flatten) })
 })
 
-// GET /api/member-payments?status=&member=   (admin only) — review queue,
-// optionally scoped to one member (Member Management detail page).
+// GET /api/member-payments?status=&member=&search=&page=&limit=   (admin only) — review queue,
+// optionally scoped to one member (Member Management detail page). `search` matches the
+// member's name or email. Pagination is opt-in (see utils/pagination.js).
 export const listMemberPayments = asyncHandler(async (req, res) => {
     const filter = {}
-    if (req.query.status) filter.status = req.query.status
+    if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
     if (req.query.member) filter.member = req.query.member
-    const payments = await MemberPayment.find(filter)
+
+    const search = String(req.query.search || '').trim()
+    if (search) {
+        const rx = new RegExp(escapeRegex(search), 'i')
+        const userIds = await User.find({ role: 'member', $or: [{ name: rx }, { email: rx }] }).distinct('_id')
+        const memberIds = await Member.find({ user: { $in: userIds } }).distinct('_id')
+        filter.member = req.query.member
+            ? { $in: memberIds.filter((id) => String(id) === req.query.member) }
+            : { $in: memberIds }
+    }
+
+    const paging = pageParams(req.query)
+    let query = MemberPayment.find(filter)
         .populate({ path: 'member', populate: { path: 'user', select: 'name email avatarColor' } })
-        .sort({ createdAt: -1 })
-    res.json({ count: payments.length, items: payments.map(flatten) })
+        .sort({ createdAt: -1, _id: -1 })
+    if (paging) query = query.skip(paging.skip).limit(paging.limit)
+
+    const [payments, total] = await Promise.all([query, paging ? MemberPayment.countDocuments(filter) : null])
+    const items = payments.map(flatten)
+    res.json(paging ? pagedBody(items, total, paging) : { count: items.length, items })
 })
 
 // PATCH /api/member-payments/:id/approve   (admin only)

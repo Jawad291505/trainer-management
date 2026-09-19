@@ -3,13 +3,11 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { Exercise, ExerciseTechnique, LibraryCategory } from '../models/index.js'
 import { exerciseCode as makeCode } from '../utils/slugify.js'
+import { masterExercises } from '../services/libraryCache.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
-function visibilityFilter(req) {
-    if (req.user?.role === 'trainer' && req.trainer) {
-        return { $or: [{ isMaster: true }, { owner: req.trainer._id }] }
-    }
-    return { isMaster: true }
-}
+// Master exercises are served from memory (see services/libraryCache.js); only a
+// trainer's own custom exercises are read from the database per request.
 
 async function findExerciseOr404(idOrCode) {
     const query = mongoose.isValidObjectId(idOrCode) ? { _id: idOrCode } : { code: idOrCode }
@@ -18,16 +16,25 @@ async function findExerciseOr404(idOrCode) {
     return ex
 }
 
-// GET /api/exercises?category=&search=&technique=&source=
+// GET /api/exercises?category=&search=&technique=&source=&page=&limit=   (pagination is opt-in — see utils/pagination.js)
 export const listExercises = asyncHandler(async (req, res) => {
-    const filter = { ...visibilityFilter(req) }
-    if (req.query.category && req.query.category !== 'all') filter.category = req.query.category
-    if (req.query.technique) filter.technique = req.query.technique
-    if (req.query.source) filter.source = req.query.source
-    if (req.query.search) filter.name = { $regex: String(req.query.search).trim(), $options: 'i' }
+    const isTrainer = req.user?.role === 'trainer' && req.trainer
+    const [master, own] = await Promise.all([
+        masterExercises.get(),
+        isTrainer ? Exercise.find({ isMaster: { $ne: true }, owner: req.trainer._id }).sort({ name: 1 }) : [],
+    ])
 
-    const items = await Exercise.find(filter).sort({ isMaster: -1, name: 1 })
-    res.json({ count: items.length, items })
+    const { category, technique, source, search } = req.query
+    const needle = search ? String(search).trim().toLowerCase() : ''
+    const items = [...master, ...own.map((d) => d.toJSON())].filter((x) =>
+        (!category || category === 'all' || x.category === category) &&
+        (!technique || x.technique === technique) &&
+        (!source || x.source === source) &&
+        (!needle || x.name.toLowerCase().includes(needle)),
+    )
+    const paging = pageParams(req.query)
+    if (!paging) return res.json({ count: items.length, items })
+    res.json(pagedBody(items.slice(paging.skip, paging.skip + paging.limit), items.length, paging))
 })
 
 // GET /api/exercises/categories
@@ -72,6 +79,7 @@ export const createExercise = asyncHandler(async (req, res) => {
         isMaster: !isTrainer,
         owner: isTrainer ? req.trainer._id : null,
     })
+    if (ex.isMaster) masterExercises.invalidate()
     res.status(201).json(ex)
 })
 
@@ -89,6 +97,7 @@ export const updateExercise = asyncHandler(async (req, res) => {
     ]
     for (const key of editable) if (req.body[key] !== undefined) ex[key] = req.body[key]
     await ex.save()
+    if (ex.isMaster) masterExercises.invalidate()
     res.json(ex)
 })
 
@@ -101,5 +110,6 @@ export const deleteExercise = asyncHandler(async (req, res) => {
         }
     }
     await ex.deleteOne()
+    if (ex.isMaster) masterExercises.invalidate()
     res.json({ ok: true })
 })

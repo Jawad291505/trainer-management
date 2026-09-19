@@ -6,16 +6,12 @@
 // (see context/LibraryContext). When a backend arrives the JSON import simply
 // becomes an API call.
 
-import exerciseData from '@data/exerciseLibrary.json'
+// Named import so the bundler drops the unused `items` array — the actual
+// exercises are served by the API.
+import { categories } from '@data/exerciseLibrary.json'
 import techniqueData from '@data/exerciseTechniques.json'
 
-export const exerciseCategories = exerciseData.categories
-
-export const exerciseLibrary = exerciseData.items
-
-export function getExercise(id) {
-    return exerciseLibrary.find((x) => x.id === id)
-}
+export const exerciseCategories = categories
 
 // Training techniques (Standard / TUT / Super Set) — a shared, data-driven enum
 // every exercise carries. Sourced from /data/exerciseTechniques.json so the

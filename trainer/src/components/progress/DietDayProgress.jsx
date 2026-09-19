@@ -153,7 +153,7 @@ function MealRow({ meal, hasLog, isFuture }) {
 export default function DietDayProgress({ clientId, initialDate }) {
     const todayStr = pktDateStr()
     // `initialDate` (YYYY-MM-DD) lets a link open a specific day; ignored if malformed or in the future.
-    const [date, setDate] = useState(() => (/^d{4}-d{2}-d{2}$/.test(initialDate || '') && initialDate <= todayStr ? initialDate : todayStr))
+    const [date, setDate] = useState(() => (/^\d{4}-\d{2}-\d{2}$/.test(initialDate || '') && initialDate <= todayStr ? initialDate : todayStr))
     const [reloadKey, setReloadKey] = useState(0)
     const [state, setState] = useState({ data: null, loading: true, error: null })
     const [history, setHistory] = useState([])

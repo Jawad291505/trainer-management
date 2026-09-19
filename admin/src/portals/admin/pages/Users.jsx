@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Select, Dropdown, Button, Tag, App, Modal, Form, Input } from 'antd'
 import {
@@ -13,9 +13,12 @@ import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
 import StatusBadge from '../../../components/common/StatusBadge'
 import UserAvatar from '../../../components/common/UserAvatar'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import { api } from '../../../services/api'
 import { useAuth } from '../../../context/AuthContext'
 
@@ -31,34 +34,22 @@ export default function Users() {
     const navigate = useNavigate()
     const { user: me } = useAuth()
     const isAdmin = me?.role === 'admin'
-    const [data, setData] = useState([])
-    const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [role, setRole] = useState('all')
     const [status, setStatus] = useState('all')
+    const list = usePagedList('/users', { params: { role, status }, search, pageSize: 10 })
+    const { items: data, total, loading, fetching, error: loadError, setItems: setData, reload: fetchUsers } = list
     const [inviting, setInviting] = useState(false)
     const [savingInvite, setSavingInvite] = useState(false)
     const [inviteForm] = Form.useForm()
-
-    const fetchUsers = async () => {
-        try {
-            const res = await api.get('/users')
-            setData(res.items || [])
-        } catch (err) {
-            message.error('Failed to load users')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => { fetchUsers() }, [])
 
     const inviteAdmin = async () => {
         const v = await inviteForm.validateFields()
         setSavingInvite(true)
         try {
             const created = await api.post('/admins', v)
-            await fetchUsers()
+            list.setPage(1)
+            fetchUsers()
             if (created.inviteWarning) {
                 message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
             } else {
@@ -93,21 +84,12 @@ export default function Users() {
         })
     }
 
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return data.filter((u) => {
-            const matchQ = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-            const matchR = role === 'all' || u.role === role
-            const matchS = status === 'all' || u.status === status
-            return matchQ && matchR && matchS
-        })
-    }, [data, search, role, status])
-
     const toggleStatus = async (record) => {
         const next = record.status === 'active' ? 'inactive' : 'active'
         try {
             await api.patch(`/users/${record.id}/status`, { status: next })
             setData((prev) => prev.map((u) => (u.id === record.id ? { ...u, status: next } : u)))
+            if (status !== 'all') fetchUsers()
             message.success(`${record.name} ${next === 'active' ? 'activated' : 'deactivated'}`)
         } catch (err) {
             message.error(err.message)
@@ -151,13 +133,6 @@ export default function Users() {
             title: 'Role',
             dataIndex: 'role',
             width: 140,
-            filters: [
-                { text: 'Super Admin', value: 'Super Admin' },
-                { text: 'Member', value: 'Member' },
-                { text: 'Trainer', value: 'Trainer' },
-                { text: 'Client', value: 'Client' },
-            ],
-            onFilter: (v, r) => r.role === v,
             render: (role) => (
                 <Tag style={{ borderRadius: 999, border: 'none', padding: '2px 10px', color: '#fff', background: ROLE_TAG[role] }}>
                     {role}
@@ -216,10 +191,11 @@ export default function Users() {
     ]
 
     if (loading) return <LoadingSkeleton />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load users" error={loadError} onRetry={fetchUsers} /></div>
 
     return (
         <div>
-            <PageHeader title="User Management" subtitle={`${filtered.length} users found`}>
+            <PageHeader title="User Management" subtitle={`${total} users found`}>
                 {isAdmin && (
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => { inviteForm.resetFields(); setInviting(true) }}>
                         Invite admin
@@ -235,10 +211,10 @@ export default function Users() {
                     style={{ width: 160 }}
                     options={[
                         { value: 'all', label: 'All roles' },
-                        { value: 'Super Admin', label: 'Super Admin' },
-                        { value: 'Member', label: 'Member' },
-                        { value: 'Trainer', label: 'Trainer' },
-                        { value: 'Client', label: 'Client' },
+                        { value: 'admin', label: 'Super Admin' },
+                        { value: 'member', label: 'Member' },
+                        { value: 'trainer', label: 'Trainer' },
+                        { value: 'client', label: 'Client' },
                     ]}
                 />
                 <Select
@@ -254,7 +230,8 @@ export default function Users() {
                 />
             </FilterBar>
 
-            <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1050} />
+            <DataTable columns={columns} dataSource={data} loading={fetching} pagination={false} scrollX={1050} />
+            <Pager list={list} pageSizeOptions={[10, 20, 50]} />
 
             <Modal
                 title="Invite a new Admin"

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Segmented, Tag, Popconfirm, Button, App } from 'antd'
+import { Segmented, Tag, Popconfirm, Button, App, Skeleton } from 'antd'
 import { CalendarOutlined, EyeOutlined, WarningFilled, CheckCircleFilled } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import PageHeader from '../../../components/common/PageHeader'
 import StatusBadge from '../../../components/common/StatusBadge'
 import EmptyState from '../../../components/common/EmptyState'
+import SectionError from '../../../components/feedback/SectionError'
 import RequestCorrection from '../components/RequestCorrection'
 import { useCorrections } from '../../../context/CorrectionsContext'
 
@@ -21,7 +22,7 @@ const fmt = (d) => dayjs(d).format('D MMM, h:mm A')
 
 export default function MyRequests() {
     const { message } = App.useApp()
-    const { requests, cancelRequest } = useCorrections()
+    const { requests, cancelRequest, loading, error, reload } = useCorrections()
     const [filter, setFilter] = useState('all')
 
     const list = requests.filter((r) => {
@@ -43,7 +44,11 @@ export default function MyRequests() {
                 <Segmented value={filter} onChange={setFilter} options={FILTERS} />
             </div>
 
-            {list.length === 0 ? (
+            {loading ? (
+                <div className="app-card p-5"><Skeleton active paragraph={{ rows: 4 }} /></div>
+            ) : error ? (
+                <div className="app-card"><SectionError title="Couldn't load your requests" error={error} onRetry={reload} /></div>
+            ) : list.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No requests yet"

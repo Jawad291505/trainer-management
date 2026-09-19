@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Segmented, Button, App, Dropdown, Tag } from 'antd'
 import dayjs from 'dayjs'
@@ -10,12 +10,16 @@ import {
     WarningFilled,
     MoreOutlined,
     LockOutlined,
+    ClockCircleOutlined,
+    CheckCircleOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import EmptyState from '../../../components/common/EmptyState'
 import UserAvatar from '../../../components/common/UserAvatar'
 import PageSpin from '../../../components/common/PageSpin'
+import SectionError from '../../../components/feedback/SectionError'
+import { useClientList } from '../../../hooks/useClientList'
 import { ScheduleFollowUpModal, CompleteFollowUpModal } from '../components/FollowUpModals'
 import { api } from '../../../services/api'
 import { FOLLOWUP_BUCKETS as BUCKETS, FOLLOWUP_TYPE_LABELS } from '../../../constants/followUp'
@@ -28,18 +32,25 @@ export default function FollowUps() {
     const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
     const [data, setData] = useState([])
-    const [clientList, setClientList] = useState([])
     const [active, setActive] = useState('today')
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [scheduling, setScheduling] = useState(null) // { followUp?, clientId? }
     const [completing, setCompleting] = useState(null) // follow-up being completed
 
-    useEffect(() => {
-        Promise.all([api.get('/followups'), api.get('/clients')])
-            .then(([f, c]) => {
+    // The client roster is only needed by the schedule modal — fetch it the first
+    // time the modal opens instead of with the page.
+    const [needClients, setNeedClients] = useState(false)
+    useEffect(() => { if (scheduling) setNeedClients(true) }, [scheduling])
+    const { clients: clientList, loading: clientsLoading } = useClientList(needClients)
+
+    const load = useCallback(() => {
+        setLoading(true)
+        setLoadError(null)
+        api.get('/followups')
+            .then((f) => {
                 const items = f.items || []
                 setData(items)
-                setClientList(c.items || [])
                 // Land on whatever needs attention first.
                 const count = (key) => items.filter((i) => i.bucket === key).length
                 setActive(count('overdue') ? 'overdue' : count('today') ? 'today' : 'upcoming')
@@ -51,10 +62,11 @@ export default function FollowUps() {
                     setSearchParams({}, { replace: true })
                 }
             })
-            .catch((err) => message.error(err.message || 'Could not load follow-ups'))
+            .catch((err) => setLoadError(err))
             .finally(() => setLoading(false))
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+    useEffect(() => { load() }, [load])
 
     const counts = BUCKETS.reduce((acc, b) => {
         acc[b.key] = data.filter((f) => f.bucket === b.key).length
@@ -130,6 +142,7 @@ export default function FollowUps() {
     })
 
     if (loading) return <PageSpin />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load follow-ups" error={loadError} onRetry={load} /></div>
 
     return (
         <div>
@@ -140,10 +153,10 @@ export default function FollowUps() {
             </PageHeader>
 
             <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <StatCard label="Due Today" value={counts.today} accent="var(--color-info)" />
-                <StatCard label="Upcoming" value={counts.upcoming} />
-                <StatCard label="Overdue" value={counts.overdue} accent="var(--color-danger)" />
-                <StatCard label="Completed" value={counts.completed} accent="var(--color-success)" />
+                <StatCard icon={<CalendarOutlined />} label="Due Today" value={counts.today} accent="var(--color-info)" />
+                <StatCard icon={<ClockCircleOutlined />} label="Upcoming" value={counts.upcoming} />
+                <StatCard icon={<WarningFilled />} label="Overdue" value={counts.overdue} accent="var(--color-danger)" />
+                <StatCard icon={<CheckCircleOutlined />} label="Completed" value={counts.completed} accent="var(--color-success)" />
             </div>
 
             <div className="mb-4 overflow-x-auto">
@@ -211,6 +224,7 @@ export default function FollowUps() {
                 followUp={scheduling?.followUp}
                 initialClientId={scheduling?.clientId}
                 clients={clientList}
+                clientsLoading={clientsLoading}
                 onClose={() => setScheduling(null)}
                 onSaved={onScheduled}
             />

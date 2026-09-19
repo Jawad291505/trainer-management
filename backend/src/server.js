@@ -4,6 +4,7 @@ import { connectDb } from './config/db.js'
 import { env } from './config/env.js'
 import { initRealtime } from './realtime/index.js'
 import { startFollowUpReminderJob } from './services/followUpReminders.service.js'
+import { warmLibraryCaches } from './services/libraryCache.js'
 
 async function main() {
     await connectDb()
@@ -20,6 +21,10 @@ async function main() {
     server.listen(env.port, () => {
         console.log(`[server] FitTrack API + realtime on http://localhost:${env.port}  (${env.nodeEnv})`)
     })
+
+    // Fill the reference-data caches in the background so the first library /
+    // diet-plan request doesn't wait on the database.
+    warmLibraryCaches()
 }
 
 main().catch((err) => {

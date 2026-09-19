@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Form, Input, Switch, Button, App, Tabs, Modal, Tag, Empty } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Form, Input, Switch, Button, App, Tabs, Modal, Tag, Empty, Skeleton } from 'antd'
 import { CopyOutlined, GiftOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import ThemePicker from '../../../components/common/ThemePicker'
+import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
@@ -95,10 +96,15 @@ function ReferralsTab() {
     const { trainer } = useAuth()
     const [referrals, setReferrals] = useState(null)
     const [input, setInput] = useState('')
+    const [refLoading, setRefLoading] = useState(true)
+    const [refError, setRefError] = useState(null)
 
-    useEffect(() => {
-        api.get('/referrals/me').then(setReferrals).catch(() => { })
+    const loadReferrals = useCallback(() => {
+        setRefLoading(true)
+        setRefError(null)
+        api.get('/referrals/me').then(setReferrals).catch(setRefError).finally(() => setRefLoading(false))
     }, [])
+    useEffect(() => { loadReferrals() }, [loadReferrals])
 
     const code = trainer?.referralCode || '—'
 
@@ -150,8 +156,12 @@ function ReferralsTab() {
                     </>
                 )}
                 <h3 className="section-title mb-1 mt-8">Trainers you referred <Tag className="ml-1" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)', border: 'none' }}>{myReferrals.length}</Tag></h3>
-                <p className="mb-3 text-sm text-text-secondary">{joined} joined · {myReferrals.length - joined} pending</p>
-                {myReferrals.length === 0 ? (
+                <p className="mb-3 text-sm text-text-secondary">{refLoading ? 'Loading…' : `${joined} joined · ${myReferrals.length - joined} pending`}</p>
+                {refLoading ? (
+                    <Skeleton active paragraph={{ rows: 3 }} />
+                ) : refError ? (
+                    <SectionError title="Couldn't load your referrals" error={refError} onRetry={loadReferrals} />
+                ) : myReferrals.length === 0 ? (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No referrals yet." />
                 ) : (
                     <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>

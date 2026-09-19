@@ -3,11 +3,12 @@
 // admin manages these entries; trainers read them. When a backend arrives, swap
 // the JSON import for an API.
 
-import exerciseData from '@data/exerciseLibrary.json'
+// Named import so the bundler drops the unused `items` array — the actual
+// exercises are served by the API.
+import { categories } from '@data/exerciseLibrary.json'
 import techniqueData from '@data/exerciseTechniques.json'
 
-export const exerciseCategories = exerciseData.categories
-export const exerciseSeed = exerciseData.items
+export const exerciseCategories = categories
 
 // Training techniques (Standard / TUT / Super Set) — a shared, data-driven enum
 // every exercise carries. Sourced from /data/exerciseTechniques.json so it can

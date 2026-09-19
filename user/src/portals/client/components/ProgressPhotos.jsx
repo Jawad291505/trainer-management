@@ -271,7 +271,7 @@ export default function ProgressPhotos() {
                                         <div key={p.id} className="flex flex-col overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
                                             <div className="relative bg-black/5" style={{ aspectRatio: '3 / 4' }}>
                                                 <Image
-                                                    src={p.dataUrl}
+                                                    src={p.dataUrl || p.image}
                                                     alt={progressPhotoAngleLabels[p.angle] || 'Progress photo'}
                                                     wrapperClassName="!block h-full w-full"
                                                     className="!h-full !w-full !object-cover"

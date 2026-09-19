@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { NutritionConfig } from '../models/index.js'
+import { invalidateThresholds } from '../services/libraryCache.js'
 import { computeNutrition, computeGL, giLevel, glItemLevel, glMealLevel } from '../services/nutrition.service.js'
 
 // GET /api/nutrition/config
@@ -19,6 +20,7 @@ export const updateConfig = asyncHandler(async (req, res) => {
         }
     }
     await cfg.save()
+    invalidateThresholds()
     res.json({ gi: cfg.gi, glItem: cfg.glItem, glMeal: cfg.glMeal })
 })
 

@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { User, Member, Trainer, Client } from '../models/index.js'
 import { reissueInvite } from '../services/invite.service.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 // Resolve the User ids a member is allowed to see: themselves, their trainers,
 // and those trainers' clients.
@@ -12,22 +13,28 @@ async function memberScopeUserIds(memberId) {
     return [...trainerUserIds, ...clients.map((c) => c.user)]
 }
 
-// GET /api/users?role=&status=&search=   (admin: everyone; member: their own scope)
+// GET /api/users?role=&status=&search=&page=&limit=   (admin: everyone; member: their own scope)
 // The unified Users table (admin/src/portals/admin/pages/Users.jsx): admins +
 // members + trainers + clients in one list, each row carrying its assigned trainer name.
+// Pagination is opt-in (see utils/pagination.js); the profile/trainer lookups
+// below only ever run for the rows on the returned page.
 export const listUsers = asyncHandler(async (req, res) => {
     const filter = {}
-    if (req.query.role) filter.role = req.query.role
-    if (req.query.status) filter.status = req.query.status
-    if (req.query.search) {
-        const rx = { $regex: String(req.query.search).trim(), $options: 'i' }
+    if (req.query.role && req.query.role !== 'all') filter.role = req.query.role
+    if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
+    const search = String(req.query.search || '').trim()
+    if (search) {
+        const rx = { $regex: escapeRegex(search), $options: 'i' }
         filter.$or = [{ name: rx }, { email: rx }]
     }
     if (req.user.role === 'member') {
         filter._id = { $in: [req.user._id, ...(await memberScopeUserIds(req.member._id))] }
     }
 
-    const users = await User.find(filter).sort({ createdAt: -1 })
+    const paging = pageParams(req.query)
+    let query = User.find(filter).sort({ createdAt: -1, _id: -1 }).lean()
+    if (paging) query = query.skip(paging.skip).limit(paging.limit)
+    const [users, total] = await Promise.all([query, paging ? User.countDocuments(filter) : null])
 
     // Resolve assigned-trainer name for client rows in one pass.
     const clients = await Client.find({ user: { $in: users.filter((u) => u.role === 'client').map((u) => u._id) } })
@@ -46,26 +53,24 @@ export const listUsers = asyncHandler(async (req, res) => {
     const memberIdByUser = new Map(memberDocs.map((m) => [String(m.user), String(m._id)]))
 
     const roleLabel = { admin: 'Super Admin', member: 'Member', trainer: 'Trainer', client: 'Client' }
-    res.json({
-        count: users.length,
-        items: users.map((u) => ({
-            id: String(u._id),
-            profileId: u.role === 'trainer' ? trainerIdByUser.get(String(u._id))
-                : u.role === 'client' ? clientIdByUser.get(String(u._id))
-                : u.role === 'member' ? memberIdByUser.get(String(u._id))
-                : null,
-            name: u.name,
-            email: u.email,
-            role: roleLabel[u.role] || u.role,
-            roleKey: u.role,
-            status: u.status,
-            avatarColor: u.avatarColor,
-            trainerName: u.role === 'client' ? trainerNameByUser.get(String(u._id)) || '—' : '—',
-            mustChangePassword: u.mustChangePassword,
-            joinDate: u.joinDate,
-            lastActivity: u.lastActivity,
-        })),
-    })
+    const items = users.map((u) => ({
+        id: String(u._id),
+        profileId: u.role === 'trainer' ? trainerIdByUser.get(String(u._id))
+            : u.role === 'client' ? clientIdByUser.get(String(u._id))
+            : u.role === 'member' ? memberIdByUser.get(String(u._id))
+            : null,
+        name: u.name,
+        email: u.email,
+        role: roleLabel[u.role] || u.role,
+        roleKey: u.role,
+        status: u.status,
+        avatarColor: u.avatarColor,
+        trainerName: u.role === 'client' ? trainerNameByUser.get(String(u._id)) || '—' : '—',
+        mustChangePassword: u.mustChangePassword,
+        joinDate: u.joinDate,
+        lastActivity: u.lastActivity,
+    }))
+    res.json(paging ? pagedBody(items, total, paging) : { count: items.length, items })
 })
 
 // POST /api/users/:id/resend-invite   (admin only) — re-issue a fresh temp

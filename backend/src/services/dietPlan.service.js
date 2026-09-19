@@ -1,4 +1,4 @@
-import { Food, NutritionConfig } from '../models/index.js'
+import { getFoodsByCode, getThresholds } from './libraryCache.js'
 import { resolveTodayDay } from '../utils/pktTime.js'
 import {
     computeNutrition,
@@ -93,13 +93,10 @@ async function resolveMeals(meals, thresholds, byCode) {
 // user/src/portals/client/pages/MyDiet.jsx and the dayTotals reduce in
 // trainer/src/portals/trainer/pages/DietPlans.jsx.
 export async function resolvePlanNutrition(plan) {
-    const thresholds = await NutritionConfig.getDefault()
-
     const codes = [
         ...new Set(plan.meals.flatMap((m) => (m.options || []).flatMap((o) => o.items.map((it) => it.foodCode)))),
     ]
-    const foods = await Food.find({ code: { $in: codes } })
-    const byCode = new Map(foods.map((f) => [f.code, f]))
+    const [thresholds, byCode] = await Promise.all([getThresholds(), getFoodsByCode(codes)])
 
     const meals = await resolveMeals(plan.meals, thresholds, byCode)
     const dayTotals = sumMacros(meals.map((m) => m.totals))
@@ -120,9 +117,8 @@ export async function resolvePlanNutrition(plan) {
 // its own meals (items hold only { foodCode, qty }) — into the fully-computed
 // shape the front-end renders, plus which day is "today" in PKT.
 export async function resolveDietPlanNutrition(plan) {
-    const thresholds = await NutritionConfig.getDefault()
-
-    // Load every referenced food across every day in one query.
+    // Every referenced food across every day, resolved from the in-memory master
+    // library (custom foods fall back to one query) alongside the cached thresholds.
     const codes = [
         ...new Set(
             plan.days.flatMap((d) =>
@@ -130,8 +126,7 @@ export async function resolveDietPlanNutrition(plan) {
             ),
         ),
     ]
-    const foods = await Food.find({ code: { $in: codes } })
-    const byCode = new Map(foods.map((f) => [f.code, f]))
+    const [thresholds, byCode] = await Promise.all([getThresholds(), getFoodsByCode(codes)])
 
     const days = await Promise.all(
         plan.days.map(async (d) => {

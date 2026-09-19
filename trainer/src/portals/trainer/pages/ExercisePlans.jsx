@@ -16,6 +16,8 @@ import EmptyState from '../../../components/common/EmptyState'
 import ModalTitle from '../../../components/common/ModalTitle'
 import { api } from '../../../services/api'
 import { useLibrary } from '../../../context/LibraryContext'
+import SectionError from '../../../components/feedback/SectionError'
+import { useClientList } from '../../../hooks/useClientList'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
 import { confirmDelete } from '../../../utils/confirm'
 import ExerciseModal from '../components/ExerciseModal'
@@ -27,32 +29,34 @@ let exSeq = 100
 
 export default function ExercisePlans() {
     const { message } = App.useApp()
-    const { exercises: customExercises, updateExercise, removeExercise } = useLibrary()
+    const { exercises: customExercises, updateExercise, removeExercise } = useLibrary(['exercises'])
     // ?client=<id> pre-selects the client (used by the Requests page's "Open plan").
     const [searchParams] = useSearchParams()
     const [clientId, setClientId] = useState(() => searchParams.get('client'))
-    const [clientList, setClientList] = useState([])
+    const { clients: clientList, loading: clientsLoading, error: clientsError, reload: reloadClients } = useClientList()
     const [days, setDays] = useState([])
     const [planId, setPlanId] = useState(null)
     const [saving, setSaving] = useState(false)
     const [publishing, setPublishing] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [planError, setPlanError] = useState(null)
+    const [planTick, setPlanTick] = useState(0)
 
+    // Default to the first client once the roster arrives (or if the ?client= one isn't theirs).
     useEffect(() => {
-        api.get('/clients').then((res) => {
-            const items = res.items || []
-            setClientList(items)
-            if (items.length > 0) setClientId((cur) => (items.some((c) => c.id === cur) ? cur : items[0].id))
-        }).catch(() => { })
-    }, [])
+        if (clientsLoading) return
+        if (clientList.length > 0) setClientId((cur) => (clientList.some((c) => c.id === cur) ? cur : clientList[0].id))
+        else setLoading(false) // no clients — nothing to load a plan for
+    }, [clientsLoading, clientList])
 
     // Load existing exercise plan for selected client
     useEffect(() => {
         if (!clientId) return
         setLoading(true)
+        setPlanError(null)
         setPlanId(null)
         setDays([])
-        api.get(`/exercise-plans?client=${clientId}`).then(async (res) => {
+        api.get(`/exercise-plans?client=${clientId}&summary=1`).then(async (res) => {
             const plans = res.items || []
             const plan = plans.find((p) => p.status === 'draft') || plans[0]
             if (!plan) return
@@ -80,8 +84,8 @@ export default function ExercisePlans() {
                 })),
             }))
             setDays(loaded)
-        }).catch(() => { }).finally(() => setLoading(false))
-    }, [clientId])
+        }).catch((err) => setPlanError(err)).finally(() => setLoading(false))
+    }, [clientId, planTick])
     const [dayModal, setDayModal] = useState(false)
     const [exModal, setExModal] = useState(null) // dayId
     const [libModal, setLibModal] = useState(false) // My Exercises manager
@@ -251,6 +255,10 @@ export default function ExercisePlans() {
 
             {loading ? (
                 <div className="flex justify-center py-16"><Spin size="large" /></div>
+            ) : clientsError ? (
+                <div className="app-card"><SectionError title="Couldn't load your clients" error={clientsError} onRetry={reloadClients} /></div>
+            ) : planError ? (
+                <div className="app-card"><SectionError title="Couldn't load this client's exercise plan" error={planError} onRetry={() => setPlanTick((t) => t + 1)} /></div>
             ) : days.length === 0 ? (
                 <div className="app-card">
                     <EmptyState

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Select, Segmented, Button, Modal, Form, Input, App, Dropdown } from 'antd'
+import { useState } from 'react'
+import { Select, Segmented, Button, Modal, Form, Input, App, Dropdown, Skeleton } from 'antd'
 import {
     PlusOutlined,
     LinkOutlined,
@@ -18,8 +18,11 @@ import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
 import StatusBadge from '../../../components/common/StatusBadge'
 import EmptyState from '../../../components/common/EmptyState'
+import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
 
@@ -35,27 +38,14 @@ const CAT_ICON = {
 
 export default function Libraries() {
     const { message } = App.useApp()
-    const [data, setData] = useState([])
-
-    useEffect(() => {
-        api.get('/resources').then((res) => setData(res.items || [])).catch(() => { })
-    }, [])
-
     const [search, setSearch] = useState('')
     const [category, setCategory] = useState('all')
+    const list = usePagedList('/resources', { params: { category }, search, pageSize: 12 })
+    const { items: data, total, loading, error: loadError, setItems: setData, reload: load } = list
     const [view, setView] = useState('grid')
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState(null)
     const [form] = Form.useForm()
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return data.filter((r) => {
-            const matchQ = !q || r.title.toLowerCase().includes(q) || r.description.toLowerCase().includes(q)
-            const matchC = category === 'all' || r.category === category
-            return matchQ && matchC
-        })
-    }, [data, search, category])
 
     const openAdd = () => {
         setEditing(null)
@@ -76,8 +66,9 @@ export default function Libraries() {
                 setData((prev) => prev.map((r) => ((r._id || r.id) === (editing._id || editing.id) ? updated : r)))
                 message.success('Resource updated')
             } else {
-                const created = await api.post('/resources', values)
-                setData((prev) => [created, ...prev])
+                await api.post('/resources', values)
+                list.setPage(1)
+                load()
                 message.success('Resource added')
             }
             setModalOpen(false)
@@ -93,7 +84,7 @@ export default function Libraries() {
             onOk: async () => {
                 try {
                     await api.delete(`/resources/${r._id || r.id}`)
-                    setData((prev) => prev.filter((x) => (x._id || x.id) !== (r._id || r.id)))
+                    load()
                     message.success('Resource deleted')
                 } catch (err) {
                     message.error(err.message)
@@ -164,7 +155,7 @@ export default function Libraries() {
 
     return (
         <div>
-            <PageHeader title="Library Management" subtitle={`${filtered.length} resources`}>
+            <PageHeader title="Library Management" subtitle={`${total} resources`}>
                 <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
                     Add resource
                 </Button>
@@ -190,7 +181,11 @@ export default function Libraries() {
                 </div>
             </FilterBar>
 
-            {filtered.length === 0 ? (
+            {loading ? (
+                <div className="app-card p-5"><Skeleton active paragraph={{ rows: 6 }} /></div>
+            ) : loadError ? (
+                <div className="app-card"><SectionError title="Couldn't load resources" error={loadError} onRetry={load} /></div>
+            ) : data.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No resources found"
@@ -199,10 +194,10 @@ export default function Libraries() {
                     />
                 </div>
             ) : view === 'table' ? (
-                <DataTable columns={columns} dataSource={filtered} pageSize={8} scrollX={800} rowKey={(r) => r._id || r.id} />
+                <DataTable columns={columns} dataSource={data} loading={list.fetching} pagination={false} scrollX={800} rowKey={(r) => r._id || r.id} />
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {filtered.map((r) => {
+                    {data.map((r) => {
                         const Icon = CAT_ICON[r.category] || ReadOutlined
                         const rid = r._id || r.id
                         return (
@@ -236,6 +231,8 @@ export default function Libraries() {
                     })}
                 </div>
             )}
+
+            <Pager list={list} />
 
             <Modal
                 title={editing ? 'Edit resource' : 'Add resource'}

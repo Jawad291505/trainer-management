@@ -31,4 +31,7 @@ const scheduleActivitySchema = new mongoose.Schema(
     { timestamps: true },
 )
 
+// Both portals key and delete activities by `id` — emit the virtual (only `_id` was sent before).
+scheduleActivitySchema.set('toJSON', { virtuals: true })
+
 export const ScheduleActivity = mongoose.model('ScheduleActivity', scheduleActivitySchema)

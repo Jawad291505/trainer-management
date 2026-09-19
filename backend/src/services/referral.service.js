@@ -1,4 +1,5 @@
 import { Trainer, Referral } from '../models/index.js'
+import { pagedBody } from '../utils/pagination.js'
 
 // Readable NAME-XXXX code — mirrors trainer/src/services/referrals.js
 // generateCode(): first name uppercased + 4 chars from an unambiguous alphabet.
@@ -57,7 +58,7 @@ export async function redeemReferralCode(refereeTrainer, rawCode) {
 
 // Admin Referrals page: leaderboard + headline stats
 // (admin/src/services/referrals.js buildLeaderboard / getReferralStats).
-export async function getReferralOverview() {
+export async function getReferralOverview({ search = '', status = 'all', paging = null } = {}) {
     const [referrals, trainers] = await Promise.all([
         Referral.find({}).populate({ path: 'referrer referee', populate: { path: 'user', select: 'name email' } }),
         Trainer.find({}).populate('user', 'name email'),
@@ -92,18 +93,27 @@ export async function getReferralOverview() {
     const last30 = referrals.filter((r) => r.date >= monthAgo).length
     const top = leaderboard.find((t) => t.total > 0) || null
 
+    // Row filters run here (not in the browser): `search` matches referrer name,
+    // referred trainer's name or the code; `status` = joined | pending. Headline
+    // stats and the leaderboard above always cover every referral.
+    const needle = String(search).trim().toLowerCase()
+    const allRows = referrals
+        .map((r) => ({
+            id: String(r._id),
+            code: r.code,
+            date: r.date,
+            status: r.status,
+            referrerName: r.referrer.user?.name || '—',
+            refereeName: r.referee.user?.name || '—',
+            refereeEmail: r.referee.user?.email || '',
+        }))
+        .filter((r) => (status === 'all' || !status || r.status === status)
+            && (!needle || [r.referrerName, r.refereeName, r.code].some((v) => String(v || '').toLowerCase().includes(needle))))
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+
     return {
-        rows: referrals
-            .map((r) => ({
-                id: String(r._id),
-                code: r.code,
-                date: r.date,
-                status: r.status,
-                referrerName: r.referrer.user?.name || '—',
-                refereeName: r.referee.user?.name || '—',
-                refereeEmail: r.referee.user?.email || '',
-            }))
-            .sort((a, b) => new Date(b.date) - new Date(a.date)),
+        rows: paging ? allRows.slice(paging.skip, paging.skip + paging.limit) : allRows,
+        ...(paging ? (({ items: _items, ...meta }) => meta)(pagedBody([], allRows.length, paging)) : {}),
         leaderboard,
         stats: {
             total: referrals.length,

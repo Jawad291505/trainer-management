@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Tabs, Progress, App } from 'antd'
+import { Button, Tabs, Progress, App, Skeleton } from 'antd'
 import dayjs from 'dayjs'
 import {
     ArrowLeftOutlined,
@@ -9,6 +9,10 @@ import {
     AimOutlined,
     CreditCardOutlined,
     UserOutlined,
+    LineChartOutlined,
+    DashboardOutlined,
+    CrownOutlined,
+    IdcardOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -27,6 +31,8 @@ import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
+import { useAsyncData, orNullOn404 } from '../../../hooks/useAsyncData'
 import DietDayProgress from '../../../components/progress/DietDayProgress'
 import GlucoseChart from '../../../components/progress/GlucoseChart'
 import HabitHistory from '../../../components/progress/HabitHistory'
@@ -39,31 +45,21 @@ export default function ClientDetail() {
     const navigate = useNavigate()
     const { message } = App.useApp()
     const { primary } = useTheme()
-    const [client, setClient] = useState(null)
-    const [weightData, setWeightData] = useState([])
-    const [loading, setLoading] = useState(true)
-
-    useEffect(() => {
-        let cancelled = false
-        async function load() {
-            setLoading(true)
-            const [clientRes, weightRes] = await Promise.allSettled([
-                api.get(`/clients/${id}`),
-                api.get(`/progress/weight?client=${id}`),
-            ])
-            if (cancelled) return
-            if (clientRes.status === 'fulfilled') setClient(clientRes.value)
-            if (weightRes.status === 'fulfilled') {
-                const w = weightRes.value
-                setWeightData((w.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })))
-            }
-            setLoading(false)
-        }
-        load()
-        return () => { cancelled = true }
-    }, [id])
+    // The page waits only on the client record; the weight history fills its own card.
+    const clientRes = useAsyncData(() => orNullOn404(api.get(`/clients/${id}`)), [id])
+    const weightRes = useAsyncData(() => api.get(`/progress/weight?client=${id}`), [id])
+    const client = clientRes.data
+    const loading = clientRes.loading
+    const weightData = useMemo(
+        () => (weightRes.data?.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })),
+        [weightRes.data],
+    )
 
     if (loading) return <LoadingSkeleton />
+
+    if (clientRes.error) {
+        return <div className="app-card"><SectionError title="Couldn't load this client" error={clientRes.error} onRetry={clientRes.reload} /></div>
+    }
 
     if (!client) {
         return (
@@ -100,8 +96,12 @@ export default function ClientDetail() {
                 </div>
             </div>
             <div className="lg:col-span-2">
-                <ChartCard title="Weight Progress" subtitle={`${weightData.length} weigh-ins (kg)`}>
-                    {weightData.length === 0 ? (
+                <ChartCard title="Weight Progress" subtitle={weightRes.loading ? 'Loading…' : `${weightData.length} weigh-ins (kg)`}>
+                    {weightRes.loading ? (
+                        <Skeleton active paragraph={{ rows: 7 }} title={false} />
+                    ) : weightRes.error ? (
+                        <SectionError title="Couldn't load weight history" error={weightRes.error} onRetry={weightRes.reload} />
+                    ) : weightData.length === 0 ? (
                         <div className="flex h-[260px] items-center justify-center text-sm text-text-muted">No weight entries yet</div>
                     ) : (
                         <ResponsiveContainer width="100%" height={260}>
@@ -138,10 +138,10 @@ export default function ClientDetail() {
                 </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard label="Progress" value={`${client.progress || 0}%`} accent="var(--color-success)" />
-                <StatCard label="Current Weight" value={client.weight ? `${client.weight}kg` : '—'} hint={client.target ? `Target ${client.target}kg` : ''} />
-                <StatCard label="Plan" value={client.plan} />
-                <StatCard label="Trainer" value={client.trainerName || '—'} />
+                <StatCard icon={<LineChartOutlined />} label="Progress" value={`${client.progress || 0}%`} accent="var(--color-success)" />
+                <StatCard icon={<DashboardOutlined />} label="Current Weight" value={client.weight ? `${client.weight}kg` : '—'} hint={client.target ? `Target ${client.target}kg` : ''} />
+                <StatCard icon={<CrownOutlined />} label="Plan" value={client.plan} />
+                <StatCard icon={<IdcardOutlined />} label="Trainer" value={client.trainerName || '—'} />
             </div>
             <div className="mt-6">
                 <Tabs

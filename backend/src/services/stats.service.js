@@ -19,7 +19,7 @@ export async function getAdminStats() {
         totalTrainers,
         activeTrainers,
         trainerAgg,
-        payments,
+        paymentAgg,
         clientsPerTrainer,
     ] = await Promise.all([
         Client.countDocuments({}),
@@ -29,7 +29,8 @@ export async function getAdminStats() {
         Trainer.aggregate([
             { $group: { _id: null, capacity: { $sum: '$capacity' }, used: { $sum: '$clientCount' } } },
         ]),
-        Payment.find({}, 'amount status'),
+        // Per-status count + total in one aggregate instead of loading every Payment doc.
+        Payment.aggregate([{ $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }]),
         Client.aggregate([
             { $match: { trainer: { $ne: null } } },
             { $group: { _id: '$trainer', value: { $sum: 1 } } },
@@ -39,13 +40,11 @@ export async function getAdminStats() {
     const totalCapacity = trainerAgg[0]?.capacity || 0
     const usedCapacity = trainerAgg[0]?.used || 0
 
-    const byStatus = (s) => payments.filter((p) => p.status === s)
-    const paid = byStatus('paid')
-    const pending = byStatus('pending')
-    const failed = byStatus('failed')
-    const refunded = byStatus('refunded')
-
-    const sum = (arr) => arr.reduce((s, p) => s + p.amount, 0)
+    const statusRow = (st) => paymentAgg.find((r) => r._id === st) || { count: 0, total: 0 }
+    const paid = statusRow('paid')
+    const pending = statusRow('pending')
+    const failed = statusRow('failed')
+    const refunded = statusRow('refunded')
 
     // Resolve trainer names for the client-distribution donut.
     const trainers = await Trainer.find({}, 'user').populate('user', 'name')
@@ -85,18 +84,18 @@ export async function getAdminStats() {
         usedCapacity,
         availableCapacity: totalCapacity - usedCapacity,
 
-        totalRevenue: sum(paid),
-        pendingAmount: sum(pending),
-        paidCount: paid.length,
-        pendingCount: pending.length,
-        failedCount: failed.length,
-        refundedCount: refunded.length,
+        totalRevenue: paid.total,
+        pendingAmount: pending.total,
+        paidCount: paid.count,
+        pendingCount: pending.count,
+        failedCount: failed.count,
+        refundedCount: refunded.count,
 
         paymentStatusData: [
-            { key: 'paid', name: 'Paid', value: paid.length },
-            { key: 'pending', name: 'Pending', value: pending.length },
-            { key: 'failed', name: 'Failed', value: failed.length },
-            { key: 'refunded', name: 'Refunded', value: refunded.length },
+            { key: 'paid', name: 'Paid', value: paid.count },
+            { key: 'pending', name: 'Pending', value: pending.count },
+            { key: 'failed', name: 'Failed', value: failed.count },
+            { key: 'refunded', name: 'Refunded', value: refunded.count },
         ],
         clientDistribution: clientsPerTrainer.map((row) => ({
             name: nameById.get(String(row._id)) || 'Trainer',
@@ -144,7 +143,7 @@ export async function getTrainerStats(trainerId) {
         Client.countDocuments({ trainer: trainerId }),
         Client.countDocuments({ trainer: trainerId, status: 'active' }),
         Client.countDocuments({ trainer: trainerId, status: 'active', progress: { $lt: 45 } }),
-        FollowUp.find({ trainer: trainerId }, 'date status completedAt'),
+        FollowUp.find({ trainer: trainerId }, 'date status completedAt').lean(),
     ])
 
     // Buckets are derived from date + status (the stored value goes stale).

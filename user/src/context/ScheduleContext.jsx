@@ -1,19 +1,19 @@
-import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api, getToken } from '../services/api'
+import { createContext, useContext, useCallback, useMemo, useState } from 'react'
+import { api } from '../services/api'
+import { useLazyResource, useEnsureLoaded } from '../hooks/useLazyResource'
 
 const ScheduleContext = createContext(null)
 
+// Fetched the first time the Schedule page mounts — not on every page load.
 export function ScheduleProvider({ children }) {
     const [today, setToday] = useState([])
     const [upcoming, setUpcoming] = useState([])
 
-    useEffect(() => {
-        if (!getToken()) return
-        api.get('/schedule').then((res) => {
-            setToday(res.today || [])
-            setUpcoming(res.upcoming || [])
-        }).catch(() => { })
-    }, [])
+    const { status, error, ensureLoaded, reload } = useLazyResource(useCallback(async () => {
+        const res = await api.get('/schedule')
+        setToday(res.today || [])
+        setUpcoming(res.upcoming || [])
+    }, []))
 
     const addActivity = useCallback(async (activity) => {
         try {
@@ -54,12 +54,17 @@ export function ScheduleProvider({ children }) {
         setToday((prev) => prev.map((a) => ((a._id || a.id) === id ? { ...a, done: newDone } : a)))
     }, [today])
 
-    const value = useMemo(() => ({ today, upcoming, addActivity, removeActivity, toggleDone }), [today, upcoming, addActivity, removeActivity, toggleDone])
+    const loading = status === 'idle' || status === 'loading'
+    const value = useMemo(
+        () => ({ today, upcoming, addActivity, removeActivity, toggleDone, loading, error, reload, ensureLoaded }),
+        [today, upcoming, addActivity, removeActivity, toggleDone, loading, error, reload, ensureLoaded],
+    )
     return <ScheduleContext.Provider value={value}>{children}</ScheduleContext.Provider>
 }
 
 export function useSchedule() {
     const ctx = useContext(ScheduleContext)
     if (!ctx) throw new Error('useSchedule must be used within ScheduleProvider')
+    useEnsureLoaded(ctx.ensureLoaded)
     return ctx
 }

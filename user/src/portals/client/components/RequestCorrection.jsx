@@ -18,7 +18,7 @@ const correctionTypeOptions = [
 // exercise (`targetKind` = 'meal' | 'exercise', `targetDate` = the day being viewed).
 export default function RequestCorrection({ area, items = [], targetKind, targetDate, size, block, type = 'default' }) {
     const { message } = App.useApp()
-    const { addRequest } = useCorrections()
+    const { addRequest } = useCorrections({ load: false })
     const [open, setOpen] = useState(false)
     const [sending, setSending] = useState(false)
     const sendingRef = useRef(false) // blocks a second tap before React re-renders the disabled button

@@ -7,7 +7,7 @@ import {
     listCorrections, createCorrection, respondCorrection, cancelCorrection,
 } from '../controllers/corrections.controller.js'
 import {
-    listPhotos, uploadPhoto, setPhotoNote, deletePhoto,
+    listPhotos, uploadPhoto, signUploads, updateCaption, setPhotoNote, deletePhoto,
 } from '../controllers/progressPhotos.controller.js'
 import {
     getSchedule, addActivity, updateActivity, deleteActivity,
@@ -35,7 +35,9 @@ router.delete('/corrections/:id', authorize('client'), cancelCorrection)
 
 // ---- Progress photos ----
 router.get('/progress-photos', listPhotos)
+router.post('/progress-photos/upload-signatures', authorize('client'), signUploads)
 router.post('/progress-photos', authorize('client'), uploadPhoto)
+router.patch('/progress-photos/:id', authorize('client'), updateCaption)
 router.patch('/progress-photos/:id/note', authorize('trainer'), setPhotoNote)
 router.delete('/progress-photos/:id', authorize('client'), deletePhoto)
 

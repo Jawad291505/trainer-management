@@ -4,6 +4,7 @@ import { PlusOutlined, MoreOutlined, EditOutlined, DeleteOutlined, CheckCircleOu
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
 
@@ -16,16 +17,19 @@ export default function SubscriptionPlans() {
     const { message } = App.useApp()
     const [data, setData] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [editing, setEditing] = useState(null)
     const [saving, setSaving] = useState(false)
     const [form] = Form.useForm()
 
     const fetchPlans = async () => {
+        setLoading(true)
+        setLoadError(null)
         try {
             const res = await api.get('/subscription-plans')
             setData(res.items || [])
         } catch (err) {
-            message.error('Failed to load plans')
+            setLoadError(err)
         } finally {
             setLoading(false)
         }
@@ -87,6 +91,7 @@ export default function SubscriptionPlans() {
     }
 
     if (loading) return <LoadingSkeleton />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load plans" error={loadError} onRetry={fetchPlans} /></div>
 
     return (
         <div>

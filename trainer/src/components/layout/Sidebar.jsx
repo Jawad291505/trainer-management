@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { trainerNavGroups } from '../../constants/navigation'
-import { useCorrections } from '../../context/CorrectionsContext'
+import { useCorrectionsBadge } from '../../context/CorrectionsContext'
 
 const NAV_GROUPS = trainerNavGroups
 const BRAND_SUBTITLE = 'Trainer Studio'
@@ -30,7 +30,7 @@ function Logo({ collapsed }) {
 export default function Sidebar({ collapsed, onNavigate }) {
     const location = useLocation()
     const navigate = useNavigate()
-    const { openCount } = useCorrections()
+    const openCount = useCorrectionsBadge()
     const badgeCounts = { corrections: openCount }
 
     const isActive = (key) =>

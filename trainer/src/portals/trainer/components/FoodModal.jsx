@@ -16,7 +16,7 @@ import GlycemicBadge from './GlycemicBadge'
 // Pick a category → a food and set its quantity (macros + GI/GL recalculate live
 // below), or add a fully custom food ("Add something else").
 export default function FoodModal({ open, onCancel, onAdd }) {
-    const { foods, addFood } = useLibrary()
+    const { foods, addFood } = useLibrary(['foods'])
     const [mode, setMode] = useState('library') // 'library' | 'custom'
     const [cat, setCat] = useState(foodCategories[0])
     const [foodId, setFoodId] = useState(null)

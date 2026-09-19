@@ -9,7 +9,7 @@ import TechniqueField from './TechniqueField'
 // Add an exercise to a day: pick a category → an exercise (defaults prefill), or
 // create a brand-new one that can be saved to the trainer's own library.
 export default function ExerciseModal({ open, onCancel, onAdd }) {
-    const { exercises, addExercise } = useLibrary()
+    const { exercises, addExercise } = useLibrary(['exercises'])
     const [mode, setMode] = useState('library')
     const [cat, setCat] = useState(exerciseCategories[0])
     const [exId, setExId] = useState(null)

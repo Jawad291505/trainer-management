@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Tag } from 'antd'
 import dayjs from 'dayjs'
@@ -6,6 +6,7 @@ import { CalendarOutlined, MessageOutlined, CheckSquareOutlined } from '@ant-des
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import { listFollowUps } from '../../../services/followUps'
 import { formatTime } from '../../../utils/time'
 
@@ -24,11 +25,16 @@ function relativeDay(date) {
 export default function FollowUps() {
     const navigate = useNavigate()
     const [items, setItems] = useState(null)
+    const [error, setError] = useState(null)
 
-    useEffect(() => {
-        listFollowUps().then(setItems).catch(() => setItems([]))
+    const load = useCallback(() => {
+        setItems(null)
+        setError(null)
+        listFollowUps().then(setItems).catch(setError)
     }, [])
+    useEffect(() => { load() }, [load])
 
+    if (error) return <div className="app-card"><SectionError title="Couldn't load your follow-ups" error={error} onRetry={load} /></div>
     if (items === null) return <LoadingSkeleton cards={2} rows={3} />
 
     // Open ones (today / upcoming / overdue) soonest-first; finished ones newest-first.

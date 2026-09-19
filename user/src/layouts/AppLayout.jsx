@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Drawer } from 'antd'
 import Sidebar from '../components/layout/Sidebar'
 import Header from '../components/layout/Header'
+import LoadingSkeleton from '../components/feedback/LoadingSkeleton'
 import Breadcrumbs from '../components/layout/Breadcrumbs'
 import BottomNav from '../components/layout/BottomNav'
 
@@ -56,7 +57,9 @@ export default function AppLayout() {
                 <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
                     <div className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-6 lg:px-8">
                         <Breadcrumbs />
-                        <Outlet />
+                        <Suspense fallback={<LoadingSkeleton />}>
+                            <Outlet />
+                        </Suspense>
                     </div>
                 </main>
             </div>

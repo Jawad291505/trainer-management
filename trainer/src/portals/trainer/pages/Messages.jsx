@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Input, Button, Badge } from 'antd'
+import { Input, Button, Badge, Skeleton } from 'antd'
 import { SendOutlined, ArrowLeftOutlined, SearchOutlined } from '@ant-design/icons'
 import UserAvatar from '../../../components/common/UserAvatar'
 import EmptyState from '../../../components/common/EmptyState'
 import PageSpin from '../../../components/common/PageSpin'
+import SectionError from '../../../components/feedback/SectionError'
 import { api } from '../../../services/api'
 import { getSocket } from '../../../services/socket'
 
@@ -15,13 +16,19 @@ export default function Messages() {
     const [messages, setMessages] = useState([])
     const [typing, setTyping] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
+    const [threadLoading, setThreadLoading] = useState(false)
+    const [threadError, setThreadError] = useState(null)
     const endRef = useRef(null)
     const socketRef = useRef(null)
 
     // Load conversation list
-    useEffect(() => {
-        api.get('/conversations').then((res) => setConversations(res.items || [])).catch(() => { }).finally(() => setLoading(false))
+    const loadConversations = useCallback(() => {
+        setLoading(true)
+        setLoadError(null)
+        api.get('/conversations').then((res) => setConversations(res.items || [])).catch(setLoadError).finally(() => setLoading(false))
     }, [])
+    useEffect(() => { loadConversations() }, [loadConversations])
 
     // Connect socket
     useEffect(() => {
@@ -58,13 +65,27 @@ export default function Messages() {
     }, [])
 
     // Open a conversation
+    // Never leaves the thread spinning: a failed ack or a silent socket becomes an error with a retry.
     const openConversation = useCallback((convoId) => {
         setActiveId(convoId)
         setMessages([])
+        setThreadError(null)
         const s = socketRef.current
         if (!s) return
+        setThreadLoading(true)
+        const timer = setTimeout(() => {
+            setThreadLoading(false)
+            setThreadError('Couldn\'t reach chat. Check your connection and try again.')
+        }, 12000)
         s.emit('conversation:open', { conversationId: convoId }, (res) => {
-            if (res?.ok) setMessages(res.messages || [])
+            clearTimeout(timer)
+            if (res?.ok) {
+                setMessages(res.messages || [])
+                setThreadError(null)
+            } else {
+                setThreadError(res?.error || 'Couldn\'t load this conversation')
+            }
+            setThreadLoading(false)
         })
     }, [])
 
@@ -116,6 +137,7 @@ export default function Messages() {
     }
 
     if (loading) return <PageSpin />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load your conversations" error={loadError} onRetry={loadConversations} /></div>
 
     return (
         <div className="chat-shell flex" style={{ height: 'calc(100vh - 190px)', minHeight: 480 }}>
@@ -161,7 +183,13 @@ export default function Messages() {
                             </div>
                         </div>
                         <div className="chat-canvas flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-                            {messages.length === 0 ? (
+                            {threadLoading && messages.length === 0 ? (
+                                <div className="mx-auto max-w-3xl"><Skeleton active paragraph={{ rows: 6 }} /></div>
+                            ) : threadError && messages.length === 0 ? (
+                                <div className="flex h-full items-center justify-center">
+                                    <SectionError title="Couldn't load this conversation" error={{ message: threadError }} onRetry={() => openConversation(activeId)} />
+                                </div>
+                            ) : messages.length === 0 ? (
                                 <div className="flex h-full items-center justify-center"><EmptyState title="No messages yet" description="Say hello to get started." /></div>
                             ) : (
                                 <div className="mx-auto flex max-w-3xl flex-col">

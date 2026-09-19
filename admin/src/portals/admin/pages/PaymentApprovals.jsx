@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Select, Button, App, Modal, Input, Image, Tag } from 'antd'
 import { CheckOutlined, CloseOutlined, EyeOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { api } from '../../../services/api'
 
@@ -22,40 +25,20 @@ const SOURCE_LABEL = { self_signup: 'Self-signup', admin_renewal: 'Admin renewal
 // resubmit from their own Pending Approval screen.
 export default function PaymentApprovals() {
     const { message } = App.useApp()
-    const [data, setData] = useState([])
-    const [loading, setLoading] = useState(true)
     const [status, setStatus] = useState('pending')
     const [search, setSearch] = useState('')
+    const list = usePagedList('/member-payments', { params: { status }, search, pageSize: 10 })
+    const { items: data, total, loading, error: loadError, reload: fetchPayments } = list
     const [viewing, setViewing] = useState(null)
     const [rejecting, setRejecting] = useState(null)
     const [reason, setReason] = useState('')
     const [acting, setActing] = useState(false)
 
-    const fetchPayments = async () => {
-        setLoading(true)
-        try {
-            const res = await api.get(`/member-payments${status !== 'all' ? `?status=${status}` : ''}`)
-            setData(res.items || [])
-        } catch (err) {
-            message.error('Failed to load payments')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => { fetchPayments() }, [status])
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        if (!q) return data
-        return data.filter((p) => p.memberName?.toLowerCase().includes(q) || p.memberEmail?.toLowerCase().includes(q))
-    }, [data, search])
-
     const approve = async (payment) => {
         setActing(true)
         try {
             await api.patch(`/member-payments/${payment.id}/approve`, {})
-            setData((prev) => prev.map((p) => (p.id === payment.id ? { ...p, status: 'approved' } : p)))
+            fetchPayments()
             message.success(`${payment.memberName} approved — their account is now active`)
             setViewing(null)
         } catch (err) {
@@ -69,7 +52,7 @@ export default function PaymentApprovals() {
         setActing(true)
         try {
             await api.patch(`/member-payments/${rejecting.id}/reject`, { reason })
-            setData((prev) => prev.map((p) => (p.id === rejecting.id ? { ...p, status: 'rejected' } : p)))
+            fetchPayments()
             message.success(`${rejecting.memberName}'s payment was rejected`)
             setRejecting(null)
             setReason('')
@@ -129,11 +112,9 @@ export default function PaymentApprovals() {
         },
     ]
 
-    if (loading) return <LoadingSkeleton />
-
     return (
         <div>
-            <PageHeader title="Payment Approvals" subtitle={`${filtered.length} submissions`} />
+            <PageHeader title="Payment Approvals" subtitle={loading ? 'Loading…' : `${total} submissions`} />
 
             <FilterBar>
                 <SearchInput value={search} onChange={setSearch} placeholder="Search by member…" />
@@ -150,12 +131,19 @@ export default function PaymentApprovals() {
                 />
             </FilterBar>
 
-            {filtered.length === 0 ? (
+            {loading ? (
+                <LoadingSkeleton cards={0} rows={6} />
+            ) : loadError ? (
+                <div className="app-card"><SectionError title="Couldn't load payments" error={loadError} onRetry={fetchPayments} /></div>
+            ) : data.length === 0 ? (
                 <div className="app-card">
                     <EmptyState title="Nothing here" description="No payment submissions match this filter." />
                 </div>
             ) : (
-                <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1030} />
+                <>
+                    <DataTable columns={columns} dataSource={data} loading={list.fetching} pagination={false} scrollX={1030} />
+                    <Pager list={list} pageSizeOptions={[10, 20, 50]} />
+                </>
             )}
 
             <Modal

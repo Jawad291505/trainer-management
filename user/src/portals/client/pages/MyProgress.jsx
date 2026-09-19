@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Button, Modal, InputNumber, DatePicker, Segmented, App } from 'antd'
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Modal, InputNumber, DatePicker, Segmented, App, Skeleton } from 'antd'
+import { PlusOutlined, ReloadOutlined, FallOutlined, DashboardOutlined, AimOutlined, TrophyOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import {
     ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis,
@@ -16,7 +16,6 @@ import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
 import ProgressRing from '../components/ProgressRing'
 import GlucoseChart from '../../../components/progress/GlucoseChart'
-import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import { api } from '../../../services/api'
 import { formatPkt } from '../../../utils/pkt'
 
@@ -38,16 +37,18 @@ export default function MyProgress() {
     const { message } = App.useApp()
     const { client } = useAuth()
 
-    const [loading, setLoading] = useState(true)
+    // Each section shows its own skeleton until its own request settles.
+    const [loadingSec, setLoadingSec] = useState({ weight: true, completion: true, adherence: true })
     const [weightEntries, setWeightEntries] = useState([])
     const [weightSummary, setWeightSummary] = useState(null)
     const [errors, setErrors] = useState({}) // per-section load failures: { weight, habits, completion }
     const [completion, setCompletion] = useState(null)
     const [habitHistory, setHabitHistory] = useState([])
-    const [habitsLoading, setHabitsLoading] = useState(false)
+    const [habitsLoading, setHabitsLoading] = useState(true)
     const [habitGoals, setHabitGoals] = useState({ waterGoal: 2, sleepGoal: 8 })
     const [habitDays, setHabitDays] = useState(14)
     const [adherence, setAdherence] = useState(null)
+    const [adherenceError, setAdherenceError] = useState(null)
     const [modalOpen, setModalOpen] = useState(false)
     const [newWeight, setNewWeight] = useState(null)
     const [newDate, setNewDate] = useState(dayjs())
@@ -60,18 +61,32 @@ export default function MyProgress() {
         setWeightSummary(w.summary || null)
     }
 
+    const settle = (key) => setLoadingSec((s) => ({ ...s, [key]: false }))
+
     const loadWeight = async () => {
+        setLoadingSec((s) => ({ ...s, weight: true }))
         try {
             applyWeight(await api.get('/progress/weight'))
             setError('weight', null)
         } catch (err) { setError('weight', err.message || 'Could not load your weight history') }
+        finally { settle('weight') }
     }
 
     const loadCompletion = async () => {
+        setLoadingSec((s) => ({ ...s, completion: true }))
         try {
             setCompletion(await api.get('/stats/client/completion?days=7'))
             setError('completion', null)
         } catch (err) { setError('completion', err.message || 'Could not load weekly consistency') }
+        finally { settle('completion') }
+    }
+
+    const loadAdherence = async () => {
+        setLoadingSec((s) => ({ ...s, adherence: true }))
+        setAdherenceError(null)
+        try { setAdherence(await api.get('/clients/me/workout-adherence?weeks=6')) }
+        catch (err) { setAdherenceError(err) }
+        finally { settle('adherence') }
     }
 
     const loadHabits = async (days) => {
@@ -92,12 +107,10 @@ export default function MyProgress() {
     }
 
     useEffect(() => {
-        Promise.all([
-            loadWeight(),
-            loadCompletion(),
-            loadHabits(14),
-            api.get('/clients/me/workout-adherence?weeks=6').then(setAdherence).catch(() => { }),
-        ]).finally(() => setLoading(false))
+        loadWeight()
+        loadCompletion()
+        loadHabits(14)
+        loadAdherence()
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
@@ -151,8 +164,7 @@ export default function MyProgress() {
         }
     }, [habitHistory])
 
-    if (loading) return <LoadingSkeleton />
-
+    const weightLoading = loadingSec.weight
     const weeklyLogged = (completion?.weeklyCompletion?.length ?? 0) > 0
     const weeklyAvg = completion?.weeklyAveragePct ?? 0
 
@@ -166,15 +178,17 @@ export default function MyProgress() {
             </PageHeader>
 
             <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-                <StatCard label="Weight Lost" value={fmtKg(stats.lost)} accent="var(--color-success)" hint="Since you started" />
-                <StatCard label="Current Weight" value={fmtKg(stats.current)} />
-                <StatCard label="To Goal" value={fmtKg(stats.toGo)} hint={stats.target != null ? `Target ${stats.target}kg` : 'No target set'} />
-                <StatCard label="Goal Progress" value={stats.progressPct == null ? '—' : `${stats.progressPct}%`} accent="var(--color-primary)" />
+                <StatCard icon={<FallOutlined />} label="Weight Lost" value={weightLoading ? '…' : fmtKg(stats.lost)} accent="var(--color-success)" hint="Since you started" />
+                <StatCard icon={<DashboardOutlined />} label="Current Weight" value={weightLoading ? '…' : fmtKg(stats.current)} />
+                <StatCard icon={<AimOutlined />} label="To Goal" value={weightLoading ? '…' : fmtKg(stats.toGo)} hint={stats.target != null ? `Target ${stats.target}kg` : 'No target set'} />
+                <StatCard icon={<TrophyOutlined />} label="Goal Progress" value={weightLoading ? '…' : stats.progressPct == null ? '—' : `${stats.progressPct}%`} accent="var(--color-primary)" />
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <ChartCard className="lg:col-span-2" title="Weight Journey" subtitle={`${weightEntries.length} weigh-ins (kg)`}>
-                    {errors.weight ? (
+                <ChartCard className="lg:col-span-2" title="Weight Journey" subtitle={weightLoading ? 'Loading…' : `${weightEntries.length} weigh-ins (kg)`}>
+                    {weightLoading ? (
+                        <Skeleton active paragraph={{ rows: 7 }} title={false} />
+                    ) : errors.weight ? (
                         <SectionMessage text={errors.weight} onRetry={loadWeight} height={280} />
                     ) : weightEntries.length === 0 ? (
                         <SectionMessage text="No weigh-ins yet — tap “Log Weight” to add your first." height={280} />
@@ -192,7 +206,9 @@ export default function MyProgress() {
                     )}
                 </ChartCard>
                 <ChartCard title="Weekly Consistency" subtitle="Avg. completion">
-                    {errors.completion ? (
+                    {loadingSec.completion ? (
+                        <Skeleton active paragraph={{ rows: 4 }} title={false} />
+                    ) : errors.completion ? (
                         <SectionMessage text={errors.completion} onRetry={loadCompletion} height={200} />
                     ) : !weeklyLogged ? (
                         <SectionMessage text="Nothing logged in the last 7 days." height={200} />
@@ -223,7 +239,9 @@ export default function MyProgress() {
                     />
                 </div>
 
-                {errors.habits ? (
+                {habitsLoading && habitHistory.length === 0 && !errors.habits ? (
+                    <div className="app-card p-5"><Skeleton active paragraph={{ rows: 5 }} /></div>
+                ) : errors.habits ? (
                     <div className="app-card p-5"><SectionMessage text={errors.habits} onRetry={() => loadHabits(habitDays)} height={160} /></div>
                 ) : habitHistory.length === 0 ? (
                     <div className="app-card p-5">
@@ -255,6 +273,10 @@ export default function MyProgress() {
                             </div>
                         </div>
 
+                        {loadingSec.adherence && <div className="mt-4 app-card p-4"><Skeleton active paragraph={{ rows: 2 }} title={false} /></div>}
+                        {adherenceError && !loadingSec.adherence && (
+                            <div className="mt-4 app-card p-4"><SectionMessage text="Couldn't load workout adherence" onRetry={loadAdherence} height={80} /></div>
+                        )}
                         {adherence?.totals && (
                             <div className="mt-4 app-card p-4">
                                 <div className="mb-3 text-sm font-semibold text-text-secondary">Workout Adherence — last 6 weeks</div>

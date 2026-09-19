@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Select, Dropdown, Button, Progress, App, Modal, Form, Input, InputNumber, DatePicker, Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -15,9 +15,12 @@ import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
 import StatusBadge from '../../../components/common/StatusBadge'
 import UserAvatar from '../../../components/common/UserAvatar'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
 import { useAuth } from '../../../context/AuthContext'
@@ -30,13 +33,13 @@ export default function Clients() {
     const navigate = useNavigate()
     const { user } = useAuth()
     const isMember = user?.role === 'member'
-    const [data, setData] = useState([])
     const [trainerList, setTrainerList] = useState([])
     const [memberStats, setMemberStats] = useState(null)
-    const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
     const [trainerId, setTrainerId] = useState('all')
+    const list = usePagedList('/clients', { params: { status, trainer: trainerId }, search, pageSize: 10 })
+    const { items: data, total, loading, fetching, error: loadError, setItems: setData, reload: loadClients } = list
     const [addOpen, setAddOpen] = useState(false)
     const [addSaving, setAddSaving] = useState(false)
     const [reassignFor, setReassignFor] = useState(null)
@@ -50,25 +53,12 @@ export default function Clients() {
     const bmiCategory = bmi == null ? '' : bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese'
     const bmiColor = bmi == null ? 'var(--color-text-muted)' : bmi < 18.5 || bmi >= 30 ? 'var(--color-danger)' : bmi < 25 ? 'var(--color-success)' : 'var(--color-warning)'
 
+    // The trainer roster (filter + reassign dropdowns) and the member's plan limits load alongside the page of clients.
     useEffect(() => {
-        async function load() {
-            try {
-                const [c, t, stats] = await Promise.all([
-                    api.get('/clients'),
-                    api.get('/trainers'),
-                    isMember ? api.get('/stats/member') : Promise.resolve(null),
-                ])
-                setData(c.items || [])
-                setTrainerList(t.items || [])
-                if (stats) setMemberStats(stats)
-            } catch (err) {
-                message.error('Failed to load data')
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
-    }, [])
+        api.get('/trainers', { ttl: 30_000 }).then((t) => setTrainerList(t.items || [])).catch(() => message.warning("Couldn't load the trainer list"))
+        if (isMember) api.get('/stats/member').then(setMemberStats).catch(() => { })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isMember])
 
     const atClientLimit = isMember && memberStats?.clientLimit > 0 && memberStats.totalClients >= memberStats.clientLimit
 
@@ -94,7 +84,8 @@ export default function Clients() {
                 target: v.targetWeight,
                 trainerId: v.trainerId || null,
             })
-            setData((prev) => [created, ...prev])
+            list.setPage(1)
+            loadClients()
             setAddOpen(false)
             if (isMember) setMemberStats((prev) => (prev ? { ...prev, totalClients: prev.totalClients + 1 } : prev))
             if (created.inviteWarning) {
@@ -119,22 +110,13 @@ export default function Clients() {
         try {
             const updated = await api.patch(`/clients/${reassignFor.id}/assign`, { trainerId: v.trainerId })
             setData((prev) => prev.map((c) => (c.id === reassignFor.id ? updated : c)))
+            if (trainerId !== 'all' && updated.trainerId !== trainerId) loadClients()
             message.success(`${reassignFor.name} reassigned`)
             setReassignFor(null)
         } catch (err) {
             message.error(err.message)
         }
     }
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return data.filter((c) => {
-            const matchQ = !q || c.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q)
-            const matchS = status === 'all' || c.status === status
-            const matchT = trainerId === 'all' || c.trainerId === trainerId
-            return matchQ && matchS && matchT
-        })
-    }, [data, search, status, trainerId])
 
     const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA') : '—'
 
@@ -191,6 +173,7 @@ export default function Clients() {
                                 try {
                                     const updated = await api.patch(`/clients/${r.id}`, { status: next })
                                     setData((prev) => prev.map((c) => (c.id === r.id ? updated : c)))
+                                    if (status !== 'all') loadClients()
                                     message.success('Status updated')
                                 } catch (err) { message.error(err.message) }
                             }
@@ -201,7 +184,7 @@ export default function Clients() {
                                     onOk: async () => {
                                         try {
                                             await api.delete(`/clients/${r.id}`)
-                                            setData((prev) => prev.filter((c) => c.id !== r.id))
+                                            loadClients()
                                             message.success('Client deleted')
                                         } catch (err) { message.error(err.message) }
                                     },
@@ -217,6 +200,7 @@ export default function Clients() {
     ]
 
     if (loading) return <LoadingSkeleton />
+    if (loadError) return <div className="app-card"><SectionError title="Couldn't load clients" error={loadError} onRetry={loadClients} /></div>
 
     return (
         <div>
@@ -224,7 +208,7 @@ export default function Clients() {
                 title="Client Management"
                 subtitle={isMember && memberStats
                     ? `${memberStats.totalClients} / ${memberStats.clientLimit || 0} clients used on your plan`
-                    : `${filtered.length} clients found`}
+                    : `${total} clients found`}
             >
                 <Tooltip title={atClientLimit ? `Your plan allows up to ${memberStats.clientLimit} clients. Upgrade your plan to add more.` : ''}>
                     <Button type="primary" icon={<PlusOutlined />} onClick={openAdd} disabled={atClientLimit}>Add client</Button>
@@ -237,7 +221,8 @@ export default function Clients() {
                 <Select value={status} onChange={setStatus} style={{ width: 150 }} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'pending', label: 'Pending' }]} />
             </FilterBar>
 
-            <DataTable columns={columns} dataSource={filtered} pageSize={9} scrollX={1050} />
+            <DataTable columns={columns} dataSource={data} loading={fetching} pagination={false} scrollX={1050} />
+            <Pager list={list} pageSizeOptions={[10, 20, 50]} />
 
             <Modal title="Add client" open={addOpen} onCancel={() => setAddOpen(false)} onOk={createClient} okText="Add client" confirmLoading={addSaving} width={640} centered>
                 <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ plan: 'Standard', goal: 'Fat Loss', planMonths: 3 }}>

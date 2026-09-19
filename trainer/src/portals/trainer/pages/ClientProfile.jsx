@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { Button, Tabs, Tag, Image, Input, InputNumber, Modal, App, Collapse, Empty } from 'antd'
+import { Button, Tabs, Tag, Image, Input, InputNumber, Modal, App, Collapse, Empty, Skeleton } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -10,6 +10,9 @@ import {
     MessageOutlined,
     CalendarOutlined,
     EditOutlined,
+    LineChartOutlined,
+    DashboardOutlined,
+    CrownOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -32,6 +35,8 @@ import ChartCard from '../../../components/common/ChartCard'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
+import { useAsyncData, orNullOn404 } from '../../../hooks/useAsyncData'
 import ExerciseDayCard from '../components/ExerciseDayCard'
 import DietDayProgress from '../../../components/progress/DietDayProgress'
 import GlucoseChart from '../../../components/progress/GlucoseChart'
@@ -47,14 +52,19 @@ const progressPhotoAngleLabels = { front: 'Front', side: 'Side', back: 'Back', o
 // Photos one client has shared, with an inline editor for the trainer's per-photo note.
 function PhotosTab({ clientId, clientName }) {
     const { message } = App.useApp()
-    const { photosForClient, fetchForClient, setNote, clearNote } = useProgressPhotos()
+    const { photosForClient, fetchForClient, loadedFor, setNote, clearNote } = useProgressPhotos()
     const groups = photosForClient(clientId)
     const [editing, setEditing] = useState(null) // { id, current }
     const [text, setText] = useState('')
 
-    useEffect(() => {
-        fetchForClient(clientId)
-    }, [clientId, fetchForClient])
+    // Photos (base64 images) are only downloaded once this tab is opened.
+    const photosRes = useAsyncData(() => fetchForClient(clientId), [clientId, fetchForClient])
+    const hasLoaded = loadedFor === String(clientId)
+
+    if (photosRes.loading && !hasLoaded) return <Skeleton active paragraph={{ rows: 5 }} />
+    if (photosRes.error && !hasLoaded) {
+        return <SectionError title="Couldn't load photos" error={photosRes.error} onRetry={photosRes.reload} />
+    }
 
     if (groups.length === 0) {
         return (
@@ -92,7 +102,7 @@ function PhotosTab({ clientId, clientName }) {
                                 <div key={p.id} className="flex flex-col overflow-hidden rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
                                     <div className="bg-black/5" style={{ aspectRatio: '3 / 4' }}>
                                         <Image
-                                            src={p.dataUrl}
+                                            src={p.dataUrl || p.image}
                                             alt={progressPhotoAngleLabels[p.angle] || 'Progress photo'}
                                             wrapperClassName="!block h-full w-full"
                                             className="!h-full !w-full !object-cover"
@@ -149,68 +159,110 @@ function PhotosTab({ clientId, clientName }) {
     )
 }
 
+// Correction requests this client has sent. The full request list is only fetched
+// when this tab is opened (the tab label uses a cheap count instead).
+function RequestsTab({ clientId, clientName, navigate }) {
+    const { requests, loading, error, reload } = useCorrections()
+    const clientRequests = requests.filter((r) => r.clientId === clientId || String(r.client) === clientId)
+
+    if (loading) return <Skeleton active paragraph={{ rows: 4 }} />
+    if (error) return <SectionError title="Couldn't load requests" error={error} onRetry={reload} />
+
+    return clientRequests.length === 0 ? (
+        <div className="app-card">
+            <EmptyState title="No correction requests" description={`${clientName} hasn't asked for any changes.`} />
+        </div>
+    ) : (
+        <div className="flex flex-col gap-3">
+            {clientRequests.map((r) => (
+                <div key={r.id} className="app-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Tag bordered={false} style={{ borderRadius: 999 }}>
+                                    {correctionAreaLabels[r.area] || r.area}
+                                </Tag>
+                                <span className="text-xs font-medium text-text-muted">
+                                    {correctionTypeLabels[r.type] || r.type}
+                                </span>
+                                <span className="text-xs text-text-muted">· {dayjs(r.createdAt).format('D MMM, h:mm A')}</span>
+                            </div>
+                            {r.item && <div className="mt-1 text-sm font-medium text-text-secondary">{r.item}</div>}
+                            <p className="mt-1 mb-0 text-sm text-text-secondary">{r.note}</p>
+                            {r.reply && (
+                                <div className="mt-2 rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
+                                    <span className="font-semibold text-text-secondary">Your reply: </span>
+                                    <span className="text-text-secondary">{r.reply}</span>
+                                </div>
+                            )}
+                        </div>
+                        <StatusBadge status={r.status} />
+                    </div>
+                </div>
+            ))}
+            <Button type="primary" onClick={() => navigate('/requests')}>Manage requests</Button>
+        </div>
+    )
+}
+
 export default function ClientProfile() {
+    const { message } = App.useApp()
     const { id } = useParams()
     const navigate = useNavigate()
     // ?tab=diet&date=YYYY-MM-DD deep-links here from the Requests page.
     const [searchParams] = useSearchParams()
     const { primary } = useTheme()
-    const { requests } = useCorrections()
-    const { pendingCountForClient, fetchForClient: fetchPhotos } = useProgressPhotos()
-    const [clientData, setClientData] = useState(null)
-    const [loading, setLoading] = useState(true)
-    const [weightData, setWeightData] = useState([])
-    const [dietPlan, setDietPlan] = useState(null)
-    const [exercisePlan, setExercisePlan] = useState(null)
+    // Corrections are read without loading the full list (that happens when the
+    // Requests tab opens) — until then a cheap per-client count feeds the tab label.
+    const { requests, loaded: correctionsLoaded } = useCorrections({ load: false })
+    const { pendingCountForClient, loadedFor: photosLoadedFor } = useProgressPhotos()
     const [goalModal, setGoalModal] = useState(null) // { type: 'water' | 'sleep', value }
     const [goalSaving, setGoalSaving] = useState(false)
-    const [workoutSessions, setWorkoutSessions] = useState([])
-    const [workoutAdherence, setWorkoutAdherence] = useState(null)
-    const [followUps, setFollowUps] = useState([])
     const [expandedSession, setExpandedSession] = useState(null) // sessionId
-    const clientRequests = requests.filter((r) => r.clientId === id || String(r.client) === id)
-    const pendingPhotos = pendingCountForClient(id)
 
-    useEffect(() => {
-        let cancelled = false
-        async function load() {
-            setLoading(true)
-            fetchPhotos(id)
-            // All independent — fire them together instead of one long
-            // waterfall of sequential awaits (each one adding its own round-trip
-            // latency on top of the last, which is what made this page feel slow).
-            const [clientRes, weightRes, dietRes, exRes, sessionsRes, adherenceRes, followUpsRes] = await Promise.allSettled([
-                api.get(`/clients/${id}`),
-                api.get(`/progress/weight?client=${id}`),
-                api.get(`/clients/${id}/diet-plan`),
-                api.get(`/clients/${id}/exercise-plan`),
-                api.get(`/workout-sessions?client=${id}&limit=10`),
-                api.get(`/clients/${id}/workout-adherence?weeks=6`),
-                api.get(`/followups?client=${id}`),
-            ])
-            if (cancelled) return
+    // Each tab loads its own data the first time it's opened, so the page only
+    // waits on the client record and never fetches what nobody looks at.
+    const [visited, setVisited] = useState(() => new Set([searchParams.get('tab') || 'overview']))
+    const seen = (tab) => visited.has(tab)
+    const onTabChange = (key) => setVisited((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
 
-            if (clientRes.status === 'fulfilled') setClientData(clientRes.value)
+    const clientRes = useAsyncData(() => orNullOn404(api.get(`/clients/${id}`)), [id])
+    const clientData = clientRes.data
+    const setClientData = clientRes.setData
+    const loading = clientRes.loading
 
-            if (weightRes.status === 'fulfilled') {
-                const w = weightRes.value
-                setWeightData((w.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg, source: e.source })))
-            }
+    const weightRes = useAsyncData(() => api.get(`/progress/weight?client=${id}`), [id], { enabled: seen('overview') })
+    const weightData = useMemo(
+        () => (weightRes.data?.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg, source: e.source })),
+        [weightRes.data],
+    )
+    const dietRes = useAsyncData(() => orNullOn404(api.get(`/clients/${id}/diet-plan`)), [id], { enabled: seen('diet') })
+    const dietPlan = dietRes.data
+    const exercisePlanRes = useAsyncData(() => orNullOn404(api.get(`/clients/${id}/exercise-plan`)), [id], { enabled: seen('exercise') })
+    const exercisePlan = exercisePlanRes.data
+    const sessionsRes = useAsyncData(() => api.get(`/workout-sessions?client=${id}&limit=10`), [id], { enabled: seen('exercise') })
+    const workoutSessions = sessionsRes.data?.items || []
+    const adherenceRes = useAsyncData(() => api.get(`/clients/${id}/workout-adherence?weeks=6`), [id], { enabled: seen('exercise') })
+    const workoutAdherence = adherenceRes.data
+    const followUpsRes = useAsyncData(() => api.get(`/followups?client=${id}`), [id], { enabled: seen('followups') })
+    const followUps = followUpsRes.data?.items || []
 
-            if (dietRes.status === 'fulfilled' && dietRes.value) setDietPlan(dietRes.value)
-            if (exRes.status === 'fulfilled' && exRes.value) setExercisePlan(exRes.value)
-
-            if (sessionsRes.status === 'fulfilled') setWorkoutSessions(sessionsRes.value.items || [])
-            if (adherenceRes.status === 'fulfilled') setWorkoutAdherence(adherenceRes.value)
-            if (followUpsRes.status === 'fulfilled') setFollowUps(followUpsRes.value.items || [])
-
-            setLoading(false)
-        }
-        load()
-        return () => { cancelled = true }
-    }, [id, fetchPhotos])
+    const photoSummary = useAsyncData(() => api.get(`/progress-photos?client=${id}&summary=1`), [id])
+    const requestSummary = useAsyncData(() => api.get(`/corrections?client=${id}&summary=1`), [id])
+    const pendingPhotos = photosLoadedFor === String(id) ? pendingCountForClient(id) : (photoSummary.data?.pendingReview ?? 0)
+    const openRequests = correctionsLoaded
+        ? requests.filter((r) => (r.clientId === id || String(r.client) === id) && r.status === 'open').length
+        : (requestSummary.data?.openCount ?? 0)
 
     if (loading) return <LoadingSkeleton cards={4} rows={6} />
+
+    if (clientRes.error) {
+        return (
+            <div className="app-card">
+                <SectionError title="Couldn't load this client" error={clientRes.error} onRetry={clientRes.reload} />
+            </div>
+        )
+    }
 
     if (!clientData) {
         return (
@@ -269,8 +321,12 @@ export default function ClientProfile() {
             </div>
 
             <div className="lg:col-span-2">
-                <ChartCard title="Weight Progress" subtitle={`${weightData.length} weigh-ins (kg)`}>
-                    {weightData.length === 0 ? (
+                <ChartCard title="Weight Progress" subtitle={weightRes.loading ? 'Loading…' : `${weightData.length} weigh-ins (kg)`}>
+                    {weightRes.loading ? (
+                        <Skeleton active paragraph={{ rows: 7 }} title={false} />
+                    ) : weightRes.error ? (
+                        <SectionError title="Couldn't load weight history" error={weightRes.error} onRetry={weightRes.reload} />
+                    ) : weightData.length === 0 ? (
                         <div className="flex h-[260px] items-center justify-center text-sm text-text-muted">No weight entries yet</div>
                     ) : (
                     <ResponsiveContainer width="100%" height={260}>
@@ -333,7 +389,15 @@ export default function ClientProfile() {
     const dietTab = (
         <div>
             <div className="mb-4 flex items-center justify-between">
-                <h3 className="section-title m-0">{dietPlan?.title || 'No diet plan'}</h3>
+                <h3 className="section-title m-0">
+                    {dietRes.loading ? (
+                        <Skeleton.Input active size="small" style={{ width: 200 }} />
+                    ) : dietRes.error ? (
+                        <>Couldn't load diet plan <Button type="link" size="small" onClick={dietRes.reload}>Retry</Button></>
+                    ) : (
+                        dietPlan?.title || 'No diet plan'
+                    )}
+                </h3>
                 <Button type="primary" onClick={() => navigate('/diet-plans')}>Edit plan</Button>
             </div>
 
@@ -348,9 +412,18 @@ export default function ClientProfile() {
     const exerciseTab = (
         <div>
             <div className="mb-4 flex items-center justify-between">
-                <h3 className="section-title m-0">{exercisePlan?.title || 'No exercise plan'}</h3>
+                <h3 className="section-title m-0">
+                    {exercisePlanRes.loading ? (
+                        <Skeleton.Input active size="small" style={{ width: 200 }} />
+                    ) : exercisePlanRes.error ? (
+                        <>Couldn't load exercise plan <Button type="link" size="small" onClick={exercisePlanRes.reload}>Retry</Button></>
+                    ) : (
+                        exercisePlan?.title || 'No exercise plan'
+                    )}
+                </h3>
                 <Button type="primary" onClick={() => navigate('/exercise-plans')}>Edit plan</Button>
             </div>
+            {exercisePlanRes.loading && <Skeleton active paragraph={{ rows: 3 }} />}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 {(exercisePlan?.days || []).map((d) => (
                     <ExerciseDayCard key={d.id} day={d} />
@@ -360,6 +433,11 @@ export default function ClientProfile() {
             <div className="mt-6">
                 <h3 className="section-title mb-3">Workout History &amp; Performance</h3>
 
+                {adherenceRes.loading ? (
+                    <Skeleton active paragraph={{ rows: 2 }} className="mb-4" />
+                ) : adherenceRes.error ? (
+                    <SectionError title="Couldn't load workout adherence" error={adherenceRes.error} onRetry={adherenceRes.reload} className="mb-4" />
+                ) : (
                 <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div className="app-card p-4 text-center">
                         <div className="text-2xl font-extrabold" style={{ color: 'var(--color-success)' }}>{workoutAdherence?.totals?.completed ?? 0}</div>
@@ -377,6 +455,7 @@ export default function ClientProfile() {
                         <div className="text-xs text-text-muted">last 6 weeks</div>
                     </div>
                 </div>
+                )}
 
                 {workoutAdherence?.weeklyBreakdown?.length > 0 && (
                     <ChartCard title="Weekly Adherence" subtitle="Last 6 weeks (%)" className="mb-4">
@@ -392,7 +471,11 @@ export default function ClientProfile() {
                     </ChartCard>
                 )}
 
-                {workoutSessions.length === 0 ? (
+                {sessionsRes.loading ? (
+                    <Skeleton active paragraph={{ rows: 4 }} />
+                ) : sessionsRes.error ? (
+                    <SectionError title="Couldn't load workout sessions" error={sessionsRes.error} onRetry={sessionsRes.reload} />
+                ) : workoutSessions.length === 0 ? (
                     <Empty description="No workout sessions logged yet" className="py-6" />
                 ) : (
                     <Collapse
@@ -477,7 +560,11 @@ export default function ClientProfile() {
     const followUpTab = (
         <div className="app-card p-6">
             <h3 className="section-title mb-4">Follow-up history</h3>
-            {sortedFollowUps.length === 0 ? (
+            {followUpsRes.loading ? (
+                <Skeleton active paragraph={{ rows: 4 }} />
+            ) : followUpsRes.error ? (
+                <SectionError title="Couldn't load follow-ups" error={followUpsRes.error} onRetry={followUpsRes.reload} />
+            ) : sortedFollowUps.length === 0 ? (
                 <EmptyState title="No follow-ups yet" description={`Schedule a check-in with ${client.name}.`} />
             ) : (
                 <div className="flex flex-col gap-3">
@@ -502,42 +589,7 @@ export default function ClientProfile() {
         </div>
     )
 
-    const requestsTab =
-        clientRequests.length === 0 ? (
-            <div className="app-card">
-                <EmptyState title="No correction requests" description={`${client.name} hasn't asked for any changes.`} />
-            </div>
-        ) : (
-            <div className="flex flex-col gap-3">
-                {clientRequests.map((r) => (
-                    <div key={r.id} className="app-card p-4">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Tag bordered={false} style={{ borderRadius: 999 }}>
-                                        {correctionAreaLabels[r.area] || r.area}
-                                    </Tag>
-                                    <span className="text-xs font-medium text-text-muted">
-                                        {correctionTypeLabels[r.type] || r.type}
-                                    </span>
-                                    <span className="text-xs text-text-muted">· {dayjs(r.createdAt).format('D MMM, h:mm A')}</span>
-                                </div>
-                                {r.item && <div className="mt-1 text-sm font-medium text-text-secondary">{r.item}</div>}
-                                <p className="mt-1 mb-0 text-sm text-text-secondary">{r.note}</p>
-                                {r.reply && (
-                                    <div className="mt-2 rounded-lg px-3 py-2 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
-                                        <span className="font-semibold text-text-secondary">Your reply: </span>
-                                        <span className="text-text-secondary">{r.reply}</span>
-                                    </div>
-                                )}
-                            </div>
-                            <StatusBadge status={r.status} />
-                        </div>
-                    </div>
-                ))}
-                <Button type="primary" onClick={() => navigate('/requests')}>Manage requests</Button>
-            </div>
-        )
+    const requestsTab = <RequestsTab clientId={id} clientName={client.name} navigate={navigate} />
 
     return (
         <div>
@@ -565,15 +617,16 @@ export default function ClientProfile() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard label="Progress" value={`${client.progress}%`} accent="var(--color-success)" />
-                <StatCard label="Current Weight" value={`${client.weight}kg`} hint={`Target ${client.target}kg`} />
-                <StatCard label="Plan" value={client.plan} />
-                <StatCard label="Next Follow-up" value={nextFollowUpLabel} />
+                <StatCard icon={<LineChartOutlined />} label="Progress" value={`${client.progress}%`} accent="var(--color-success)" />
+                <StatCard icon={<DashboardOutlined />} label="Current Weight" value={`${client.weight}kg`} hint={`Target ${client.target}kg`} />
+                <StatCard icon={<CrownOutlined />} label="Plan" value={client.plan} />
+                <StatCard icon={<CalendarOutlined />} label="Next Follow-up" value={nextFollowUpLabel} />
             </div>
 
             <div className="mt-6">
                 <Tabs
                     defaultActiveKey={searchParams.get('tab') || 'overview'}
+                    onChange={onTabChange}
                     items={[
                         { key: 'overview', label: 'Overview', children: overview },
                         { key: 'diet', label: 'Diet Plan', children: dietTab },
@@ -587,7 +640,7 @@ export default function ClientProfile() {
                         { key: 'followups', label: 'Follow-ups', children: followUpTab },
                         {
                             key: 'requests',
-                            label: `Requests${clientRequests.filter((r) => r.status === 'open').length ? ` (${clientRequests.filter((r) => r.status === 'open').length})` : ''}`,
+                            label: `Requests${openRequests ? ` (${openRequests})` : ''}`,
                             children: requestsTab,
                         },
                     ]}

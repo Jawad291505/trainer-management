@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Progress, Button } from 'antd'
+import { Progress, Skeleton } from 'antd'
 import {
     TeamOutlined,
     CheckCircleOutlined,
@@ -14,7 +14,8 @@ import PageHeader from '../../../components/common/PageHeader'
 import StatCard from '../../../components/common/StatCard'
 import ChartCard from '../../../components/common/ChartCard'
 import DonutChart from '../../../components/charts/DonutChart'
-import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
+import { useAsyncData } from '../../../hooks/useAsyncData'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
@@ -22,50 +23,43 @@ import { api } from '../../../services/api'
 export default function Dashboard() {
     const navigate = useNavigate()
     const { user } = useAuth()
-    const [loading, setLoading] = useState(true)
-    const [stats, setStats] = useState(null)
-    const [clients, setClients] = useState([])
+    // The headline cards and the client-derived sections are independent requests —
+    // each renders (or fails) on its own instead of the page waiting on both.
+    const statsRes = useAsyncData(() => api.get('/stats/trainer'), [])
+    const clientsRes = useAsyncData(() => api.get('/clients'), [])
+    const stats = statsRes.data
+    const clients = useMemo(() => clientsRes.data?.items || [], [clientsRes.data])
 
-    useEffect(() => {
-        async function load() {
-            try {
-                const [s, c] = await Promise.all([
-                    api.get('/stats/trainer'),
-                    api.get('/clients'),
-                ])
-                setStats(s)
-                setClients(c.items || [])
-            } catch (err) {
-                console.error('Dashboard load failed:', err)
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
-    }, [])
-
-    if (loading || !stats) return <LoadingSkeleton cards={6} />
-
-    const cards = [
+    const cards = stats ? [
         { icon: <TeamOutlined />, label: 'Total Clients', value: stats.total, hint: `${stats.active} active` },
         { icon: <CheckCircleOutlined />, label: 'Active Clients', value: stats.active },
         { icon: <ClockCircleOutlined />, label: 'Pending Follow-ups', value: stats.pendingFollowUps, accent: 'var(--color-warning)' },
         { icon: <RiseOutlined />, label: 'Completed Follow-ups', value: stats.completedFollowUps, accent: 'var(--color-success)' },
         { icon: <WarningOutlined />, label: 'Needs Attention', value: stats.attention, accent: 'var(--color-danger)' },
-    ]
+    ] : []
 
     // Build donut data from actual clients
-    const goalCounts = {}
-    const planCounts = {}
-    clients.forEach((c) => {
-        goalCounts[c.goal] = (goalCounts[c.goal] || 0) + 1
-        planCounts[c.plan] = (planCounts[c.plan] || 0) + 1
-    })
-    const clientGoalData = Object.entries(goalCounts).map(([name, value]) => ({ name, value }))
-    const clientPlanData = Object.entries(planCounts).map(([name, value]) => ({ name, value }))
+    const { clientGoalData, clientPlanData, attentionClients, progressClients } = useMemo(() => {
+        const goalCounts = {}
+        const planCounts = {}
+        clients.forEach((c) => {
+            goalCounts[c.goal] = (goalCounts[c.goal] || 0) + 1
+            planCounts[c.plan] = (planCounts[c.plan] || 0) + 1
+        })
+        return {
+            clientGoalData: Object.entries(goalCounts).map(([name, value]) => ({ name, value })),
+            clientPlanData: Object.entries(planCounts).map(([name, value]) => ({ name, value })),
+            attentionClients: clients.filter((c) => c.progress < 45 && c.status === 'active'),
+            progressClients: [...clients].sort((a, b) => (b.progress || 0) - (a.progress || 0)).slice(0, 5),
+        }
+    }, [clients])
 
-    const attentionClients = clients.filter((c) => c.progress < 45 && c.status === 'active')
-    const progressClients = [...clients].sort((a, b) => (b.progress || 0) - (a.progress || 0)).slice(0, 5)
+    // Shared placeholder for the client-derived sections.
+    const clientsFallback = clientsRes.loading
+        ? <Skeleton active paragraph={{ rows: 5 }} />
+        : clientsRes.error
+            ? <SectionError title="Couldn't load your clients" error={clientsRes.error} onRetry={clientsRes.reload} />
+            : null
 
     return (
         <div>
@@ -74,16 +68,24 @@ export default function Dashboard() {
                 subtitle="Here's what needs your attention today."
             />
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {cards.map((c, i) => <StatCard key={i} {...c} />)}
-            </div>
+            {statsRes.error ? (
+                <SectionError title="Couldn't load your stats" error={statsRes.error} onRetry={statsRes.reload} />
+            ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {statsRes.loading
+                        ? Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="app-card p-5"><Skeleton active paragraph={{ rows: 1 }} title={{ width: '50%' }} /></div>
+                        ))
+                        : cards.map((c, i) => <StatCard key={i} {...c} />)}
+                </div>
+            )}
 
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <ChartCard title="Clients by Goal" subtitle="What your roster is training for">
-                    <DonutChart data={clientGoalData} centerLabel="clients" />
+                    {clientsFallback || <DonutChart data={clientGoalData} centerLabel="clients" />}
                 </ChartCard>
                 <ChartCard title="Clients by Plan" subtitle="Membership tier split">
-                    <DonutChart data={clientPlanData} centerLabel="clients" />
+                    {clientsFallback || <DonutChart data={clientPlanData} centerLabel="clients" />}
                 </ChartCard>
             </div>
 
@@ -93,7 +95,7 @@ export default function Dashboard() {
                         <WarningFilled style={{ color: 'var(--color-warning)' }} />
                         <h3 className="section-title m-0">Needs Attention</h3>
                     </div>
-                    {attentionClients.length === 0 ? (
+                    {clientsFallback ? clientsFallback : attentionClients.length === 0 ? (
                         <p className="text-sm text-text-muted">Everyone is on track. Nice work.</p>
                     ) : (
                         <div className="flex flex-col gap-3">
@@ -112,6 +114,9 @@ export default function Dashboard() {
                 </div>
 
                 <ChartCard className="lg:col-span-2" title="Client Progress Overview" subtitle="Top movers">
+                    {clientsFallback || progressClients.length === 0 ? (
+                        clientsFallback || <p className="text-sm text-text-muted">No clients yet.</p>
+                    ) : (
                     <div className="flex flex-col gap-4">
                         {progressClients.map((c) => (
                             <div key={c.id} className="flex items-center gap-4">
@@ -129,6 +134,7 @@ export default function Dashboard() {
                             </div>
                         ))}
                     </div>
+                    )}
                 </ChartCard>
             </div>
         </div>

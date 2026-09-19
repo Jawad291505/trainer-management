@@ -41,6 +41,8 @@ export default function WorkoutRunner() {
     const location = useLocation()
     const { client } = useAuth()
     const dayId = location.state?.dayId
+    const statePlanId = location.state?.planId // handed over by My Exercises
+    const clientId = client?._id || client?.id
     const [session, setSession] = useState(null)
     const [loading, setLoading] = useState(true)
     const [exIdx, setExIdx] = useState(0)
@@ -51,13 +53,17 @@ export default function WorkoutRunner() {
     const draftsRef = useRef({}) // "exIdx-setIdx" -> { actualReps, actualWeight, actualDuration }
 
     useEffect(() => {
-        if (!client) return
+        if (!clientId) return
         let cancelled = false
         async function load() {
             setLoading(true)
             try {
-                const plan = await api.get(`/clients/${client._id || client.id}/exercise-plan`)
-                const planId = plan?._id || plan?.id
+                // My Exercises already knows the plan id — only look it up on a direct visit.
+                let planId = statePlanId
+                if (!planId) {
+                    const plan = await api.get(`/clients/${clientId}/exercise-plan`)
+                    planId = plan?._id || plan?.id
+                }
                 if (!planId) return
                 const started = await api.post(`/exercise-plans/${planId}/sessions/start`, dayId ? { dayId } : {})
                 if (!cancelled) {
@@ -70,7 +76,8 @@ export default function WorkoutRunner() {
         }
         load()
         return () => { cancelled = true }
-    }, [client])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clientId])
 
     if (loading) return <PageSpin />
     if (!session) {

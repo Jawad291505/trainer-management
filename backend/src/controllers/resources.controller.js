@@ -1,18 +1,27 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { LibraryResource } from '../models/index.js'
+import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
-// GET /api/resources?category=&status=&search=
-// Admin manages; trainers/clients read (active only).
+// GET /api/resources?category=&status=&search=&page=&limit=
+// Admin manages; trainers/clients read (active only). Search matches title or
+// description. Pagination is opt-in (see utils/pagination.js).
 export const listResources = asyncHandler(async (req, res) => {
     const filter = {}
     if (req.query.category && req.query.category !== 'all') filter.category = req.query.category
-    if (req.query.status) filter.status = req.query.status
+    if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
     else if (req.user.role !== 'admin') filter.status = 'active'
-    if (req.query.search) filter.title = { $regex: String(req.query.search).trim(), $options: 'i' }
+    const search = String(req.query.search || '').trim()
+    if (search) {
+        const rx = { $regex: escapeRegex(search), $options: 'i' }
+        filter.$or = [{ title: rx }, { description: rx }]
+    }
 
-    const items = await LibraryResource.find(filter).sort({ updatedAt: -1 })
-    res.json({ count: items.length, items })
+    const paging = pageParams(req.query)
+    let query = LibraryResource.find(filter).sort({ updatedAt: -1, _id: -1 })
+    if (paging) query = query.skip(paging.skip).limit(paging.limit)
+    const [items, total] = await Promise.all([query, paging ? LibraryResource.countDocuments(filter) : null])
+    res.json(paging ? pagedBody(items, total, paging) : { count: items.length, items })
 })
 
 // POST /api/resources   (admin)

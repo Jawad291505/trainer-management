@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
-import { Input, Button } from 'antd'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Input, Button, Skeleton } from 'antd'
 import { SendOutlined } from '@ant-design/icons'
 import UserAvatar from '../../../components/common/UserAvatar'
 import EmptyState from '../../../components/common/EmptyState'
+import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
 import { getSocket } from '../../../services/socket'
 
@@ -16,22 +17,42 @@ export default function Messages() {
     const [draft, setDraft] = useState('')
     const [typing, setTyping] = useState(false)
     const [convoId, setConvoId] = useState(null)
+    const [threadLoading, setThreadLoading] = useState(true)
+    const [threadError, setThreadError] = useState(null)
     const endRef = useRef(null)
     const socketRef = useRef(null)
+
+    // Open the conversation with the assigned trainer. Never leaves the thread
+    // spinning: a failed ack or a silent socket turns into an error with a retry.
+    const openThread = useCallback(() => {
+        const s = socketRef.current
+        if (!s) { setThreadLoading(false); return }
+        setThreadLoading(true)
+        setThreadError(null)
+        const timer = setTimeout(() => {
+            setThreadLoading(false)
+            setThreadError('Couldn\'t reach chat. Check your connection and try again.')
+        }, 12000)
+        s.emit('conversation:open', {}, (res) => {
+            clearTimeout(timer)
+            if (res?.ok) {
+                setConvoId(res.conversationId)
+                setMessages(res.messages || [])
+                setThreadError(null)
+            } else {
+                setThreadError(res?.error || 'Couldn\'t load your conversation')
+            }
+            setThreadLoading(false)
+        })
+    }, [])
 
     // Connect and open conversation
     useEffect(() => {
         const s = getSocket()
-        if (!s) return
+        if (!s) { setThreadLoading(false); return }
         socketRef.current = s
 
-        // Open conversation with assigned trainer
-        s.emit('conversation:open', {}, (res) => {
-            if (res?.ok) {
-                setConvoId(res.conversationId)
-                setMessages(res.messages || [])
-            }
-        })
+        openThread()
 
         s.on('message:new', (payload) => {
             if (!payload?.message) return
@@ -101,7 +122,13 @@ export default function Messages() {
 
             {/* Thread */}
             <div className="chat-canvas flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-                {messages.length === 0 ? (
+                {threadLoading ? (
+                    <div className="mx-auto max-w-3xl"><Skeleton active paragraph={{ rows: 6 }} /></div>
+                ) : threadError && messages.length === 0 ? (
+                    <div className="flex h-full items-center justify-center">
+                        <SectionError title="Couldn't load your messages" error={{ message: threadError }} onRetry={openThread} />
+                    </div>
+                ) : messages.length === 0 ? (
                     <div className="flex h-full items-center justify-center">
                         <EmptyState title="No messages yet" description="Say hello to your trainer." />
                     </div>

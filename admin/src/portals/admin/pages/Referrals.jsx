@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { Select } from 'antd'
+import { useState } from 'react'
+import { Select, Skeleton } from 'antd'
+import dayjs from 'dayjs'
 import {
     ShareAltOutlined,
     CheckCircleOutlined,
@@ -12,31 +13,24 @@ import ChartCard from '../../../components/common/ChartCard'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
 import StatusBadge from '../../../components/common/StatusBadge'
 import UserAvatar from '../../../components/common/UserAvatar'
-import { buildReferralRows, buildLeaderboard, getReferralStats } from '../../../services/referrals'
+import AsyncSection from '../../../components/feedback/AsyncSection'
+import SectionError from '../../../components/feedback/SectionError'
 
 export default function Referrals() {
-    const rows = useMemo(() => buildReferralRows(), [])
-    const leaderboard = useMemo(() => buildLeaderboard(), [])
-    const stats = useMemo(() => getReferralStats(), [])
+    // The table rows are searched / filtered / paged by the backend; the headline
+    // stats and leaderboard come back in the same response and always cover every referral.
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
+    const overviewRes = usePagedList('/referrals/overview', { params: { status }, search, pageSize: 10 })
+    const rows = overviewRes.items
+    const leaderboard = overviewRes.data?.leaderboard || []
+    const stats = overviewRes.data?.stats
 
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return rows.filter((r) => {
-            const matchQ =
-                !q ||
-                r.referrerName.toLowerCase().includes(q) ||
-                r.refereeName.toLowerCase().includes(q) ||
-                r.code.toLowerCase().includes(q)
-            const matchS = status === 'all' || r.status === status
-            return matchQ && matchS
-        })
-    }, [rows, search, status])
-
-    const cards = [
+    const cards = !stats ? [] : [
         { icon: <ShareAltOutlined />, label: 'Total Referrals', value: stats.total, hint: `${stats.last30} in the last 30 days` },
         { icon: <CheckCircleOutlined />, label: 'Joined', value: stats.joined, accent: 'var(--color-success)' },
         { icon: <ClockCircleOutlined />, label: 'Pending', value: stats.pending, accent: 'var(--color-warning)' },
@@ -68,7 +62,7 @@ export default function Referrals() {
             ),
         },
         { title: 'Code used', dataIndex: 'code', width: 160, render: (c) => <span className="font-mono text-xs text-text-secondary">{c}</span> },
-        { title: 'Date', dataIndex: 'date', width: 130, sorter: (a, b) => a.date.localeCompare(b.date), render: (d) => <span className="text-text-secondary">{d}</span> },
+        { title: 'Date', dataIndex: 'date', width: 130, sorter: (a, b) => String(a.date).localeCompare(String(b.date)), render: (d) => <span className="text-text-secondary">{dayjs(d).format('YYYY-MM-DD')}</span> },
         { title: 'Status', dataIndex: 'status', width: 130, render: (s) => <StatusBadge status={s === 'joined' ? 'active' : s} /> },
     ]
 
@@ -76,11 +70,17 @@ export default function Referrals() {
         <div>
             <PageHeader title="Referrals" subtitle="Track which trainers referred one another and how each code performs." />
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {cards.map((c, i) => (
-                    <StatCard key={i} {...c} />
-                ))}
-            </div>
+            {overviewRes.error ? (
+                <SectionError title="Couldn't load referral stats" error={overviewRes.error} onRetry={overviewRes.reload} />
+            ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {overviewRes.loading
+                        ? Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="app-card p-5"><Skeleton active paragraph={{ rows: 1 }} title={{ width: '50%' }} /></div>
+                        ))
+                        : cards.map((c, i) => <StatCard key={i} {...c} />)}
+                </div>
+            )}
 
             <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="lg:col-span-2">
@@ -97,13 +97,17 @@ export default function Referrals() {
                             ]}
                         />
                     </FilterBar>
-                    <DataTable columns={columns} dataSource={filtered} pageSize={8} scrollX={760} />
+                    <AsyncSection loading={overviewRes.loading} error={overviewRes.error} onRetry={overviewRes.reload} errorTitle="Couldn't load referrals" rows={6}>
+                        <DataTable columns={columns} dataSource={rows} loading={overviewRes.fetching} pagination={false} scrollX={760} />
+                        <Pager list={overviewRes} pageSizeOptions={[10, 20, 50]} />
+                    </AsyncSection>
                 </div>
 
                 <ChartCard title="Referral Leaderboard" subtitle="Trainers ranked by invites">
+                    <AsyncSection loading={overviewRes.loading} error={overviewRes.error} onRetry={overviewRes.reload} errorTitle="Couldn't load the leaderboard" rows={5}>
                     <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
                         {leaderboard.map((t, i) => (
-                            <div key={t.id} className="flex items-center justify-between py-3">
+                            <div key={t.trainerId} className="flex items-center justify-between py-3">
                                 <div className="flex items-center gap-3">
                                     <span className="w-5 text-sm font-bold text-text-muted">{i + 1}</span>
                                     <UserAvatar name={t.name} size={32} />
@@ -119,6 +123,7 @@ export default function Referrals() {
                             </div>
                         ))}
                     </div>
+                    </AsyncSection>
                 </ChartCard>
             </div>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Segmented, Button, App } from 'antd'
 import {
     CreditCardOutlined,
@@ -9,6 +9,10 @@ import {
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
+import PageSpin from '../../../components/common/PageSpin'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
+import SectionError from '../../../components/feedback/SectionError'
 import { api } from '../../../services/api'
 
 const ICONS = {
@@ -20,19 +24,23 @@ const ICONS = {
 
 export default function NotificationsPage() {
     const { message } = App.useApp()
-    const [data, setData] = useState([])
     const [filter, setFilter] = useState('all')
+    // The read / unread filter and paging are applied by the backend.
+    const list = usePagedList('/notifications', { params: { status: filter }, pageSize: 20 })
+    const { items: data, loading, error, reload: load } = list
 
-    useEffect(() => {
-        api.get('/notifications').then((res) => setData(res.items || [])).catch(() => { })
-    }, [])
-
-    const filtered = data.filter((n) => (filter === 'all' ? true : filter === 'unread' ? n.unread : !n.unread))
-
-    const markAll = () => {
-        setData((prev) => prev.map((n) => ({ ...n, unread: false })))
-        message.success('All marked as read')
+    const markAll = async () => {
+        try {
+            await api.patch('/notifications/read-all')
+            load()
+            message.success('All marked as read')
+        } catch (err) {
+            message.error(err.message)
+        }
     }
+
+    if (loading) return <PageSpin />
+    if (error) return <div className="app-card"><SectionError title="Couldn't load notifications" error={error} onRetry={load} /></div>
 
     return (
         <div>
@@ -54,13 +62,13 @@ export default function NotificationsPage() {
                 />
             </div>
 
-            {filtered.length === 0 ? (
+            {data.length === 0 ? (
                 <div className="app-card">
                     <EmptyState title="You're all caught up" description="No notifications in this view." />
                 </div>
             ) : (
                 <div className="app-card divide-y" style={{ borderColor: 'var(--color-border)' }}>
-                    {filtered.map((n) => {
+                    {data.map((n) => {
                         const Icon = ICONS[n.type] || UserOutlined
                         return (
                             <div
@@ -84,6 +92,8 @@ export default function NotificationsPage() {
                     })}
                 </div>
             )}
+
+            <Pager list={list} pageSizeOptions={[20, 50, 100]} />
         </div>
     )
 }

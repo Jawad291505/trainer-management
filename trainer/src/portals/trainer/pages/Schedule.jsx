@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
-import { Segmented, Button, Modal, Form, Input, Select, TimePicker, App } from 'antd'
+import { useState } from 'react'
+import { Segmented, Button, Modal, Form, Input, Select, TimePicker, App, Skeleton } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import PageHeader from '../../../components/common/PageHeader'
-import { api } from '../../../services/api'
+import SectionError from '../../../components/feedback/SectionError'
+import { useClientList } from '../../../hooks/useClientList'
 import ScheduleTimeline from '../components/ScheduleTimeline'
 
 const activityTypes = {
@@ -27,12 +28,9 @@ export default function Schedule() {
     const [view, setView] = useState('day')
     const [open, setOpen] = useState(false)
     const [form] = Form.useForm()
-    const { today, week, addActivity, removeActivity } = useSchedule()
-    const [clients, setClients] = useState([])
-
-    useEffect(() => {
-        api.get('/clients').then((res) => setClients(res.items || [])).catch(() => { })
-    }, [])
+    const { today, week, addActivity, removeActivity, loading, error, reload } = useSchedule()
+    // Only the "new activity" picker needs the roster — load it when the modal opens.
+    const { clients, loading: clientsLoading } = useClientList(open)
 
     const openModal = () => {
         form.setFieldsValue({ type: 'workout', day: 'today', time: null, title: '', clientId: undefined, notes: '' })
@@ -83,9 +81,13 @@ export default function Schedule() {
                 </div>
             </div>
 
-            {view === 'day' ? (
+            {loading ? (
+                <div className="app-card p-5 md:p-6"><Skeleton active paragraph={{ rows: 6 }} /></div>
+            ) : error ? (
+                <div className="app-card"><SectionError title="Couldn't load your schedule" error={error} onRetry={reload} /></div>
+            ) : view === 'day' ? (
                 <div className="app-card p-5 md:p-6">
-                    <div className="mb-4 text-sm font-bold text-text-primary">Thursday, 27 August 2026</div>
+                    <div className="mb-4 text-sm font-bold text-text-primary">{dayjs().format('dddd, D MMMM YYYY')}</div>
                     <ScheduleTimeline items={today} onRemove={(id) => removeActivity('today', id)} />
                 </div>
             ) : (
@@ -152,6 +154,7 @@ export default function Schedule() {
                                 showSearch
                                 optionFilterProp="label"
                                 placeholder="Optional"
+                                loading={clientsLoading}
                                 options={clients.map((c) => ({ value: c.id, label: c.name }))}
                             />
                         </Form.Item>

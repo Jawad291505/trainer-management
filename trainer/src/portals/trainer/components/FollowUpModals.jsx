@@ -14,7 +14,7 @@ const toPayload = (v) => ({
 
 // Schedule a new follow-up, or (when `followUp` is passed) edit / reschedule one.
 // `initialClientId` pre-selects the client when opened from a client profile.
-export function ScheduleFollowUpModal({ open, followUp, initialClientId, clients, onClose, onSaved }) {
+export function ScheduleFollowUpModal({ open, followUp, initialClientId, clients, clientsLoading = false, onClose, onSaved }) {
     const { message } = App.useApp()
     const [form] = Form.useForm()
     const [saving, setSaving] = useState(false)
@@ -72,6 +72,7 @@ export function ScheduleFollowUpModal({ open, followUp, initialClientId, clients
                         disabled={editing}
                         optionFilterProp="label"
                         placeholder="Select a client"
+                        loading={clientsLoading}
                         options={clients.map((c) => ({ value: c.id, label: c.name }))}
                     />
                 </Form.Item>

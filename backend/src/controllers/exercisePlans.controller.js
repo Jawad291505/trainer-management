@@ -64,7 +64,10 @@ export const listExercisePlans = asyncHandler(async (req, res) => {
     if (req.query.client) filter.client = req.query.client
     if (req.query.status) filter.status = req.query.status
 
-    const plans = await ExercisePlan.find(filter).sort({ updatedAt: -1 })
+    // ?summary=1 — headers only (no days/exercises); see listDietPlans.
+    const query = ExercisePlan.find(filter).sort({ updatedAt: -1 })
+    if (req.query.summary === '1') query.select('client trainer title status updatedAt publishedAt')
+    const plans = await query
     res.json({ count: plans.length, items: plans })
 })
 

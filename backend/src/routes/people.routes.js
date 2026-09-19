@@ -9,7 +9,7 @@ import {
 import { listUsers, setUserStatus, resendInvite } from '../controllers/users.controller.js'
 import { createAdmin } from '../controllers/admins.controller.js'
 import {
-    listMembers, getMember, createMember, updateMember, deleteMember,
+    listMembers, subscriptionSummary, getMember, createMember, updateMember, deleteMember,
 } from '../controllers/members.controller.js'
 
 const router = Router()
@@ -25,6 +25,7 @@ router.post('/admins', authorize('admin'), createAdmin)
 
 // ---- Members (admin only — Admin -> Members -> Trainers -> Clients hierarchy) ----
 router.get('/members', authorize('admin'), listMembers)
+router.get('/members/subscription-summary', authorize('admin'), subscriptionSummary)
 router.get('/members/:id', authorize('admin'), getMember)
 router.post('/members', authorize('admin'), createMember)
 router.patch('/members/:id', authorize('admin'), updateMember)

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, Modal, Form, Input, InputNumber, Select, App, Tooltip, Tag } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, MailOutlined, CalendarOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, MailOutlined, CalendarOutlined, CheckOutlined, CloseOutlined, IdcardOutlined, TeamOutlined } from '@ant-design/icons'
 import StatCard from '../../../components/common/StatCard'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
 import EmptyState from '../../../components/common/EmptyState'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
 import TrainerCard from '../components/TrainerCard'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
@@ -35,6 +36,7 @@ export default function MemberDetail() {
     const [trainers, setTrainers] = useState([])
     const [payments, setPayments] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [editing, setEditing] = useState(null)
     const [saving, setSaving] = useState(false)
     const [rejecting, setRejecting] = useState(false)
@@ -43,6 +45,7 @@ export default function MemberDetail() {
     const [form] = Form.useForm()
 
     const load = async () => {
+        setLoadError(null)
         try {
             const [m, t, p] = await Promise.all([
                 api.get(`/members/${id}`),
@@ -52,14 +55,15 @@ export default function MemberDetail() {
             setMember(m)
             setTrainers(t.items || [])
             setPayments(p.items || [])
-        } catch {
-            // member not found
+        } catch (err) {
+            // 404 falls through to the "Member not found" state; anything else is a real failure.
+            if (err.status !== 404) setLoadError(err)
         } finally {
             setLoading(false)
         }
     }
 
-    useEffect(() => { load() }, [id])
+    useEffect(() => { setLoading(true); load() }, [id])
 
     const latestPayment = payments[0]
 
@@ -174,6 +178,10 @@ export default function MemberDetail() {
 
     if (loading) return <LoadingSkeleton />
 
+    if (loadError && !member) {
+        return <div className="app-card"><SectionError title="Couldn't load this member" error={loadError} onRetry={() => { setLoading(true); load() }} /></div>
+    }
+
     if (!member) {
         return (
             <div className="app-card">
@@ -265,8 +273,8 @@ export default function MemberDetail() {
             )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <StatCard label="Trainers" value={`${member.trainerCount} / ${member.trainerLimit}`} hint={atLimit ? 'Limit reached' : `${member.trainerLimit - member.trainerCount} slots left`} />
-                <StatCard label="Clients" value={member.clientLimit ? `${member.clientCount} / ${member.clientLimit}` : member.clientCount} />
+                <StatCard icon={<IdcardOutlined />} label="Trainers" value={`${member.trainerCount} / ${member.trainerLimit}`} hint={atLimit ? 'Limit reached' : `${member.trainerLimit - member.trainerCount} slots left`} />
+                <StatCard icon={<TeamOutlined />} label="Clients" value={member.clientLimit ? `${member.clientCount} / ${member.clientLimit}` : member.clientCount} />
             </div>
 
             <h3 className="section-title mb-4 mt-6">Trainers under {member.name}</h3>

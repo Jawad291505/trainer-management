@@ -6,8 +6,9 @@ import {
     PlusOutlined,
     DeleteOutlined,
 } from '@ant-design/icons'
-import { Button, Modal, Form, Input, Select, TimePicker, DatePicker, App } from 'antd'
+import { Button, Modal, Form, Input, Select, TimePicker, DatePicker, App, Skeleton } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
+import SectionError from '../../../components/feedback/SectionError'
 
 const activityColors = {
     meal: 'var(--color-success)', workout: 'var(--color-primary)', walk: 'var(--color-info)',
@@ -27,7 +28,7 @@ const WHEN_OPTIONS = [
 
 export default function MySchedule() {
     const { message } = App.useApp()
-    const { today, upcoming, addActivity, removeActivity, toggleDone } = useSchedule()
+    const { today, upcoming, addActivity, removeActivity, toggleDone, loading, error, reload } = useSchedule()
     const [open, setOpen] = useState(false)
     const [form] = Form.useForm()
     const when = Form.useWatch('when', form)
@@ -62,7 +63,11 @@ export default function MySchedule() {
             {/* Today timeline */}
             <div className="app-card mb-6 p-5">
                 <h3 className="section-title mb-4">Today</h3>
-                {today.length === 0 ? (
+                {loading ? (
+                    <Skeleton active paragraph={{ rows: 4 }} title={false} />
+                ) : error ? (
+                    <SectionError title="Couldn't load your schedule" error={error} onRetry={reload} />
+                ) : today.length === 0 ? (
                     <p className="text-sm text-text-muted">Nothing planned yet. Add your first activity.</p>
                 ) : (
                     <div className="flex flex-col">
@@ -110,7 +115,11 @@ export default function MySchedule() {
             {/* Upcoming */}
             <div className="app-card p-5">
                 <h3 className="section-title mb-4">Upcoming</h3>
-                {upcoming.length === 0 ? (
+                {loading ? (
+                    <Skeleton active paragraph={{ rows: 3 }} title={false} />
+                ) : error ? (
+                    <SectionError title="Couldn't load your schedule" error={error} onRetry={reload} />
+                ) : upcoming.length === 0 ? (
                     <p className="text-sm text-text-muted">No upcoming activities.</p>
                 ) : (
                     <div className="flex flex-col gap-3">

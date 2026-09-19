@@ -1,34 +1,38 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Spin } from 'antd'
 import AppLayout from '../layouts/AppLayout'
+import PageSpin from '../components/common/PageSpin'
 import Login from '../pages/Login'
-import Signup from '../pages/Signup'
-import SetPassword from '../pages/SetPassword'
-import VerifyEmail from '../pages/VerifyEmail'
-import SelectPlan from '../pages/SelectPlan'
-import SubmitPayment from '../pages/SubmitPayment'
-import PendingApproval from '../pages/PendingApproval'
 import { useAuth } from '../context/AuthContext'
-import Dashboard from '../portals/admin/pages/Dashboard'
-import Users from '../portals/admin/pages/Users'
-import Members from '../portals/admin/pages/Members'
-import MemberDetail from '../portals/admin/pages/MemberDetail'
-import Trainers from '../portals/admin/pages/Trainers'
-import TrainerDetail from '../portals/admin/pages/TrainerDetail'
-import Clients from '../portals/admin/pages/Clients'
-import ClientDetail from '../portals/admin/pages/ClientDetail'
-import Assignments from '../portals/admin/pages/Assignments'
-import Referrals from '../portals/admin/pages/Referrals'
-import Libraries from '../portals/admin/pages/Libraries'
-import Foods from '../portals/admin/pages/Foods'
-import Exercises from '../portals/admin/pages/Exercises'
-import DietPlans from '../portals/admin/pages/DietPlans'
-import SubscriptionPlans from '../portals/admin/pages/SubscriptionPlans'
-import PaymentApprovals from '../portals/admin/pages/PaymentApprovals'
-import Payments from '../portals/admin/pages/Payments'
-import NotificationsPage from '../portals/admin/pages/NotificationsPage'
-import Settings from '../portals/admin/pages/Settings'
-import NotFound from '../pages/NotFound'
+
+// Each page is its own chunk — a portal only downloads the pages it actually visits.
+const Signup = lazy(() => import('../pages/Signup'))
+const SetPassword = lazy(() => import('../pages/SetPassword'))
+const VerifyEmail = lazy(() => import('../pages/VerifyEmail'))
+const SelectPlan = lazy(() => import('../pages/SelectPlan'))
+const SubmitPayment = lazy(() => import('../pages/SubmitPayment'))
+const PendingApproval = lazy(() => import('../pages/PendingApproval'))
+const Dashboard = lazy(() => import('../portals/admin/pages/Dashboard'))
+const Users = lazy(() => import('../portals/admin/pages/Users'))
+const Members = lazy(() => import('../portals/admin/pages/Members'))
+const MemberDetail = lazy(() => import('../portals/admin/pages/MemberDetail'))
+const Trainers = lazy(() => import('../portals/admin/pages/Trainers'))
+const TrainerDetail = lazy(() => import('../portals/admin/pages/TrainerDetail'))
+const Clients = lazy(() => import('../portals/admin/pages/Clients'))
+const ClientDetail = lazy(() => import('../portals/admin/pages/ClientDetail'))
+const Assignments = lazy(() => import('../portals/admin/pages/Assignments'))
+const Referrals = lazy(() => import('../portals/admin/pages/Referrals'))
+const Libraries = lazy(() => import('../portals/admin/pages/Libraries'))
+const Foods = lazy(() => import('../portals/admin/pages/Foods'))
+const Exercises = lazy(() => import('../portals/admin/pages/Exercises'))
+const DietPlans = lazy(() => import('../portals/admin/pages/DietPlans'))
+const SubscriptionPlans = lazy(() => import('../portals/admin/pages/SubscriptionPlans'))
+const PaymentApprovals = lazy(() => import('../portals/admin/pages/PaymentApprovals'))
+const Payments = lazy(() => import('../portals/admin/pages/Payments'))
+const NotificationsPage = lazy(() => import('../portals/admin/pages/NotificationsPage'))
+const Settings = lazy(() => import('../portals/admin/pages/Settings'))
+const NotFound = lazy(() => import('../pages/NotFound'))
 
 // Where a self-signup Member mid-onboarding belongs, keyed by Member.onboardingStage.
 const ONBOARDING_ROUTE = {
@@ -59,62 +63,64 @@ export default function AppRoutes() {
     }
 
     return (
-        <Routes>
-            <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
-            <Route path="/signup" element={authed ? <Navigate to="/" replace /> : <Signup />} />
-            <Route
-                path="/set-password"
-                element={authed ? (mustChangePassword ? <SetPassword /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
-            />
-            <Route
-                path="/verify-email"
-                element={authed ? (isOnboarding && stage === 'verify_email' ? <VerifyEmail /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
-            />
-            <Route
-                path="/select-plan"
-                element={authed ? (isOnboarding && stage === 'select_plan' ? <SelectPlan /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
-            />
-            <Route
-                path="/submit-payment"
-                element={authed ? (isOnboarding && ['submit_payment', 'rejected'].includes(stage) ? <SubmitPayment /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
-            />
-            <Route
-                path="/pending-approval"
-                element={authed ? (isOnboarding && ['awaiting_approval', 'rejected'].includes(stage) ? <PendingApproval /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
-            />
-            <Route
-                element={
-                    authed
-                        ? mustChangePassword
-                            ? <Navigate to="/set-password" replace />
-                            : isOnboarding
-                                ? <Navigate to={onboardingPath} replace />
-                                : <AppLayout />
-                        : <Navigate to="/login" replace />
-                }
-            >
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/users" element={<Users />} />
-                <Route path="/members" element={isAdmin ? <Members /> : <Navigate to="/" replace />} />
-                <Route path="/members/:id" element={isAdmin ? <MemberDetail /> : <Navigate to="/" replace />} />
-                <Route path="/trainers" element={<Trainers />} />
-                <Route path="/trainers/:id" element={<TrainerDetail />} />
-                <Route path="/clients" element={<Clients />} />
-                <Route path="/clients/:id" element={<ClientDetail />} />
-                <Route path="/assignments" element={<Assignments />} />
-                <Route path="/referrals" element={<Referrals />} />
-                <Route path="/libraries" element={<Libraries />} />
-                <Route path="/foods" element={<Foods />} />
-                <Route path="/exercises" element={<Exercises />} />
-                <Route path="/diet-plans" element={<DietPlans />} />
-                <Route path="/subscription-plans" element={isAdmin ? <SubscriptionPlans /> : <Navigate to="/" replace />} />
-                <Route path="/payment-approvals" element={isAdmin ? <PaymentApprovals /> : <Navigate to="/" replace />} />
-                <Route path="/payments" element={isAdmin ? <Payments /> : <Navigate to="/" replace />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/404" element={<NotFound />} />
-                <Route path="*" element={<Navigate to="/404" replace />} />
-            </Route>
-        </Routes>
+        <Suspense fallback={<PageSpin />}>
+            <Routes>
+                <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
+                <Route path="/signup" element={authed ? <Navigate to="/" replace /> : <Signup />} />
+                <Route
+                    path="/set-password"
+                    element={authed ? (mustChangePassword ? <SetPassword /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
+                />
+                <Route
+                    path="/verify-email"
+                    element={authed ? (isOnboarding && stage === 'verify_email' ? <VerifyEmail /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
+                />
+                <Route
+                    path="/select-plan"
+                    element={authed ? (isOnboarding && stage === 'select_plan' ? <SelectPlan /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
+                />
+                <Route
+                    path="/submit-payment"
+                    element={authed ? (isOnboarding && ['submit_payment', 'rejected'].includes(stage) ? <SubmitPayment /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
+                />
+                <Route
+                    path="/pending-approval"
+                    element={authed ? (isOnboarding && ['awaiting_approval', 'rejected'].includes(stage) ? <PendingApproval /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
+                />
+                <Route
+                    element={
+                        authed
+                            ? mustChangePassword
+                                ? <Navigate to="/set-password" replace />
+                                : isOnboarding
+                                    ? <Navigate to={onboardingPath} replace />
+                                    : <AppLayout />
+                            : <Navigate to="/login" replace />
+                    }
+                >
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/users" element={<Users />} />
+                    <Route path="/members" element={isAdmin ? <Members /> : <Navigate to="/" replace />} />
+                    <Route path="/members/:id" element={isAdmin ? <MemberDetail /> : <Navigate to="/" replace />} />
+                    <Route path="/trainers" element={<Trainers />} />
+                    <Route path="/trainers/:id" element={<TrainerDetail />} />
+                    <Route path="/clients" element={<Clients />} />
+                    <Route path="/clients/:id" element={<ClientDetail />} />
+                    <Route path="/assignments" element={<Assignments />} />
+                    <Route path="/referrals" element={<Referrals />} />
+                    <Route path="/libraries" element={<Libraries />} />
+                    <Route path="/foods" element={<Foods />} />
+                    <Route path="/exercises" element={<Exercises />} />
+                    <Route path="/diet-plans" element={<DietPlans />} />
+                    <Route path="/subscription-plans" element={isAdmin ? <SubscriptionPlans /> : <Navigate to="/" replace />} />
+                    <Route path="/payment-approvals" element={isAdmin ? <PaymentApprovals /> : <Navigate to="/" replace />} />
+                    <Route path="/payments" element={isAdmin ? <Payments /> : <Navigate to="/" replace />} />
+                    <Route path="/notifications" element={<NotificationsPage />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/404" element={<NotFound />} />
+                    <Route path="*" element={<Navigate to="/404" replace />} />
+                </Route>
+            </Routes>
+        </Suspense>
     )
 }

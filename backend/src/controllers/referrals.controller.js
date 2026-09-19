@@ -5,10 +5,13 @@ import {
     redeemReferralCode,
     getReferralOverview,
 } from '../services/referral.service.js'
+import { pageParams } from '../utils/pagination.js'
 
-// GET /api/referrals/overview   (admin) — table rows + leaderboard + stats
-export const overview = asyncHandler(async (_req, res) => {
-    res.json(await getReferralOverview())
+// GET /api/referrals/overview?search=&status=&page=&limit=   (admin) — table rows + leaderboard + stats
+// Rows are filtered (and, with `page`, paginated) here; `items` mirrors `rows` for usePagedList.
+export const overview = asyncHandler(async (req, res) => {
+    const out = await getReferralOverview({ search: req.query.search, status: req.query.status, paging: pageParams(req.query) })
+    res.json({ ...out, items: out.rows })
 })
 
 // GET /api/referrals/me   (trainer) — my code, who referred me, who I referred

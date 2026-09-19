@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { Notification } from '../models/index.js'
+import { pageParams, pagedBody } from '../utils/pagination.js'
 
 // "5 min ago" style label the portals render as `n.time`.
 function timeAgo(date) {
@@ -28,16 +29,23 @@ const serialize = (n) => ({
 })
 
 // GET /api/notifications?unread=1&limit=50
+// Also: ?status=all|unread|read, and opt-in pagination with ?page=&limit= (see utils/pagination.js).
 export const listNotifications = asyncHandler(async (req, res) => {
     const filter = { user: req.user._id }
-    if (req.query.unread === '1') filter.read = false
-    const limit = Math.min(Number(req.query.limit) || 50, 200)
+    if (req.query.unread === '1' || req.query.status === 'unread') filter.read = false
+    else if (req.query.status === 'read') filter.read = true
 
-    const [items, unreadCount] = await Promise.all([
-        Notification.find(filter).sort({ createdAt: -1 }).limit(limit),
+    const paging = pageParams(req.query)
+    let query = Notification.find(filter).sort({ createdAt: -1, _id: -1 })
+    query = paging ? query.skip(paging.skip).limit(paging.limit) : query.limit(Math.min(Number(req.query.limit) || 50, 200))
+
+    const [items, unreadCount, total] = await Promise.all([
+        query,
         Notification.countDocuments({ user: req.user._id, read: false }),
+        paging ? Notification.countDocuments(filter) : null,
     ])
-    res.json({ unreadCount, items: items.map(serialize) })
+    const serialized = items.map(serialize)
+    res.json(paging ? { ...pagedBody(serialized, total, paging), unreadCount } : { unreadCount, items: serialized })
 })
 
 // PATCH /api/notifications/:id/read

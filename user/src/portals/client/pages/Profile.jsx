@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Form, Input, InputNumber, Button, App, Select, Modal } from 'antd'
+import { FlagOutlined, DashboardOutlined, AimOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatCard from '../../../components/common/StatCard'
@@ -57,9 +58,9 @@ export default function Profile() {
 
                 <div className="lg:col-span-2">
                     <div className="mb-4 grid grid-cols-3 gap-4">
-                        <StatCard label="Start" value={`${currentClient.startWeight}kg`} />
-                        <StatCard label="Current" value={`${currentClient.weight}kg`} accent="var(--color-primary)" />
-                        <StatCard label="Target" value={`${currentClient.target}kg`} accent="var(--color-success)" />
+                        <StatCard icon={<FlagOutlined />} label="Start" value={`${currentClient.startWeight}kg`} />
+                        <StatCard icon={<DashboardOutlined />} label="Current" value={`${currentClient.weight}kg`} accent="var(--color-primary)" />
+                        <StatCard icon={<AimOutlined />} label="Target" value={`${currentClient.target}kg`} accent="var(--color-success)" />
                     </div>
 
                     <div className="app-card p-5">

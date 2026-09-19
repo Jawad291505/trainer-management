@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Rate, Tabs, Progress, Modal, Input, App, Tag } from 'antd'
+import { Button, Rate, Tabs, Progress, Modal, Input, App, Tag, Skeleton } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
     CalendarOutlined,
     DollarOutlined,
     StarOutlined,
+    TeamOutlined,
+    UsergroupAddOutlined,
 } from '@ant-design/icons'
 import StatCard from '../../../components/common/StatCard'
 import UserAvatar from '../../../components/common/UserAvatar'
@@ -17,6 +18,9 @@ import EmptyState from '../../../components/common/EmptyState'
 import ChartCard from '../../../components/common/ChartCard'
 import RevenueChart from '../../../components/charts/RevenueChart'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
+import SectionError from '../../../components/feedback/SectionError'
+import AsyncSection from '../../../components/feedback/AsyncSection'
+import { useAsyncData, orNullOn404 } from '../../../hooks/useAsyncData'
 import { api } from '../../../services/api'
 import { useAuth } from '../../../context/AuthContext'
 
@@ -28,34 +32,20 @@ export default function TrainerDetail() {
     const navigate = useNavigate()
     const { message } = App.useApp()
     const { user } = useAuth()
-    const [trainer, setTrainer] = useState(null)
-    const [assigned, setAssigned] = useState([])
-    const [revTrend, setRevTrend] = useState([])
-    const [loading, setLoading] = useState(true)
+    // The page waits only on the trainer record; the client list and revenue
+    // trend load in parallel and fill their own sections.
+    const trainerRes = useAsyncData(() => orNullOn404(api.get(`/trainers/${id}`)), [id])
+    const assignedRes = useAsyncData(() => api.get(`/clients?trainer=${id}`), [id])
+    // Revenue trend is Payments/Sales data — Admin only.
+    const revenueRes = useAsyncData(() => api.get('/stats/admin/revenue-trend'), [], { enabled: user?.role === 'admin' })
+    const trainer = trainerRes.data
+    const assigned = assignedRes.data?.items || []
 
-    useEffect(() => {
-        async function load() {
-            try {
-                const [t, c] = await Promise.all([
-                    api.get(`/trainers/${id}`),
-                    api.get(`/clients?trainer=${id}`),
-                ])
-                setTrainer(t)
-                setAssigned(c.items || [])
-                // Revenue trend is Payments/Sales data — Admin only.
-                if (user?.role === 'admin') {
-                    api.get('/stats/admin/revenue-trend').then((r) => setRevTrend(r.items || [])).catch(() => {})
-                }
-            } catch {
-                // trainer not found
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
-    }, [id, user?.role])
+    if (trainerRes.loading) return <LoadingSkeleton />
 
-    if (loading) return <LoadingSkeleton />
+    if (trainerRes.error) {
+        return <div className="app-card"><SectionError title="Couldn't load this trainer" error={trainerRes.error} onRetry={trainerRes.reload} /></div>
+    }
 
     if (!trainer) {
         return (
@@ -122,10 +112,10 @@ export default function TrainerDetail() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard label="Assigned Clients" value={trainer.clients} hint={`of ${trainer.capacity} capacity`} />
-                <StatCard label="Available Slots" value={available} />
-                <StatCard label="Rating" value={trainer.rating} hint="Avg. client score" />
-                <StatCard label="Revenue" value={money(trainer.revenue)} hint="Lifetime" />
+                <StatCard icon={<TeamOutlined />} label="Assigned Clients" value={trainer.clients} hint={`of ${trainer.capacity} capacity`} />
+                <StatCard icon={<UsergroupAddOutlined />} label="Available Slots" value={available} />
+                <StatCard icon={<StarOutlined />} label="Rating" value={trainer.rating} hint="Avg. client score" />
+                <StatCard icon={<DollarOutlined />} label="Revenue" value={money(trainer.revenue)} hint="Lifetime" />
             </div>
 
             <div className="mt-6">
@@ -146,12 +136,20 @@ export default function TrainerDetail() {
                                         <CapacityBar current={trainer.clients} max={trainer.capacity} />
                                     </div>
                                 </div>
-                                <div className="lg:col-span-2"><ChartCard title="Revenue" subtitle="Monthly performance"><RevenueChart data={revTrend} height={260} /></ChartCard></div>
+                                <div className="lg:col-span-2"><ChartCard title="Revenue" subtitle="Monthly performance">
+                                    <AsyncSection loading={revenueRes.loading} error={revenueRes.error} onRetry={revenueRes.reload} errorTitle="Couldn't load the revenue trend" rows={6}>
+                                        <RevenueChart data={revenueRes.data?.items || []} height={260} />
+                                    </AsyncSection>
+                                </ChartCard></div>
                             </div>
                         )
                     },
                     {
-                        key: 'clients', label: `Clients (${assigned.length})`, children: assigned.length === 0 ? (
+                        key: 'clients', label: assignedRes.loading ? 'Clients' : `Clients (${assigned.length})`, children: assignedRes.loading ? (
+                            <div className="app-card p-5"><Skeleton active paragraph={{ rows: 5 }} /></div>
+                        ) : assignedRes.error ? (
+                            <div className="app-card"><SectionError title="Couldn't load this trainer's clients" error={assignedRes.error} onRetry={assignedRes.reload} /></div>
+                        ) : assigned.length === 0 ? (
                             <div className="app-card"><EmptyState title="No clients assigned" description="Assign clients from the Assignments page." /></div>
                         ) : <DataTable columns={clientColumns} dataSource={assigned} pageSize={8} scrollX={720} />
                     },

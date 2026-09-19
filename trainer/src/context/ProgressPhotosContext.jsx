@@ -1,17 +1,20 @@
-import { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react'
-import { api, getToken } from '../services/api'
+import { createContext, useContext, useCallback, useMemo, useState } from 'react'
+import { api } from '../services/api'
 
 const ProgressPhotosContext = createContext(null)
 
 export function ProgressPhotosProvider({ children }) {
     const [photos, setPhotos] = useState([])
+    // Which client `photos` belongs to — callers use it to tell "not fetched yet"
+    // apart from "fetched, and there are none".
+    const [loadedFor, setLoadedFor] = useState(null)
 
+    // Rejects on failure so the caller can show an error state.
     const fetchForClient = useCallback(async (clientId) => {
         if (!clientId) return
-        try {
-            const res = await api.get(`/progress-photos?client=${clientId}`)
-            setPhotos(res.items || [])
-        } catch { /* */ }
+        const res = await api.get(`/progress-photos?client=${clientId}`)
+        setPhotos(res.items || [])
+        setLoadedFor(String(clientId))
     }, [])
 
     const photosForClient = useCallback((clientId) => {
@@ -39,7 +42,7 @@ export function ProgressPhotosProvider({ children }) {
         setPhotos((prev) => prev.map((p) => ((p._id || p.id) === photoId ? { ...p, note: '', noteAt: null } : p)))
     }, [])
 
-    const value = useMemo(() => ({ photos, fetchForClient, photosForClient, pendingCountForClient, setNote, clearNote }), [photos, fetchForClient, photosForClient, pendingCountForClient, setNote, clearNote])
+    const value = useMemo(() => ({ photos, loadedFor, fetchForClient, photosForClient, pendingCountForClient, setNote, clearNote }), [photos, loadedFor, fetchForClient, photosForClient, pendingCountForClient, setNote, clearNote])
     return <ProgressPhotosContext.Provider value={value}>{children}</ProgressPhotosContext.Provider>
 }
 

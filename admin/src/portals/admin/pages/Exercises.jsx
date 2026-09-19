@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Select, Button, Modal, Form, Input, InputNumber, App, Dropdown } from 'antd'
+import { useState } from 'react'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Dropdown, Skeleton } from 'antd'
 import {
     PlusOutlined,
     EditOutlined,
@@ -13,31 +13,29 @@ import ModalTitle from '../../../components/common/ModalTitle'
 import FilterBar from '../../../components/common/FilterBar'
 import SearchInput from '../../../components/common/SearchInput'
 import DataTable from '../../../components/tables/DataTable'
+import Pager from '../../../components/common/Pager'
+import { usePagedList } from '../../../hooks/usePagedList'
 import EmptyState from '../../../components/common/EmptyState'
+import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
-import { useLibrary } from '../../../context/LibraryContext'
+import { useLibrary, normalizeEx } from '../../../context/LibraryContext'
 import { exerciseCategories, exerciseTechniques, getTechnique } from '../../../services/exerciseLibrary'
 
 // Admin exercise management. Exercises added/edited here feed the shared
 // library that trainers read when building exercise plans.
 export default function Exercises() {
     const { message } = App.useApp()
-    const { exercises, addExercise, updateExercise, removeExercise } = useLibrary()
+    // Mutations go through the shared library context; the visible page (search,
+    // category filter and paging) is fetched from the backend.
+    const { addExercise, updateExercise, removeExercise } = useLibrary([])
     const [search, setSearch] = useState('')
     const [category, setCategory] = useState('all')
+    const list = usePagedList('/exercises', { params: { category }, search, pageSize: 10, transform: normalizeEx })
+    const { items: exercises, total, loading, error, reload } = list
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState(null)
     const [form] = Form.useForm()
     const technique = Form.useWatch('technique', form)
-
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase()
-        return exercises.filter((x) => {
-            const matchQ = !q || x.name.toLowerCase().includes(q)
-            const matchC = category === 'all' || x.category === category
-            return matchQ && matchC
-        })
-    }, [exercises, search, category])
 
     const openAdd = () => {
         setEditing(null)
@@ -56,9 +54,12 @@ export default function Exercises() {
         try {
             if (editing) {
                 await updateExercise(editing.id, v)
+                reload()
                 message.success('Exercise updated')
             } else {
                 await addExercise(v)
+                list.setPage(1)
+                reload()
                 message.success('Exercise added')
             }
             setModalOpen(false)
@@ -74,6 +75,7 @@ export default function Exercises() {
             onOk: async () => {
                 try {
                     await removeExercise(x.id)
+                    reload()
                     message.success('Exercise deleted')
                 } catch (err) {
                     message.error(err.message || 'Failed to delete')
@@ -149,7 +151,7 @@ export default function Exercises() {
 
     return (
         <div>
-            <PageHeader title="Exercise Library" subtitle={`${filtered.length} exercises · shared with trainers`}>
+            <PageHeader title="Exercise Library" subtitle={loading ? 'Loading exercises…' : `${total} exercises · shared with trainers`}>
                 <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
                     Add exercise
                 </Button>
@@ -165,7 +167,11 @@ export default function Exercises() {
                 />
             </FilterBar>
 
-            {filtered.length === 0 ? (
+            {loading ? (
+                <div className="app-card p-5"><Skeleton active paragraph={{ rows: 8 }} /></div>
+            ) : error ? (
+                <div className="app-card"><SectionError title="Couldn't load the exercise library" error={error} onRetry={reload} /></div>
+            ) : exercises.length === 0 ? (
                 <div className="app-card">
                     <EmptyState
                         title="No exercises found"
@@ -174,7 +180,10 @@ export default function Exercises() {
                     />
                 </div>
             ) : (
-                <DataTable columns={columns} dataSource={filtered} pageSize={10} scrollX={720} />
+                <>
+                    <DataTable columns={columns} dataSource={exercises} loading={list.fetching} pagination={false} scrollX={720} />
+                    <Pager list={list} pageSizeOptions={[10, 20, 50]} />
+                </>
             )}
 
             <Modal

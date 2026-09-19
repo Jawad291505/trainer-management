@@ -8,21 +8,29 @@ import { ROLES } from '../config/constants.js'
 
 // Assemble the "who am I" payload the front-end AuthContext needs. Exported for
 // reuse by memberSignup.controller.js, whose responses shape the same object.
-export async function profileFor(user) {
+//
+// `loaded` may carry the role's profile document if the caller already has it
+// (authenticate() attaches req.member / req.trainer / req.client) — it is populated
+// in place rather than fetched a second time.
+export async function profileFor(user, loaded = {}) {
     const base = user.toJSON()
     if (user.role === ROLES.MEMBER) {
-        const member = await Member.findOne({ user: user._id }).populate('plan').populate('pendingPlan')
+        const member = loaded.member
+            ? await loaded.member.populate(['plan', 'pendingPlan'])
+            : await Member.findOne({ user: user._id }).populate('plan').populate('pendingPlan')
         return { ...base, member: member ? member.toJSON() : null }
     }
     if (user.role === ROLES.TRAINER) {
-        const trainer = await Trainer.findOne({ user: user._id }).populate('referredBy', 'referralCode')
+        const trainer = loaded.trainer
+            ? await loaded.trainer.populate('referredBy', 'referralCode')
+            : await Trainer.findOne({ user: user._id }).populate('referredBy', 'referralCode')
         return { ...base, trainer: trainer ? trainer.toJSON() : null }
     }
     if (user.role === ROLES.CLIENT) {
-        const client = await Client.findOne({ user: user._id }).populate({
-            path: 'trainer',
-            populate: { path: 'user', select: 'name email avatarColor' },
-        })
+        const populateTrainer = { path: 'trainer', populate: { path: 'user', select: 'name email avatarColor' } }
+        const client = loaded.client
+            ? await loaded.client.populate(populateTrainer)
+            : await Client.findOne({ user: user._id }).populate(populateTrainer)
         return { ...base, client: client ? client.toJSON() : null }
     }
     return base
@@ -112,7 +120,7 @@ export const login = asyncHandler(async (req, res) => {
 
 // GET /api/auth/me
 export const me = asyncHandler(async (req, res) => {
-    res.json({ user: await profileFor(req.user) })
+    res.json({ user: await profileFor(req.user, { member: req.member, trainer: req.trainer, client: req.client }) })
 })
 
 // PATCH /api/auth/me  — update own name / phone / avatarColor / password

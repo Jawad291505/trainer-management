@@ -78,6 +78,12 @@ export const listCorrections = asyncHandler(async (req, res) => {
     if (req.query.status) filter.status = req.query.status
     if (req.query.client && req.user.role !== 'client') filter.client = req.query.client
 
+    // ?summary=1 — just the open count for the sidebar badge (skips the populate,
+    // the per-area plan lookups and the full payload).
+    if (req.query.summary === '1') {
+        return res.json({ openCount: await CorrectionRequest.countDocuments({ ...filter, status: 'open' }) })
+    }
+
     const docs = await CorrectionRequest.find(filter)
         .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })
         .sort({ createdAt: -1 })

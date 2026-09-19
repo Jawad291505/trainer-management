@@ -6,6 +6,50 @@ export function getToken() {
 }
 export function setToken(t) {
     try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY) } catch { /* */ }
+    clearCache()
+}
+
+// ---- GET dedup + opt-in cache ------------------------------------------------
+// Identical GETs that are in flight at the same time (StrictMode double effects,
+// several components asking for the same list) share one network request.
+// Callers may also pass { ttl } (ms) for slow-changing reference data; cached
+// responses are dropped on any write (POST/PATCH/PUT/DELETE) and on token change.
+// Every caller gets its own copy, so mutating a result can't corrupt the cache.
+const inflight = new Map()
+const cache = new Map()
+
+function clearCache() {
+    cache.clear()
+    inflight.clear()
+}
+
+const copy = (v) => (typeof structuredClone === 'function' ? structuredClone(v) : v)
+
+function cachedGet(path, { ttl = 0, force = false } = {}) {
+    if (!force && ttl > 0) {
+        const hit = cache.get(path)
+        if (hit && hit.expires > Date.now()) return Promise.resolve(copy(hit.data))
+    }
+    let pending = inflight.get(path)
+    if (!pending) {
+        pending = request('GET', path)
+            .then((data) => {
+                if (ttl > 0 && inflight.get(path) === pending) cache.set(path, { data, expires: Date.now() + ttl })
+                return data
+            })
+            .finally(() => { if (inflight.get(path) === pending) inflight.delete(path) })
+        inflight.set(path, pending)
+    }
+    return pending.then(copy)
+}
+
+// Writes invalidate everything cached — cheap, and never serves stale data after a change.
+async function write(method, path, body, opts) {
+    try {
+        return await request(method, path, body, opts)
+    } finally {
+        clearCache()
+    }
 }
 
 async function request(method, path, body) {
@@ -47,9 +91,10 @@ async function request(method, path, body) {
 }
 
 export const api = {
-    get: (path) => request('GET', path),
-    post: (path, body) => request('POST', path, body),
-    patch: (path, body) => request('PATCH', path, body),
-    put: (path, body) => request('PUT', path, body),
-    delete: (path) => request('DELETE', path),
+    // get(path, { ttl, force }) — see the GET dedup + cache notes above.
+    get: (path, opts) => cachedGet(path, opts),
+    post: (path, body) => write('POST', path, body),
+    patch: (path, body) => write('PATCH', path, body),
+    put: (path, body) => write('PUT', path, body),
+    delete: (path) => write('DELETE', path),
 }

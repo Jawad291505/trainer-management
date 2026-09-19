@@ -54,7 +54,11 @@ export const listDietPlans = asyncHandler(async (req, res) => {
     if (req.query.client) filter.client = req.query.client
     if (req.query.status) filter.status = req.query.status
 
-    const plans = await DietPlan.find(filter).sort({ updatedAt: -1 })
+    // ?summary=1 — headers only (no days/meals). The editor only needs the id + status
+    // to pick which plan to open, then fetches that one plan in full.
+    const query = DietPlan.find(filter).sort({ updatedAt: -1 })
+    if (req.query.summary === '1') query.select('client trainer title status dayMode updatedAt publishedAt')
+    const plans = await query
     res.json({ count: plans.length, items: plans })
 })
 
