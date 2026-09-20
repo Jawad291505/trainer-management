@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { User, Member, Trainer, Client, SubscriptionPlan, MemberPayment } from '../models/index.js'
 import { createInvitedUser } from '../services/invite.service.js'
+import { subscriptionStatus, subscriptionFilter } from '../services/subscription.service.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 // Shape a Member + its User (+ trainer/client counts) for the admin Member
@@ -29,35 +30,6 @@ async function countsFor(memberIds) {
         for (const row of perTrainer) counts.get(memberOfTrainer.get(String(row._id))).clientCount += row.n
     }
     return counts
-}
-
-// Subscription status is derived (there is no stored field): no plan -> 'no_plan',
-// account not active -> 'inactive', then by planExpiryDate. `subscriptionFilter`
-// is the same rule as a Mongo query so the Payments page can filter on it server-side.
-const EXPIRING_DAYS = 7
-const DAY_MS = 86_400_000
-
-function subscriptionStatus(member, now = new Date()) {
-    if (!member.plan) return 'no_plan'
-    if (member.status !== 'active') return 'inactive'
-    if (!member.planExpiryDate) return 'active'
-    const expiry = new Date(member.planExpiryDate)
-    if (expiry < now) return 'expired'
-    if (expiry <= new Date(now.getTime() + EXPIRING_DAYS * DAY_MS)) return 'expiring'
-    return 'active'
-}
-
-function subscriptionFilter(status, now = new Date()) {
-    const soon = new Date(now.getTime() + EXPIRING_DAYS * DAY_MS)
-    const paying = { plan: { $ne: null }, status: 'active' }
-    switch (status) {
-        case 'no_plan': return { plan: null }
-        case 'inactive': return { plan: { $ne: null }, status: { $ne: 'active' } }
-        case 'expired': return { ...paying, planExpiryDate: { $lt: now } }
-        case 'expiring': return { ...paying, planExpiryDate: { $gte: now, $lte: soon } }
-        case 'active': return { ...paying, $or: [{ planExpiryDate: null }, { planExpiryDate: { $gt: soon } }] }
-        default: return {}
-    }
 }
 
 // Purchase-history extras for a batch of members (Payments page): the last

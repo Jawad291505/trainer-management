@@ -15,4 +15,10 @@ export const STATUS_COLORS = {
     pending: '#d97706',
     failed: '#dc2626',
     refunded: '#2563eb',
+    // Member subscription states (admin dashboard).
+    active: '#16a34a',
+    expiring: '#d97706',
+    expired: '#dc2626',
+    inactive: '#94a3b8',
+    no_plan: '#64748b',
 }

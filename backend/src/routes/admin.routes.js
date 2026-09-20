@@ -8,7 +8,7 @@ import {
 } from '../controllers/resources.controller.js'
 import { overview, myReferrals, redeem } from '../controllers/referrals.controller.js'
 import {
-    adminStats, revenueTrend, memberStats, trainerStats, clientCompletion,
+    adminStats, adminDashboard, revenueTrend, memberStats, memberDashboard, trainerStats, clientCompletion,
 } from '../controllers/stats.controller.js'
 import {
     listPlans, createPlan, updatePlan, deletePlan,
@@ -55,8 +55,10 @@ router.post('/member-payments/:memberId/renew', authorize('admin'), renewSubscri
 
 // ---- Stats / dashboards ----
 router.get('/stats/admin', authorize('admin'), adminStats)
+router.get('/stats/admin/dashboard', authorize('admin'), adminDashboard)
 router.get('/stats/admin/revenue-trend', authorize('admin'), revenueTrend)
 router.get('/stats/member', authorize('member'), memberStats)
+router.get('/stats/member/dashboard', authorize('member'), memberDashboard)
 router.get('/stats/trainer', authorize('trainer'), trainerStats)
 router.get('/stats/client/completion', authorize('client', 'trainer', 'admin', 'member'), clientCompletion)
 

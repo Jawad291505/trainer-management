@@ -3,12 +3,16 @@ import {
     Client,
     User,
     Member,
+    MemberPayment,
     Payment,
     FollowUp,
     DailyLog,
+    Review,
+    CorrectionRequest,
 } from '../models/index.js'
 import { bucketFor } from './followUp.service.js'
 import { pktStartOfDay } from '../utils/pktTime.js'
+import { subscriptionStatus, DAY_MS } from './subscription.service.js'
 
 // ---- Admin dashboard + payments stats ----
 // Ports admin/src/services/mockData.js `getStats()`.
@@ -133,6 +137,244 @@ export async function getMemberStats(memberId) {
         totalCapacity,
         usedCapacity,
         availableCapacity: totalCapacity - usedCapacity,
+    }
+}
+
+// ---- Dashboard helpers ----
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS_SHOWN = 8
+
+// The last `n` calendar months, oldest first: [{ y, m, month: 'Jan' }].
+function lastMonths(n = MONTHS_SHOWN, now = new Date()) {
+    return Array.from({ length: n }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1)
+        return { y: d.getFullYear(), m: d.getMonth() + 1, month: MONTH_NAMES[d.getMonth()] }
+    })
+}
+
+const monthsStart = (n, now) => new Date(now.getFullYear(), now.getMonth() - (n - 1), 1)
+const monthGroup = (field) => ({ y: { $year: field }, m: { $month: field } })
+
+// Spread a grouped aggregate ({ _id: { y, m }, n }) over every month of the window
+// (0 where a month had no rows) as [{ month, [key]: n }].
+const fillMonths = (months, rows, key) =>
+    months.map(({ y, m, month }) => ({ month, [key]: rows.find((r) => r._id.y === y && r._id.m === m)?.n || 0 }))
+
+const firstName = (name) => name?.split(' ')[0] || 'Unknown'
+
+// ---- Super Admin dashboard: the Members business ----
+// Members are the Super Admin's customers — they subscribe to a SubscriptionPlan,
+// pay through MemberPayment, and run their own Trainers/Clients. Everything here
+// is computed live from Member / MemberPayment / Trainer; nothing is stored.
+export async function getAdminDashboard() {
+    const now = new Date()
+    const months = lastMonths(MONTHS_SHOWN, now)
+    const since = monthsStart(MONTHS_SHOWN, now)
+
+    const [members, teams, paymentAgg, revenueAgg, totalTrainers, totalClients] = await Promise.all([
+        Member.find({}, 'user plan status planExpiryDate trainerLimit clientLimit joinDate')
+            .populate('user', 'name email avatarColor')
+            .populate('plan', 'name priceMonthly currency')
+            .lean(),
+        // Trainers grouped by the member who manages them (denormalised clientCount, as in getMemberStats).
+        Trainer.aggregate([
+            { $match: { managedBy: { $ne: null } } },
+            { $group: { _id: '$managedBy', trainers: { $sum: 1 }, clients: { $sum: '$clientCount' } } },
+        ]),
+        MemberPayment.aggregate([{ $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }]),
+        MemberPayment.aggregate([
+            { $match: { status: 'approved', submittedAt: { $gte: since } } },
+            { $group: { _id: monthGroup('$submittedAt'), n: { $sum: '$amount' } } },
+        ]),
+        Trainer.countDocuments({}),
+        Client.countDocuments({}),
+    ])
+
+    const teamOf = new Map(teams.map((t) => [String(t._id), t]))
+    const rows = members.map((mb) => {
+        const team = teamOf.get(String(mb._id))
+        return {
+            id: String(mb._id),
+            name: mb.user?.name,
+            email: mb.user?.email,
+            avatarColor: mb.user?.avatarColor,
+            memberStatus: mb.status,
+            plan: mb.plan?.name || null,
+            planExpiryDate: mb.planExpiryDate,
+            daysLeft: mb.planExpiryDate ? Math.ceil((new Date(mb.planExpiryDate) - now) / DAY_MS) : null,
+            subscriptionStatus: subscriptionStatus(mb, now),
+            trainerCount: team?.trainers || 0,
+            trainerLimit: mb.trainerLimit,
+            clientCount: team?.clients || 0,
+            clientLimit: mb.clientLimit,
+            joinDate: mb.joinDate,
+        }
+    })
+
+    const subscriptions = { active: 0, expiring: 0, expired: 0, inactive: 0, no_plan: 0 }
+    for (const r of rows) subscriptions[r.subscriptionStatus] += 1
+
+    const payment = (status) => paymentAgg.find((r) => r._id === status) || { count: 0, total: 0 }
+    const approved = payment('approved')
+    const pending = payment('pending')
+
+    // Monthly recurring revenue: what members currently paying (or about to renew) are worth.
+    const mrr = members.reduce((sum, mb, i) => {
+        const live = rows[i].subscriptionStatus === 'active' || rows[i].subscriptionStatus === 'expiring'
+        return live ? sum + (mb.plan?.priceMonthly || 0) : sum
+    }, 0)
+
+    const thisMonth = months[months.length - 1]
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * DAY_MS)
+    const planCounts = new Map()
+    for (const r of rows) planCounts.set(r.plan || 'No plan', (planCounts.get(r.plan || 'No plan') || 0) + 1)
+
+    const SUB_LABELS = { active: 'Active', expiring: 'Expiring soon', expired: 'Expired', inactive: 'Inactive', no_plan: 'No plan' }
+
+    return {
+        currency: members.find((mb) => mb.plan?.currency)?.plan.currency || 'PKR',
+
+        totalMembers: rows.length,
+        activeMembers: rows.filter((r) => r.memberStatus === 'active').length,
+        pendingSignups: rows.filter((r) => r.memberStatus === 'pending').length,
+        newMembers30d: rows.filter((r) => r.joinDate && new Date(r.joinDate) >= thirtyDaysAgo).length,
+        subscriptions,
+
+        totalRevenue: approved.total,
+        approvedPayments: approved.count,
+        revenueThisMonth: revenueAgg.find((r) => r._id.y === thisMonth.y && r._id.m === thisMonth.m)?.n || 0,
+        monthlyRecurring: mrr,
+        pendingApprovals: pending.count,
+        pendingAmount: pending.total,
+
+        // Footprint of the whole platform, for context next to the member numbers.
+        totalTrainers,
+        totalClients,
+
+        memberGrowth: fillMonths(months, await Member.aggregate([
+            { $match: { joinDate: { $gte: since } } },
+            { $group: { _id: monthGroup('$joinDate'), n: { $sum: 1 } } },
+        ]), 'members'),
+        revenueTrend: fillMonths(months, revenueAgg, 'revenue'),
+        subscriptionData: Object.entries(subscriptions).map(([key, value]) => ({ key, name: SUB_LABELS[key], value })).filter((d) => d.value > 0),
+        planDistribution: [...planCounts.entries()].map(([name, value]) => ({ name, value })),
+
+        // Members whose plan has lapsed or lapses within a week, soonest first.
+        needsAttention: rows
+            .filter((r) => r.subscriptionStatus === 'expiring' || r.subscriptionStatus === 'expired')
+            .sort((a, b) => new Date(a.planExpiryDate) - new Date(b.planExpiryDate))
+            .slice(0, 6),
+        recentMembers: [...rows].sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate)).slice(0, 6),
+    }
+}
+
+// ---- Member dashboard: the member's own Trainers ----
+// Scoped to Trainer.managedBy === member. Unlike getMemberStats (which the Clients /
+// Trainers pages use for their limit banners), this powers the dashboard itself:
+// per-trainer workload, ratings and requests, plus growth and recent reviews.
+export async function getMemberDashboard(memberId) {
+    const now = new Date()
+    const months = lastMonths(MONTHS_SHOWN, now)
+    const since = monthsStart(MONTHS_SHOWN, now)
+
+    const [member, trainers] = await Promise.all([
+        Member.findById(memberId, 'trainerLimit clientLimit plan planExpiryDate status')
+            .populate('plan', 'name maxClients maxTrainers currency')
+            .lean(),
+        Trainer.find({ managedBy: memberId }).populate('user', 'name email avatarColor').lean(),
+    ])
+    const trainerIds = trainers.map((t) => t._id)
+    const inScope = { $in: trainerIds }
+
+    const [clientAgg, growthAgg, reviewAgg, openAgg, recentReviews] = await Promise.all([
+        Client.aggregate([
+            { $match: { trainer: inScope } },
+            {
+                $group: {
+                    _id: '$trainer',
+                    clients: { $sum: 1 },
+                    active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+                    avgProgress: { $avg: '$progress' },
+                },
+            },
+        ]),
+        Client.aggregate([
+            { $match: { trainer: inScope, joinDate: { $gte: since } } },
+            { $group: { _id: monthGroup('$joinDate'), n: { $sum: 1 } } },
+        ]),
+        Review.aggregate([{ $match: { trainer: inScope } }, { $group: { _id: '$trainer', count: { $sum: 1 }, avg: { $avg: '$rating' } } }]),
+        CorrectionRequest.aggregate([{ $match: { trainer: inScope, status: 'open' } }, { $group: { _id: '$trainer', n: { $sum: 1 } } }]),
+        Review.find({ trainer: inScope })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })
+            .populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })
+            .lean(),
+    ])
+
+    const byTrainer = (rows) => new Map(rows.map((r) => [String(r._id), r]))
+    const clientsOf = byTrainer(clientAgg)
+    const reviewsOf = byTrainer(reviewAgg)
+    const openOf = byTrainer(openAgg)
+
+    const rows = trainers.map((t) => {
+        const c = clientsOf.get(String(t._id))
+        return {
+            id: String(t._id),
+            name: t.user?.name,
+            email: t.user?.email,
+            avatarColor: t.user?.avatarColor,
+            specialization: t.specialization,
+            status: t.status,
+            clients: c?.clients || 0,
+            activeClients: c?.active || 0,
+            capacity: t.capacity,
+            avgProgress: Math.round(c?.avgProgress || 0),
+            rating: t.rating,
+            reviewCount: reviewsOf.get(String(t._id))?.count || 0,
+            openRequests: openOf.get(String(t._id))?.n || 0,
+        }
+    })
+
+    const sum = (key) => rows.reduce((s, r) => s + r[key], 0)
+    const totalReviews = reviewAgg.reduce((s, r) => s + r.count, 0)
+    const totalCapacity = sum('capacity')
+    const totalClients = sum('clients')
+
+    return {
+        subscription: member && {
+            plan: member.plan?.name || null,
+            planExpiryDate: member.planExpiryDate,
+            daysLeft: member.planExpiryDate ? Math.ceil((new Date(member.planExpiryDate) - now) / DAY_MS) : null,
+            status: subscriptionStatus(member, now),
+        },
+
+        totalTrainers: rows.length,
+        trainerLimit: member?.trainerLimit ?? 0,
+        activeTrainers: rows.filter((r) => r.status === 'active').length,
+        totalClients,
+        clientLimit: member?.clientLimit ?? 0,
+        activeClients: sum('activeClients'),
+        totalCapacity,
+        usedCapacity: totalClients,
+        availableCapacity: Math.max(0, totalCapacity - totalClients),
+        // Review-weighted, so a trainer with many reviews counts for more than one with a single review.
+        averageRating: totalReviews ? Math.round((reviewAgg.reduce((s, r) => s + r.avg * r.count, 0) / totalReviews) * 10) / 10 : 0,
+        totalReviews,
+        openRequests: sum('openRequests'),
+
+        trainers: rows,
+        clientDistribution: rows.filter((r) => r.clients > 0).map((r) => ({ name: firstName(r.name), value: r.clients })),
+        clientGrowth: fillMonths(months, growthAgg, 'clients'),
+        recentReviews: recentReviews.map((r) => ({
+            id: String(r._id),
+            clientName: r.client?.user?.name,
+            clientAvatarColor: r.client?.user?.avatarColor,
+            trainerName: r.trainer?.user?.name,
+            rating: r.rating,
+            comment: r.comment,
+            updatedAt: r.updatedAt,
+        })),
     }
 }
 

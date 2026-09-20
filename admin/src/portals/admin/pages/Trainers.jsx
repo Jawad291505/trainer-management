@@ -183,7 +183,7 @@ export default function Trainers() {
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {data.map((t) => (
-                        <TrainerCard key={t.id} trainer={t} onAction={handleAction} showType={!isMember} />
+                        <TrainerCard key={t.id} trainer={t} onAction={handleAction} showType={!isMember} showRevenue={!isMember} />
                     ))}
                 </div>
             )}

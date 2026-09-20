@@ -18,7 +18,8 @@ import CapacityBar from '../../../components/common/CapacityBar'
 // the distinction is actually informative (the admin Trainers page); a Member
 // viewing their own trainers, or a single Member's detail page, already knows
 // they're all "third-party" from Admin's perspective, so it's noise there.
-export default function TrainerCard({ trainer, onAction, showType = false }) {
+// `showRevenue` is off for Members — revenue is Admin-only data for them.
+export default function TrainerCard({ trainer, onAction, showType = false, showRevenue = true }) {
     const atCapacity = trainer.clients >= trainer.capacity
     const isActive = trainer.status === 'active'
 
@@ -87,7 +88,7 @@ export default function TrainerCard({ trainer, onAction, showType = false }) {
                 )}
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-4 text-center" style={{ borderColor: 'var(--color-border)' }}>
+            <div className={`mt-4 grid gap-2 border-t pt-4 text-center ${showRevenue ? 'grid-cols-3' : 'grid-cols-2'}`} style={{ borderColor: 'var(--color-border)' }}>
                 <div>
                     <div className="text-base font-extrabold text-text-primary">{trainer.clients}</div>
                     <div className="text-[11px] text-text-muted">Clients</div>
@@ -96,10 +97,12 @@ export default function TrainerCard({ trainer, onAction, showType = false }) {
                     <div className="text-base font-extrabold text-text-primary">{Math.max(0, trainer.capacity - trainer.clients)}</div>
                     <div className="text-[11px] text-text-muted">Available</div>
                 </div>
-                <div>
-                    <div className="text-base font-extrabold text-text-primary">${(trainer.revenue / 1000).toFixed(0)}k</div>
-                    <div className="text-[11px] text-text-muted">Revenue</div>
-                </div>
+                {showRevenue && (
+                    <div>
+                        <div className="text-base font-extrabold text-text-primary">${(trainer.revenue / 1000).toFixed(0)}k</div>
+                        <div className="text-[11px] text-text-muted">Revenue</div>
+                    </div>
+                )}
             </div>
         </div>
     )

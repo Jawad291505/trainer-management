@@ -1,5 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
-import { getAdminStats, getMemberStats, getTrainerStats, getClientCompletion } from '../services/stats.service.js'
+import {
+    getAdminStats, getMemberStats, getTrainerStats, getClientCompletion, getAdminDashboard, getMemberDashboard,
+} from '../services/stats.service.js'
 import { Payment } from '../models/index.js'
 import { assertClientAccess } from '../utils/clientAccess.js'
 
@@ -29,6 +31,16 @@ export const revenueTrend = asyncHandler(async (_req, res) => {
 // GET /api/stats/member   (member) — dashboard cards scoped to the member's own trainers/clients
 export const memberStats = asyncHandler(async (req, res) => {
     res.json(await getMemberStats(req.member._id))
+})
+
+// GET /api/stats/admin/dashboard   (admin) — the Members business: subscriptions, revenue, growth
+export const adminDashboard = asyncHandler(async (_req, res) => {
+    res.json(await getAdminDashboard())
+})
+
+// GET /api/stats/member/dashboard   (member) — the member's own trainers: workload, ratings, requests
+export const memberDashboard = asyncHandler(async (req, res) => {
+    res.json(await getMemberDashboard(req.member._id))
 })
 
 // GET /api/stats/trainer   (trainer) — trainer dashboard cards
