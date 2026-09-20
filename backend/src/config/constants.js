@@ -124,3 +124,7 @@ export const TRACKING_TYPES = ['reps', 'duration']
 // WorkoutSession.status — a client's in-progress or finished run through a
 // training day (Workout -> Exercise -> Sets -> Completion/Performance).
 export const WORKOUT_SESSION_STATUS = ['in_progress', 'completed']
+
+// Review — a client's 1-5 star rating (+ optional comment) of their assigned trainer.
+export const REVIEW_MAX_RATING = 5
+export const REVIEW_MAX_COMMENT = 1000

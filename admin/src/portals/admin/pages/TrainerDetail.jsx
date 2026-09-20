@@ -17,6 +17,7 @@ import DataTable from '../../../components/tables/DataTable'
 import EmptyState from '../../../components/common/EmptyState'
 import ChartCard from '../../../components/common/ChartCard'
 import RevenueChart from '../../../components/charts/RevenueChart'
+import TrainerReviews from '../../../components/reviews/TrainerReviews'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import AsyncSection from '../../../components/feedback/AsyncSection'
@@ -36,6 +37,7 @@ export default function TrainerDetail() {
     // trend load in parallel and fill their own sections.
     const trainerRes = useAsyncData(() => orNullOn404(api.get(`/trainers/${id}`)), [id])
     const assignedRes = useAsyncData(() => api.get(`/clients?trainer=${id}`), [id])
+    const reviewsRes = useAsyncData(() => api.get(`/reviews?trainer=${id}`), [id])
     // Revenue trend is Payments/Sales data — Admin only.
     const revenueRes = useAsyncData(() => api.get('/stats/admin/revenue-trend'), [], { enabled: user?.role === 'admin' })
     const trainer = trainerRes.data
@@ -152,6 +154,11 @@ export default function TrainerDetail() {
                         ) : assigned.length === 0 ? (
                             <div className="app-card"><EmptyState title="No clients assigned" description="Assign clients from the Assignments page." /></div>
                         ) : <DataTable columns={clientColumns} dataSource={assigned} pageSize={8} scrollX={720} />
+                    },
+                    {
+                        key: 'reviews',
+                        label: reviewsRes.loading || reviewsRes.error ? 'Reviews' : `Reviews (${reviewsRes.data?.summary?.count ?? 0})`,
+                        children: <TrainerReviews res={reviewsRes} />,
                     },
                 ]} />
             </div>

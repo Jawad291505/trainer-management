@@ -6,6 +6,7 @@ import {
 import {
     listCorrections, createCorrection, respondCorrection, cancelCorrection,
 } from '../controllers/corrections.controller.js'
+import { listReviews, submitReview } from '../controllers/reviews.controller.js'
 import {
     listPhotos, uploadPhoto, signUploads, updateCaption, setPhotoNote, deletePhoto,
 } from '../controllers/progressPhotos.controller.js'
@@ -32,6 +33,10 @@ router.get('/corrections', listCorrections)
 router.post('/corrections', authorize('client'), createCorrection)
 router.patch('/corrections/:id', authorize('trainer'), respondCorrection)
 router.delete('/corrections/:id', authorize('client'), cancelCorrection)
+
+// ---- Reviews (client -> trainer; trainer/member/admin read-only — no edit/delete routes) ----
+router.get('/reviews', authorize('client', 'trainer', 'admin', 'member'), listReviews)
+router.post('/reviews', authorize('client'), submitReview)
 
 // ---- Progress photos ----
 router.get('/progress-photos', listPhotos)

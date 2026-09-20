@@ -7,6 +7,7 @@ import {
     RiseOutlined,
     CalendarOutlined,
     CheckOutlined,
+    StarOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
@@ -19,10 +20,11 @@ const ICONS = {
     followup: CheckSquareOutlined,
     progress: RiseOutlined,
     session: CalendarOutlined,
+    review: StarOutlined,
 }
 
 // Where a notification's `ref.kind` should take the trainer when clicked.
-const ROUTES = { followup: '/follow-ups', conversation: '/messages', correction: '/requests' }
+const ROUTES = { followup: '/follow-ups', conversation: '/messages', correction: '/requests', review: '/reviews' }
 
 export default function NotificationsPage() {
     const { message } = App.useApp()

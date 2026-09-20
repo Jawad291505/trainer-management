@@ -23,6 +23,7 @@ const Clients = lazy(() => import('../portals/admin/pages/Clients'))
 const ClientDetail = lazy(() => import('../portals/admin/pages/ClientDetail'))
 const Assignments = lazy(() => import('../portals/admin/pages/Assignments'))
 const Referrals = lazy(() => import('../portals/admin/pages/Referrals'))
+const Reviews = lazy(() => import('../portals/admin/pages/Reviews'))
 const Libraries = lazy(() => import('../portals/admin/pages/Libraries'))
 const Foods = lazy(() => import('../portals/admin/pages/Foods'))
 const Exercises = lazy(() => import('../portals/admin/pages/Exercises'))
@@ -108,6 +109,7 @@ export default function AppRoutes() {
                     <Route path="/clients/:id" element={<ClientDetail />} />
                     <Route path="/assignments" element={<Assignments />} />
                     <Route path="/referrals" element={<Referrals />} />
+                    <Route path="/reviews" element={<Reviews />} />
                     <Route path="/libraries" element={<Libraries />} />
                     <Route path="/foods" element={<Foods />} />
                     <Route path="/exercises" element={<Exercises />} />

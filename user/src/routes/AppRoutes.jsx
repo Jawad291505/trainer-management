@@ -18,6 +18,7 @@ const FollowUps = lazy(() => import('../portals/client/pages/FollowUps'))
 const MyProgress = lazy(() => import('../portals/client/pages/MyProgress'))
 const Messages = lazy(() => import('../portals/client/pages/Messages'))
 const MyRequests = lazy(() => import('../portals/client/pages/MyRequests'))
+const RateTrainer = lazy(() => import('../portals/client/pages/RateTrainer'))
 const NotificationsPage = lazy(() => import('../portals/client/pages/NotificationsPage'))
 const Profile = lazy(() => import('../portals/client/pages/Profile'))
 const Settings = lazy(() => import('../portals/client/pages/Settings'))
@@ -50,6 +51,7 @@ export default function AppRoutes() {
                     <Route path="/progress" element={<MyProgress />} />
                     <Route path="/messages" element={<Messages />} />
                     <Route path="/requests" element={<MyRequests />} />
+                    <Route path="/rate-trainer" element={<RateTrainer />} />
                     <Route path="/notifications" element={<NotificationsPage />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/settings" element={<Settings />} />

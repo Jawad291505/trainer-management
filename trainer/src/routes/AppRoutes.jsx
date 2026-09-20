@@ -16,6 +16,7 @@ const DietPlans = lazy(() => import('../portals/trainer/pages/DietPlans'))
 const ExercisePlans = lazy(() => import('../portals/trainer/pages/ExercisePlans'))
 const FollowUps = lazy(() => import('../portals/trainer/pages/FollowUps'))
 const Requests = lazy(() => import('../portals/trainer/pages/Requests'))
+const Reviews = lazy(() => import('../portals/trainer/pages/Reviews'))
 const Messages = lazy(() => import('../portals/trainer/pages/Messages'))
 const NotificationsPage = lazy(() => import('../portals/trainer/pages/NotificationsPage'))
 const Settings = lazy(() => import('../portals/trainer/pages/Settings'))
@@ -50,6 +51,7 @@ export default function AppRoutes() {
                     <Route path="/exercise-plans" element={<ExercisePlans />} />
                     <Route path="/follow-ups" element={<FollowUps />} />
                     <Route path="/requests" element={<Requests />} />
+                    <Route path="/reviews" element={<Reviews />} />
                     <Route path="/messages" element={<Messages />} />
                     <Route path="/notifications" element={<NotificationsPage />} />
                     <Route path="/settings" element={<Settings />} />

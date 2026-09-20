@@ -11,6 +11,7 @@ import {
     EditOutlined,
     ShoppingOutlined,
     CheckSquareOutlined,
+    StarOutlined,
 } from '@ant-design/icons'
 
 // Client sidebar navigation, split into labelled sections. Each group has a
@@ -39,6 +40,7 @@ export const clientNavGroups = [
         items: [
             { key: '/messages', label: 'Messages', icon: MessageOutlined },
             { key: '/requests', label: 'My Requests', icon: EditOutlined, badge: 'corrections' },
+            { key: '/rate-trainer', label: 'Rate Trainer', icon: StarOutlined },
             { key: '/notifications', label: 'Notifications', icon: BellOutlined },
         ],
     },

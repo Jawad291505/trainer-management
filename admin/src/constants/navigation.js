@@ -15,6 +15,7 @@ import {
     CrownOutlined,
     FileDoneOutlined,
     SolutionOutlined,
+    StarOutlined,
 } from '@ant-design/icons'
 
 // Super Admin sidebar navigation, split into labelled sections. Each group has
@@ -40,6 +41,7 @@ export const adminNavGroups = [
             { key: '/clients', label: 'Clients', icon: UsergroupAddOutlined },
             { key: '/assignments', label: 'Assignments', icon: DeploymentUnitOutlined },
             { key: '/referrals', label: 'Referrals', icon: ShareAltOutlined },
+            { key: '/reviews', label: 'Reviews', icon: StarOutlined },
         ],
     },
     {
@@ -83,6 +85,7 @@ export const memberNavGroups = [
             { key: '/clients', label: 'Clients', icon: UsergroupAddOutlined },
             { key: '/assignments', label: 'Assignments', icon: DeploymentUnitOutlined },
             { key: '/referrals', label: 'Referrals', icon: ShareAltOutlined },
+            { key: '/reviews', label: 'Reviews', icon: StarOutlined },
         ],
     },
     {
