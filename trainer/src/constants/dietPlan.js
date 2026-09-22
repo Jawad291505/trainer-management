@@ -3,4 +3,4 @@
 // comparable across clients.
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
-export const MEAL_TYPES = ['Breakfast', 'Brunch', 'Lunch', 'Snack 1', 'Snack 2', 'Supper', 'Dinner']
+export const MEAL_TYPES = ['Breakfast', 'Brunch', 'Lunch', 'Snack 1', 'Snack 2', 'Pre-Workout', 'Post-Workout', 'Supper', 'Dinner']
