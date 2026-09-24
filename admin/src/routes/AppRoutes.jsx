@@ -8,10 +8,12 @@ import { useAuth } from '../context/AuthContext'
 
 // Each page is its own chunk — a portal only downloads the pages it actually visits.
 const Signup = lazy(() => import('../pages/Signup'))
+const ForgotPassword = lazy(() => import('../pages/ForgotPassword'))
 const SetPassword = lazy(() => import('../pages/SetPassword'))
 const VerifyEmail = lazy(() => import('../pages/VerifyEmail'))
 const SelectPlan = lazy(() => import('../pages/SelectPlan'))
 const SubmitPayment = lazy(() => import('../pages/SubmitPayment'))
+const PlanExpired = lazy(() => import('../pages/PlanExpired'))
 const PendingApproval = lazy(() => import('../pages/PendingApproval'))
 const Dashboard = lazy(() => import('../portals/admin/pages/Dashboard'))
 const Users = lazy(() => import('../portals/admin/pages/Users'))
@@ -53,6 +55,9 @@ export default function AppRoutes() {
     // creation) — this only ever gates a self-signup Member awaiting approval.
     const isOnboarding = user?.role === 'member' && member?.status === 'pending'
     const stage = member?.onboardingStage
+    // A lapsed paid period locks a Member out (backend: PLAN_EXPIRED) until an admin renews.
+    const isExpired = user?.role === 'member' && member?.status === 'active'
+        && !!member?.planExpiryDate && new Date(member.planExpiryDate) < new Date()
     const onboardingPath = ONBOARDING_ROUTE[stage] || '/verify-email'
 
     if (loading) {
@@ -67,6 +72,7 @@ export default function AppRoutes() {
         <Suspense fallback={<PageSpin />}>
             <Routes>
                 <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
+                <Route path="/forgot-password" element={authed ? <Navigate to="/" replace /> : <ForgotPassword />} />
                 <Route path="/signup" element={authed ? <Navigate to="/" replace /> : <Signup />} />
                 <Route
                     path="/set-password"
@@ -95,7 +101,9 @@ export default function AppRoutes() {
                                 ? <Navigate to="/set-password" replace />
                                 : isOnboarding
                                     ? <Navigate to={onboardingPath} replace />
-                                    : <AppLayout />
+                                    : isExpired
+                                        ? <PlanExpired />
+                                        : <AppLayout />
                             : <Navigate to="/login" replace />
                     }
                 >

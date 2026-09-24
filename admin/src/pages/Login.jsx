@@ -143,6 +143,7 @@ export default function Login() {
                             <Form.Item name="remember" valuePropName="checked" noStyle>
                                 <Checkbox>Remember me</Checkbox>
                             </Form.Item>
+                            <Link to="/forgot-password" className="text-sm font-semibold text-primary">Forgot password?</Link>
                         </div>
 
                         <Button

@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
+import { notifyClient } from '../services/notify.service.js'
 import { ExercisePlan, Exercise, Client, DailyLog } from '../models/index.js'
 import { summarizeExercisePlan } from '../services/exercisePlan.service.js'
 
@@ -172,6 +173,11 @@ export const publishExercisePlan = asyncHandler(async (req, res) => {
     plan.status = 'published'
     plan.publishedAt = new Date()
     await plan.save()
+    await notifyClient(plan.client, {
+        type: 'plan',
+        title: 'New exercise plan',
+        description: `Your trainer published "${plan.title}".`,
+    })
     res.json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
 })
 

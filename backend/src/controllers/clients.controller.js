@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
+import { notifyTrainer, notifyClient } from '../services/notify.service.js'
 import { User, Member, Trainer, Client, DailyLog } from '../models/index.js'
 import { createInvitedUser } from '../services/invite.service.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
@@ -169,6 +170,14 @@ export const createClient = asyncHandler(async (req, res) => {
         status: req.body.status || 'active',
     })
     await syncCount(trainerId)
+    if (trainerId) {
+        await notifyTrainer(trainerId, {
+            type: 'user',
+            title: 'New client assigned',
+            description: `${name} has been assigned to you.`,
+            ref: { kind: 'client', id: client._id },
+        })
+    }
     await client.populate([{ path: 'user' }, { path: 'trainer', populate: { path: 'user', select: 'name' } }])
     res.status(201).json({
         ...flatten(client),
@@ -264,6 +273,21 @@ export const assignClient = asyncHandler(async (req, res) => {
     await Promise.all([syncCount(prevTrainerId), syncCount(nextTrainerId)])
 
     await client.populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })
+    if (nextTrainerId) {
+        await Promise.all([
+            notifyTrainer(nextTrainerId, {
+                type: 'user',
+                title: 'New client assigned',
+                description: `${client.user?.name || 'A client'} has been assigned to you.`,
+                ref: { kind: 'client', id: client._id },
+            }),
+            notifyClient(client._id, {
+                type: 'user',
+                title: 'Trainer assigned',
+                description: `${client.trainer?.user?.name || 'A trainer'} is now your trainer.`,
+            }),
+        ])
+    }
     res.json(flatten(client))
 })
 

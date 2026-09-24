@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
+import { notifyAdmins, notifyMember } from '../services/notify.service.js'
 import { User, Member, MemberPayment, SubscriptionPlan } from '../models/index.js'
 import { uploadPaymentProof } from '../services/cloudinary.service.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
@@ -29,7 +30,8 @@ function flatten(payment) {
 }
 
 // A monthly plan's coverage period from a given start date — used to set
-// Member.planExpiryDate on both first approval and every later renewal.
+// Member.planExpiryDate on both first approval (counted from the approval date)
+// and every later renewal (counted from the renewal date).
 function addOneMonth(date) {
     const d = new Date(date)
     d.setMonth(d.getMonth() + 1)
@@ -66,6 +68,11 @@ export const submitPayment = asyncHandler(async (req, res) => {
 
     member.onboardingStage = 'awaiting_approval'
     await member.save()
+    await notifyAdmins({
+        type: 'payment',
+        title: 'Payment awaiting approval',
+        description: `${req.user.name} submitted payment proof for the ${plan.name} plan.`,
+    })
 
     await payment.populate({ path: 'member', populate: { path: 'user', select: 'name email avatarColor' } })
     res.status(201).json(flatten(payment))
@@ -127,10 +134,15 @@ export const approveMemberPayment = asyncHandler(async (req, res) => {
     member.pendingPlan = null
     member.clientLimit = payment.maxClients
     member.trainerLimit = payment.maxTrainers
-    member.planExpiryDate = addOneMonth(payment.submittedAt)
+    member.planExpiryDate = addOneMonth(payment.reviewedAt)
     member.onboardingStage = 'approved'
     await member.save()
     await User.updateOne({ _id: member.user }, { status: 'active' })
+    await notifyMember(member._id, {
+        type: 'payment',
+        title: 'Payment approved',
+        description: `Your ${payment.planName} plan is active until ${member.planExpiryDate.toLocaleDateString('en-GB')}.`,
+    })
 
     await payment.populate({ path: 'member', populate: { path: 'user', select: 'name email avatarColor' } })
     res.json(flatten(payment))
@@ -178,6 +190,11 @@ export const renewSubscription = asyncHandler(async (req, res) => {
     if (member.onboardingStage) member.onboardingStage = 'approved'
     await member.save()
     await User.updateOne({ _id: member.user }, { status: 'active' })
+    await notifyMember(member._id, {
+        type: 'payment',
+        title: 'Subscription renewed',
+        description: `Your ${plan.name} plan is active until ${member.planExpiryDate.toLocaleDateString('en-GB')}.`,
+    })
 
     await payment.populate({ path: 'member', populate: { path: 'user', select: 'name email avatarColor' } })
     res.status(201).json(flatten(payment))
@@ -196,6 +213,11 @@ export const rejectMemberPayment = asyncHandler(async (req, res) => {
     await payment.save()
 
     await Member.updateOne({ _id: payment.member }, { onboardingStage: 'rejected' })
+    await notifyMember(payment.member, {
+        type: 'payment',
+        title: 'Payment not approved',
+        description: payment.rejectionReason || 'Your payment proof could not be verified. Please submit a new one.',
+    })
 
     await payment.populate({ path: 'member', populate: { path: 'user', select: 'name email avatarColor' } })
     res.json(flatten(payment))

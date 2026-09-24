@@ -7,6 +7,7 @@ import Login from '../pages/Login'
 import { useAuth } from '../context/AuthContext'
 
 // Each page is its own chunk — a portal only downloads the pages it actually visits.
+const ForgotPassword = lazy(() => import('../pages/ForgotPassword'))
 const SetPassword = lazy(() => import('../pages/SetPassword'))
 const Dashboard = lazy(() => import('../portals/client/pages/Dashboard'))
 const MyDiet = lazy(() => import('../portals/client/pages/MyDiet'))
@@ -36,6 +37,7 @@ export default function AppRoutes() {
         <Suspense fallback={<PageSpin />}>
             <Routes>
                 <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
+                <Route path="/forgot-password" element={authed ? <Navigate to="/" replace /> : <ForgotPassword />} />
                 <Route
                     path="/set-password"
                     element={authed ? (mustChangePassword ? <SetPassword /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}

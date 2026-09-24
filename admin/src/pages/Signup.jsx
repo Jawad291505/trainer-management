@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Form, Input, Button, App } from 'antd'
-import { MailOutlined, LockOutlined, UserOutlined, PhoneOutlined, ArrowRightOutlined, CheckCircleFilled } from '@ant-design/icons'
+import { MailOutlined, LockOutlined, UserOutlined, PhoneOutlined, GiftOutlined, ArrowRightOutlined, CheckCircleFilled } from '@ant-design/icons'
 import { useAuth } from '../context/AuthContext'
 
 const CONFIG = {
@@ -30,6 +30,9 @@ export default function Signup() {
     const { signup } = useAuth()
     const [loading, setLoading] = useState(false)
     const [form] = Form.useForm()
+    // Invite links look like /signup?ref=CODE — the code pre-fills the optional field.
+    const [params] = useSearchParams()
+    const initialRef = (params.get('ref') || '').toUpperCase()
 
     const submit = async () => {
         let values
@@ -45,6 +48,7 @@ export default function Signup() {
                 email: values.email,
                 password: values.password,
                 phone: values.phone,
+                referralCode: values.referralCode?.trim() || undefined,
             })
             if (!data.otpSent) {
                 message.warning(`Account created, but we couldn't email your verification code (${data.otpWarning || 'email not configured'}).${data.devOtp ? ` Your code: ${data.devOtp}` : ''}`, 12)
@@ -95,7 +99,7 @@ export default function Signup() {
                     <h2 className="text-2xl font-extrabold tracking-tight text-text-primary">Create your Member account</h2>
                     <p className="mt-1.5 text-sm text-text-secondary">Manage your own trainers and clients on FitTrack.</p>
 
-                    <Form form={form} layout="vertical" requiredMark={false} className="mt-8" onFinish={submit}>
+                    <Form form={form} layout="vertical" requiredMark={false} className="mt-8" onFinish={submit} initialValues={{ referralCode: initialRef }}>
                         <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Enter your name' }]}>
                             <Input size="large" prefix={<UserOutlined />} placeholder="e.g. Priya Sharma" />
                         </Form.Item>
@@ -133,6 +137,10 @@ export default function Signup() {
                             ]}
                         >
                             <Input.Password size="large" prefix={<LockOutlined />} placeholder="••••••••" />
+                        </Form.Item>
+
+                        <Form.Item name="referralCode" label="Referral code (optional)">
+                            <Input size="large" prefix={<GiftOutlined />} placeholder="e.g. PRIYA-7K3M" style={{ textTransform: 'uppercase' }} />
                         </Form.Item>
 
                         <Button

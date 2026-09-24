@@ -93,6 +93,12 @@ async function request(method, path, body, { isFormData } = {}) {
         throw new Error(data.message || 'Your account is pending approval')
     }
 
+    // Lapsed subscription — bounce to "/" where AppRoutes shows the renewal screen.
+    if (res.status === 403 && data.code === 'PLAN_EXPIRED' && window.location.pathname !== '/') {
+        window.location.href = '/'
+        throw new Error(data.message || 'Your subscription has expired')
+    }
+
     if (!res.ok) {
         const err = new Error(data.message || data.error || `Request failed (${res.status})`)
         err.code = data.code

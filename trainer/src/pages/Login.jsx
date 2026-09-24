@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Form, Input, Button, Checkbox, App } from 'antd'
 import {
     MailOutlined,
@@ -97,6 +97,7 @@ export default function Login() {
                         </Form.Item>
                         <div className="mb-5 flex items-center justify-between">
                             <Form.Item name="remember" valuePropName="checked" noStyle><Checkbox>Remember me</Checkbox></Form.Item>
+                            <Link to="/forgot-password" className="text-sm font-semibold text-primary">Forgot password?</Link>
                         </div>
                         <Button type="primary" size="large" block htmlType="submit" loading={loading} iconPosition="end" icon={loading ? undefined : <ArrowRightOutlined />}>Sign in</Button>
                     </Form>

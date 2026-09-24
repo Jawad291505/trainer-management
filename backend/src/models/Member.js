@@ -35,6 +35,11 @@ const memberSchema = new mongoose.Schema(
         // When the current `plan` is paid through — set on approval/renewal
         // (memberPayments.controller.js). Null until a plan is ever approved.
         planExpiryDate: { type: Date, default: null },
+
+        // Member-to-member referrals. The code is issued once and never changes;
+        // `referredBy` is the one-time link set at signup (see MemberReferral).
+        referralCode: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
+        referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Member', default: null },
     },
     { timestamps: true },
 )

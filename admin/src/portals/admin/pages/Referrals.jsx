@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Select, Skeleton } from 'antd'
+import { Select, Skeleton, Tabs } from 'antd'
 import dayjs from 'dayjs'
 import {
     ShareAltOutlined,
@@ -19,8 +19,11 @@ import StatusBadge from '../../../components/common/StatusBadge'
 import UserAvatar from '../../../components/common/UserAvatar'
 import AsyncSection from '../../../components/feedback/AsyncSection'
 import SectionError from '../../../components/feedback/SectionError'
+import MemberReferralsAdmin from '../components/MemberReferralsAdmin'
+import MyReferrals from '../components/MyReferrals'
+import { useAuth } from '../../../context/AuthContext'
 
-export default function Referrals() {
+function TrainerReferrals() {
     // The table rows are searched / filtered / paged by the backend; the headline
     // stats and leaderboard come back in the same response and always cover every referral.
     const [search, setSearch] = useState('')
@@ -68,8 +71,6 @@ export default function Referrals() {
 
     return (
         <div>
-            <PageHeader title="Referrals" subtitle="Track which trainers referred one another and how each code performs." />
-
             {overviewRes.error ? (
                 <SectionError title="Couldn't load referral stats" error={overviewRes.error} onRetry={overviewRes.reload} />
             ) : (
@@ -126,6 +127,30 @@ export default function Referrals() {
                     </AsyncSection>
                 </ChartCard>
             </div>
+        </div>
+    )
+}
+
+export default function Referrals() {
+    const { user } = useAuth()
+    if (user?.role === 'member') {
+        return (
+            <div>
+                <PageHeader title="Referrals" subtitle="Invite other members with your code or link. The admin reimburses you for successful referrals." />
+                <MyReferrals />
+            </div>
+        )
+    }
+    return (
+        <div>
+            <PageHeader title="Referrals" subtitle="Track who referred whom, and reimburse members who bring others in." />
+            <Tabs
+                defaultActiveKey="members"
+                items={[
+                    { key: 'members', label: 'Member referrals', children: <MemberReferralsAdmin /> },
+                    { key: 'trainers', label: 'Trainer referrals', children: <TrainerReferrals /> },
+                ]}
+            />
         </div>
     )
 }

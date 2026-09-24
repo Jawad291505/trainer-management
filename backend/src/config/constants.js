@@ -99,6 +99,9 @@ export const MAX_DIET_PLAN_TEMPLATES = 4
 // data/referrals.json -> referral.status
 export const REFERRAL_STATUS = ['joined', 'pending']
 
+// Member-to-member referral reimbursement (admin pays the referrer back).
+export const REIMBURSEMENT_STATUS = ['pending', 'reimbursed', 'rejected']
+
 // Member self-signup flow (controllers/memberSignup.controller.js). Member.status
 // stays 'pending' the whole way through until 'approved' is granted -> 'active';
 // 'rejected' is a terminal sub-state of 'pending' that still allows a resubmit.

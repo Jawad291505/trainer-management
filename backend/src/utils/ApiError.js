@@ -31,6 +31,11 @@ export default class ApiError extends Error {
     static memberPendingApproval() {
         return new ApiError(403, 'Your account is pending approval', undefined, 'MEMBER_PENDING_APPROVAL')
     }
+    // Thrown by authenticate() when a Member's paid period (planExpiryDate) has
+    // lapsed — only /auth/me stays reachable so the portal can show a renewal page.
+    static planExpired() {
+        return new ApiError(403, 'Your subscription has expired. Contact your administrator to renew.', undefined, 'PLAN_EXPIRED')
+    }
     static notFound(msg = 'Not found') {
         return new ApiError(404, msg)
     }

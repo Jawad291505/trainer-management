@@ -50,6 +50,9 @@ export async function authenticate(req, _res, next) {
             throw ApiError.unauthorized('Invalid or expired token')
         }
 
+        // Purpose-scoped tokens (e.g. password reset) are not login sessions.
+        if (payload.purpose) throw ApiError.unauthorized('Invalid or expired token')
+
         // The token already names the role, so the role's profile is fetched in
         // parallel with the user (one DB round trip instead of two). It is only
         // used if the user's current role still matches; otherwise it's re-read below.
@@ -83,6 +86,14 @@ export async function authenticate(req, _res, next) {
         // (and their own profile) are reachable until an Admin approves them.
         if (user.role === 'member' && req.member && req.member.status === 'pending' && !MEMBER_ONBOARDING_PATHS.has(path)) {
             throw ApiError.memberPendingApproval()
+        }
+
+        // A Member whose paid period has lapsed keeps their account but loses access
+        // until an Admin records a renewal. Members with no expiry (admin-created,
+        // never on a plan) are unaffected.
+        if (user.role === 'member' && req.member?.status === 'active' && req.member.planExpiryDate
+            && req.member.planExpiryDate < new Date() && path !== '/api/auth/me') {
+            throw ApiError.planExpired()
         }
 
         // Best-effort "last seen" without blocking the request.

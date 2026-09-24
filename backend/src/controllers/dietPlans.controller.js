@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
+import { notifyClient } from '../services/notify.service.js'
 import { DietPlan, DietPlanTemplate, Client } from '../models/index.js'
 import { serializeDietPlan } from '../services/dietPlan.service.js'
 import { normalizeMeals } from './dietPlanTemplates.controller.js'
@@ -176,6 +177,11 @@ export const publishDietPlan = asyncHandler(async (req, res) => {
     plan.status = 'published'
     plan.publishedAt = new Date()
     await plan.save()
+    await notifyClient(plan.client, {
+        type: 'diet',
+        title: 'New diet plan',
+        description: 'Your trainer published a new diet plan for you.',
+    })
     res.json(await serializeDietPlan(plan))
 })
 

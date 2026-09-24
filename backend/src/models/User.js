@@ -35,6 +35,14 @@ const userSchema = new mongoose.Schema(
         otpCodeHash: { type: String, select: false },
         otpExpires: { type: Date, select: false },
 
+        // Forgot-password flow (auth.controller.js). Kept apart from the signup OTP above.
+        // resetVerifiedUntil is set once the emailed code is verified and is consumed by
+        // the final reset, so a verified code can be used for exactly one password change.
+        resetOtpHash: { type: String, select: false },
+        resetOtpExpires: { type: Date, select: false },
+        resetOtpAttempts: { type: Number, default: 0, select: false },
+        resetVerifiedUntil: { type: Date, select: false },
+
         // Cosmetic — every front-end renders a coloured avatar (UserAvatar.jsx).
         avatarColor: { type: String, default: '#0b2545' },
         phone: { type: String, trim: true },

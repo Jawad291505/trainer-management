@@ -1,11 +1,13 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
+import { notifyAdmins, notifyMember } from '../services/notify.service.js'
 import { User, Member, SubscriptionPlan } from '../models/index.js'
 import { hashPassword } from '../utils/password.js'
 import { generateOtp, hashOtp, compareOtp, otpExpiryDate } from '../utils/otp.js'
 import { sendOtpEmail } from '../services/email.service.js'
 import { signToken } from '../utils/jwt.js'
 import { profileFor } from './auth.controller.js'
+import { ensureMemberReferralCode, findReferrerByCode, recordMemberReferral } from '../services/memberReferral.service.js'
 
 function issue(user) {
     return signToken({ sub: String(user._id), role: user.role })
@@ -27,10 +29,13 @@ async function sendOtp(user) {
 // POST /api/member-signup   (public) — step 1 of self-signup.
 // Body: { name, email, password, phone? }
 export const signup = asyncHandler(async (req, res) => {
-    const { name, email, password, phone } = req.body
+    const { name, email, password, phone, referralCode } = req.body
     if (!name || !email || !password) throw ApiError.badRequest('name, email and password are required')
     if (password.length < 8) throw ApiError.badRequest('Password must be at least 8 characters')
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already registered')
+
+    // Validate the code up front so a typo doesn't silently drop the referral.
+    const referrer = await findReferrerByCode(referralCode)
 
     const user = await User.create({
         name,
@@ -41,11 +46,25 @@ export const signup = asyncHandler(async (req, res) => {
         emailVerified: false,
         passwordHash: await hashPassword(password),
     })
-    await Member.create({
+    const member = await Member.create({
         user: user._id,
         status: 'pending',
         onboardingStage: 'verify_email',
     })
+    await ensureMemberReferralCode(member)
+    if (referrer) await recordMemberReferral(referrer, member)
+    await notifyAdmins({
+        type: 'user',
+        title: 'New member signed up',
+        description: referrer ? `${name} signed up using a member referral code (${referrer.referralCode}).` : `${name} started a member signup.`,
+    })
+    if (referrer) {
+        await notifyMember(referrer._id, {
+            type: 'referral',
+            title: 'Someone used your referral code',
+            description: `${name} signed up with your code.`,
+        })
+    }
 
     const { otpSent, otpWarning, devOtp } = await sendOtp(user)
 

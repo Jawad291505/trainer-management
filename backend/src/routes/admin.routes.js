@@ -7,6 +7,7 @@ import {
     listResources, createResource, updateResource, deleteResource,
 } from '../controllers/resources.controller.js'
 import { overview, myReferrals, redeem } from '../controllers/referrals.controller.js'
+import * as memberReferrals from '../controllers/memberReferrals.controller.js'
 import {
     adminStats, adminDashboard, revenueTrend, memberStats, memberDashboard, trainerStats, clientCompletion,
 } from '../controllers/stats.controller.js'
@@ -36,6 +37,9 @@ router.delete('/resources/:id', authorize('admin', 'member'), deleteResource)
 router.get('/referrals/overview', authorize('admin'), overview)
 router.get('/referrals/me', authorize('trainer'), myReferrals)
 router.post('/referrals/redeem', authorize('trainer'), redeem)
+router.get('/member-referrals/overview', authorize('admin'), memberReferrals.overview)
+router.get('/member-referrals/me', authorize('member'), memberReferrals.mine)
+router.patch('/member-referrals/:id', authorize('admin'), memberReferrals.updateStatus)
 
 // ---- Subscription plans (Member self-signup) — Admin manages, anyone
 // authenticated can read (Members need the list mid-signup) ----

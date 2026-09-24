@@ -65,6 +65,35 @@ function otpEmailHtml({ name, otp }) {
     `.trim()
 }
 
+function resetEmailHtml({ name, otp }) {
+    return `
+        <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2 style="color:#0b2545;">Reset your password</h2>
+            <p>Hi ${name}, use the code below to reset your FitTrack password.</p>
+            <div style="font-size:32px; font-weight:800; letter-spacing:8px; text-align:center; background:#f1f5f9; border-radius:12px; padding:20px; margin:24px 0; color:#0b2545;">${otp}</div>
+            <p style="color:#64748b; font-size:13px;">This code expires in ${env.otpExpiryMinutes} minutes. If you didn't request a password reset, you can ignore this email — your password won't change.</p>
+        </div>
+    `.trim()
+}
+
+export async function sendPasswordResetEmail({ to, name, otp }) {
+    if (!resend) {
+        console.warn(`[email] RESEND_API_KEY not set — reset code for ${to} not sent. Code: ${otp}`)
+        return { sent: false, reason: 'Email is not configured (RESEND_API_KEY missing).' }
+    }
+    const { error } = await resend.emails.send({
+        from: env.emailFrom,
+        to,
+        subject: 'Your FitTrack password reset code',
+        html: resetEmailHtml({ name, otp }),
+    })
+    if (error) {
+        console.error('[email] Resend failed to send reset code:', error)
+        return { sent: false, reason: error.message || 'Resend failed to send the reset code.' }
+    }
+    return { sent: true, reason: null }
+}
+
 // Sends the Member self-signup OTP. Same dev-fallback behaviour as invite
 // emails: logs the code instead of throwing when Resend isn't configured.
 export async function sendOtpEmail({ to, name, otp }) {
