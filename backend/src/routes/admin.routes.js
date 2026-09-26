@@ -15,7 +15,7 @@ import {
     listPlans, createPlan, updatePlan, deletePlan,
 } from '../controllers/subscriptionPlans.controller.js'
 import {
-    listMemberPayments, approveMemberPayment, rejectMemberPayment, renewSubscription,
+    listMemberPayments, approveMemberPayment, rejectMemberPayment, renewSubscription, renewTrainerSubscription,
 } from '../controllers/memberPayments.controller.js'
 import { getBankDetails } from '../controllers/organization.controller.js'
 
@@ -51,11 +51,12 @@ router.delete('/subscription-plans/:id', authorize('admin'), deletePlan)
 // ---- Organization bank details (shown on the Member payment-submission page) ----
 router.get('/organization/bank-details', getBankDetails)
 
-// ---- Member payment approvals (admin only — Payments/Sales-adjacent) ----
+// ---- Member + Trainer subscription payment approvals (admin only — Payments/Sales-adjacent) ----
 router.get('/member-payments', authorize('admin'), listMemberPayments)
 router.patch('/member-payments/:id/approve', authorize('admin'), approveMemberPayment)
 router.patch('/member-payments/:id/reject', authorize('admin'), rejectMemberPayment)
-router.post('/member-payments/:memberId/renew', authorize('admin'), renewSubscription)
+router.post('/member-payments/:id/renew', authorize('admin'), renewSubscription)
+router.post('/trainer-payments/:id/renew', authorize('admin'), renewTrainerSubscription)
 
 // ---- Stats / dashboards ----
 router.get('/stats/admin', authorize('admin'), adminStats)

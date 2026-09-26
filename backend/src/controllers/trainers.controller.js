@@ -3,7 +3,11 @@ import ApiError from '../utils/ApiError.js'
 import { User, Member, Trainer, Client } from '../models/index.js'
 import { ensureReferralCode } from '../services/referral.service.js'
 import { createInvitedUser } from '../services/invite.service.js'
+import { TRAINER_AFFILIATIONS } from '../config/constants.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
+
+// Trainers saved before `affiliation` existed: a managedBy link means a Member's own.
+const affiliationOf = (t) => (t.affiliation && t.affiliation !== 'admin' ? t.affiliation : (t.managedBy ? 'member' : 'admin'))
 
 // Shape a Trainer + its User into the flat object the admin Trainers table wants
 // (admin/src/services/mockData.js trainers[]).
@@ -28,10 +32,11 @@ function flatten(trainer) {
         joinDate: trainer.joinDate,
         referralCode: trainer.referralCode,
         managedBy: trainer.managedBy ? String(member?._id || trainer.managedBy) : null,
-        // 'in-house' = Admin's own trainers (managedBy null); 'third-party' =
-        // belongs to a Member's own team. Purely derived from managedBy, not a
-        // stored field, so it can never drift out of sync with reality.
-        trainerType: trainer.managedBy ? 'third-party' : 'in-house',
+        // 'admin' = Admin's own in-house trainers, 'member' = in-house for a Member's
+        // team, 'outsourced' = independent trainer with their own plan + clients.
+        affiliation: affiliationOf(trainer),
+        onboardingStage: trainer.onboardingStage || null,
+        planExpiryDate: trainer.planExpiryDate || null,
         memberName: member?.user?.name || null,
     }
 }
@@ -48,7 +53,7 @@ function assertMemberOwns(req, trainer) {
     }
 }
 
-// GET /api/trainers?status=&search=&member=&type=in-house|third-party&page=&limit=
+// GET /api/trainers?status=&search=&member=&type=admin|member|outsourced&page=&limit=
 // (admin sees all, optionally filtered by ?member= or ?type=; member sees only their own trainers)
 // Pagination is opt-in (see utils/pagination.js) — many screens load the full roster.
 export const listTrainers = asyncHandler(async (req, res) => {
@@ -56,8 +61,9 @@ export const listTrainers = asyncHandler(async (req, res) => {
     if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
     if (req.user.role === 'member') filter.managedBy = req.member._id
     else if (req.query.member) filter.managedBy = req.query.member
-    else if (req.query.type === 'in-house') filter.managedBy = null
-    else if (req.query.type === 'third-party') filter.managedBy = { $ne: null }
+    else if (req.query.type === 'member') filter.managedBy = { $ne: null }
+    else if (req.query.type === 'outsourced') filter.affiliation = 'outsourced'
+    else if (req.query.type === 'admin') { filter.managedBy = null; filter.affiliation = { $ne: 'outsourced' } }
 
     const search = String(req.query.search || '').trim()
     if (search) {
@@ -105,7 +111,21 @@ export const createTrainer = asyncHandler(async (req, res) => {
     if (!name || !email) throw ApiError.badRequest('name and email are required')
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
 
-    const managedBy = req.user.role === 'member' ? req.member._id : (req.body.memberId || null)
+    // Admin says up front whether the trainer is in-house for a Member ('member',
+    // needs memberId) or fully independent ('outsourced' — own plans, own clients).
+    // Omitted keeps the old behaviour: memberId present -> member, else Admin's own.
+    let affiliation = req.user.role === 'member' ? 'member' : req.body.affiliation
+    if (affiliation !== undefined && !TRAINER_AFFILIATIONS.includes(affiliation)) {
+        throw ApiError.badRequest('affiliation must be admin, member or outsourced')
+    }
+    if (!affiliation) affiliation = req.body.memberId ? 'member' : 'admin'
+    if (affiliation === 'member' && req.user.role === 'admin' && !req.body.memberId) {
+        throw ApiError.badRequest('Choose the member this trainer works for')
+    }
+    if (affiliation !== 'member' && req.body.memberId) {
+        throw ApiError.badRequest('Only member-affiliated trainers can be linked to a member')
+    }
+    const managedBy = req.user.role === 'member' ? req.member._id : (affiliation === 'member' ? req.body.memberId : null)
     if (managedBy) {
         const member = req.user.role === 'member' ? req.member : await Member.findById(managedBy)
         if (!member) throw ApiError.notFound('Member not found')
@@ -131,6 +151,7 @@ export const createTrainer = asyncHandler(async (req, res) => {
         status: req.body.status || 'active',
         rating: req.body.rating ?? 5,
         managedBy,
+        affiliation,
     })
     await ensureReferralCode(trainer)
     await trainer.populate('user', 'name email avatarColor status')

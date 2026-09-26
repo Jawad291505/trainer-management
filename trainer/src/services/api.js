@@ -52,15 +52,16 @@ async function write(method, path, body, opts) {
     }
 }
 
-async function request(method, path, body) {
-    const headers = { 'Content-Type': 'application/json' }
+async function request(method, path, body, { isFormData } = {}) {
+    const headers = {}
+    if (!isFormData) headers['Content-Type'] = 'application/json'
     const token = getToken()
     if (token) headers.Authorization = `Bearer ${token}`
 
     const res = await fetch(`${BASE}${path}`, {
         method,
         headers,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
     })
 
     if (res.status === 401) {
@@ -81,6 +82,11 @@ async function request(method, path, body) {
         throw new Error(data.message || 'You must set a new password before continuing')
     }
 
+    // MEMBER_PENDING_APPROVAL / PLAN_EXPIRED fall through as ordinary errors on purpose.
+    // AppRoutes already sends a mid-signup or lapsed trainer to the right screen from their
+    // profile, and a hard redirect here would loop: app-level providers (e.g. the corrections
+    // badge) fetch on mount, get blocked, reload the page, and fetch again.
+
     if (!res.ok) {
         const err = new Error(data.message || data.error || `Request failed (${res.status})`)
         err.code = data.code
@@ -97,4 +103,5 @@ export const api = {
     patch: (path, body) => write('PATCH', path, body),
     put: (path, body) => write('PUT', path, body),
     delete: (path) => write('DELETE', path),
+    upload: (path, formData) => write('POST', path, formData, { isFormData: true }),
 }

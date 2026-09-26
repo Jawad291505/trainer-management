@@ -81,6 +81,13 @@ export async function authenticate(req, _res, next) {
             req[own[1]] = own === guess ? guessedProfile : await own[0].findOne({ user: user._id })
         }
 
+        // Same gate for a self-signup (outsourced) Trainer — status 'pending' until Admin
+        // approves their payment. Admin/member-created trainers are never 'pending'.
+        if (user.role === 'trainer' && req.trainer && req.trainer.status === 'pending' && req.trainer.onboardingStage
+            && !MEMBER_ONBOARDING_PATHS.has(path)) {
+            throw ApiError.memberPendingApproval()
+        }
+
         // Self-signup Members stay 'pending' through email verification, plan
         // selection and payment review — only the signup/onboarding endpoints
         // (and their own profile) are reachable until an Admin approves them.
@@ -93,6 +100,13 @@ export async function authenticate(req, _res, next) {
         // never on a plan) are unaffected.
         if (user.role === 'member' && req.member?.status === 'active' && req.member.planExpiryDate
             && req.member.planExpiryDate < new Date() && path !== '/api/auth/me') {
+            throw ApiError.planExpired()
+        }
+
+        // Same lock for a subscribed Trainer whose paid period has lapsed. Trainers
+        // created by Admin/a Member have no expiry and are unaffected.
+        if (user.role === 'trainer' && req.trainer?.status === 'active' && req.trainer.planExpiryDate
+            && req.trainer.planExpiryDate < new Date() && path !== '/api/auth/me') {
             throw ApiError.planExpired()
         }
 

@@ -22,8 +22,8 @@ export async function profileFor(user, loaded = {}) {
     }
     if (user.role === ROLES.TRAINER) {
         const trainer = loaded.trainer
-            ? await loaded.trainer.populate('referredBy', 'referralCode')
-            : await Trainer.findOne({ user: user._id }).populate('referredBy', 'referralCode')
+            ? await loaded.trainer.populate([{ path: 'referredBy', select: 'referralCode' }, 'plan', 'pendingPlan'])
+            : await Trainer.findOne({ user: user._id }).populate('referredBy', 'referralCode').populate('plan').populate('pendingPlan')
         return { ...base, trainer: trainer ? trainer.toJSON() : null }
     }
     if (user.role === ROLES.CLIENT) {

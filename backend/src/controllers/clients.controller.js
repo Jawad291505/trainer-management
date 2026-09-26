@@ -130,10 +130,17 @@ async function assertClientLimit(trainerId) {
     }
 }
 
-// POST /api/clients   (admin, or member scoped to their own trainers) — provision
+// POST /api/clients   (admin; member scoped to their own trainers; outsourced trainer for themselves) — provision
 // a client account via the shared invite flow (temp password emailed via Resend).
 export const createClient = asyncHandler(async (req, res) => {
-    const { name, email, goal, plan, trainerId } = req.body
+    const { name, email, goal, plan } = req.body
+    let { trainerId } = req.body
+    // Only independent (outsourced) trainers run their own book of clients — clients
+    // of a Member's or Admin's trainers are assigned by the Member/Admin. Always self-assigned.
+    if (req.user.role === 'trainer') {
+        if (req.trainer.affiliation !== 'outsourced') throw ApiError.forbidden('Your clients are assigned by your administrator')
+        trainerId = String(req.trainer._id)
+    }
     if (!name || !email) throw ApiError.badRequest('name and email are required')
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
     // A Member's client visibility is scoped to `trainer: { $in: their trainers }`

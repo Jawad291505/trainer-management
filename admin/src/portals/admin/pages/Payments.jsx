@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import { Select, Button, App, Modal, Form, InputNumber, DatePicker, Tag, Dropdown } from 'antd'
+import { Select, Button, App, Modal, Form, InputNumber, DatePicker, Tag, Dropdown, Segmented } from 'antd'
 import {
     DollarOutlined,
     CheckCircleOutlined,
@@ -36,28 +36,51 @@ const SUB_STATUS = {
     no_plan: { label: 'No plan', color: 'default' },
 }
 
-// Admin's Payments page: Members and their SubscriptionPlan purchase/renewal
-// history, backed by Member + SubscriptionPlan + MemberPayment (the same
+// Admin's Payments page: Members or independent Trainers (switch at the top) and
+// their SubscriptionPlan purchase/renewal history, backed by Member + SubscriptionPlan + MemberPayment (the same
 // domain PaymentApprovals.jsx reviews self-signup submissions against — see
 // memberPayments.controller.js). Renewing here creates a new, auto-approved
 // MemberPayment (source: 'admin_renewal') rather than mutating history.
-export default function Payments() {
+// Remounted per kind (key on the wrapper below), so filters, paging and modals
+// start fresh when switching between Members and Trainers.
+const KINDS = {
+    member: {
+        label: 'member',
+        list: '/members',
+        summary: '/members/subscription-summary',
+        renew: (id) => '/member-payments/' + id + '/renew',
+        history: (id) => '/member-payments?member=' + id,
+        title: 'Member subscriptions, plan purchases and renewals.',
+    },
+    trainer: {
+        label: 'trainer',
+        list: '/trainers/subscriptions',
+        summary: '/trainers/subscription-summary',
+        renew: (id) => '/trainer-payments/' + id + '/renew',
+        history: (id) => '/member-payments?trainer=' + id,
+        title: 'Independent trainer subscriptions, plan purchases and renewals.',
+    },
+}
+
+function SubscriptionsView({ kind }) {
+    const cfg = KINDS[kind]
+    const isTrainer = kind === 'trainer'
     const { message } = App.useApp()
     const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
     const [planFilter, setPlanFilter] = useState('all')
 
     // Search + subscription-status + plan filters and paging all run on the backend
-    // (GET /members). `subscriptionStatus`, `purchasedAt` and `paymentCount` come back on each row.
-    const list = usePagedList('/members', {
+    // (see KINDS.list). `subscriptionStatus`, `purchasedAt` and `paymentCount` come back on each row.
+    const list = usePagedList(cfg.list, {
         params: { subscription: statusFilter, plan: planFilter, include: 'payments' },
         search,
         pageSize: 10,
     })
     const rows = list.items
     // Headline numbers cover every member / payment, not just the visible page.
-    const summaryRes = useAsyncData(() => api.get('/members/subscription-summary'), [])
-    const plansRes = useAsyncData(() => api.get('/subscription-plans'), [])
+    const summaryRes = useAsyncData(() => api.get(cfg.summary), [])
+    const plansRes = useAsyncData(() => api.get('/subscription-plans?audience=' + kind), [])
     const plans = plansRes.data?.items || []
     const summary = summaryRes.data || { active: 0, expiring: 0, expired: 0, totalRevenue: 0, approvedPayments: 0 }
 
@@ -69,7 +92,7 @@ export default function Payments() {
     const reloadAll = () => { list.reload(); summaryRes.reload() }
 
     // Payment history is fetched for the one member being viewed.
-    const historyRes = useAsyncData(() => api.get(`/member-payments?member=${historyFor.id}`), [historyFor?.id], { enabled: !!historyFor })
+    const historyRes = useAsyncData(() => api.get(cfg.history(historyFor.id)), [historyFor?.id], { enabled: !!historyFor })
     const history = historyRes.data?.items || []
 
     // The renew modal's member picker searches on the backend as you type.
@@ -80,7 +103,7 @@ export default function Payments() {
         return () => clearTimeout(t)
     }, [pickerSearch])
     const pickerRes = useAsyncData(
-        () => api.get(`/members?page=1&limit=20${pickerQuery ? `&search=${encodeURIComponent(pickerQuery)}` : ''}`),
+        () => api.get(cfg.list + '?page=1&limit=20' + (pickerQuery ? '&search=' + encodeURIComponent(pickerQuery) : '')),
         [pickerQuery],
         { enabled: !!renewing },
     )
@@ -108,13 +131,13 @@ export default function Payments() {
 
     const submitRenewal = async () => {
         if (!renewing?.id) {
-            message.error('Select a member to renew')
+            message.error('Select a ' + cfg.label + ' to renew')
             return
         }
         const v = await form.validateFields()
         setSaving(true)
         try {
-            await api.post(`/member-payments/${renewing.id}/renew`, {
+            await api.post(cfg.renew(renewing.id), {
                 planId: v.planId,
                 amount: v.amount,
                 renewalDate: v.renewalDate.toISOString(),
@@ -136,13 +159,13 @@ export default function Payments() {
     const cards = [
         { icon: <DollarOutlined />, label: 'Revenue Collected', value: money(summary.totalRevenue), hint: `${summary.approvedPayments} approved payments` },
         { icon: <CheckCircleOutlined />, label: 'Active Subscriptions', value: summary.active, accent: 'var(--color-success)' },
-        { icon: <ClockCircleOutlined />, label: 'Expiring Soon', value: summary.expiringSoon, hint: 'Within 7 days', accent: 'var(--color-warning)' },
+        { icon: <ClockCircleOutlined />, label: 'Expiring Soon', value: summary.expiring, hint: 'Within 7 days', accent: 'var(--color-warning)' },
         { icon: <CloseCircleOutlined />, label: 'Expired', value: summary.expired, accent: 'var(--color-danger)' },
     ]
 
     const columns = [
         {
-            title: 'Member',
+            title: isTrainer ? 'Trainer' : 'Member',
             dataIndex: 'name',
             render: (_, r) => (
                 <div className="flex items-center gap-3">
@@ -159,7 +182,7 @@ export default function Payments() {
             dataIndex: ['plan', 'name'],
             width: 170,
             render: (_, r) => r.plan
-                ? <div><div className="font-medium text-text-primary">{r.plan.name}</div><div className="text-xs text-text-muted">Up to {r.plan.maxClients} clients, {r.plan.maxTrainers} trainers</div></div>
+                ? <div><div className="font-medium text-text-primary">{r.plan.name}</div><div className="text-xs text-text-muted">Up to {r.plan.maxClients} clients{isTrainer ? '' : ', ' + r.plan.maxTrainers + ' trainers'}</div></div>
                 : <span className="text-text-muted">—</span>,
         },
         {
@@ -199,7 +222,7 @@ export default function Payments() {
 
     return (
         <div>
-            <PageHeader title="Payments" subtitle="Member subscriptions, plan purchases and renewals.">
+            <PageHeader title="Payments" subtitle={cfg.title}>
                 <Button type="primary" icon={<TeamOutlined />} onClick={() => openRenew({ id: null })}>
                     Renew subscription
                 </Button>
@@ -211,7 +234,7 @@ export default function Payments() {
 
             <div className="mt-6">
                 <FilterBar>
-                    <SearchInput value={search} onChange={setSearch} placeholder="Search member…" />
+                    <SearchInput value={search} onChange={setSearch} placeholder={'Search ' + cfg.label + '…'} />
                     <Select
                         value={statusFilter}
                         onChange={setStatusFilter}
@@ -228,7 +251,7 @@ export default function Payments() {
 
                 {rows.length === 0 ? (
                     <div className="app-card">
-                        <EmptyState title="No members found" description="Try adjusting your search or filters." />
+                        <EmptyState title={'No ' + cfg.label + 's found'} description="Try adjusting your search or filters." />
                     </div>
                 ) : (
                     <>
@@ -248,11 +271,11 @@ export default function Payments() {
                 centered
             >
                 <Form form={form} layout="vertical" className="mt-4">
-                    <Form.Item label="Member" required>
+                    <Form.Item label={isTrainer ? 'Trainer' : 'Member'} required>
                         <Select
                             showSearch
                             value={renewing?.id || undefined}
-                            placeholder="Select a member"
+                            placeholder={'Select a ' + cfg.label}
                             filterOption={false}
                             onSearch={setPickerSearch}
                             loading={pickerRes.loading}
@@ -273,7 +296,7 @@ export default function Payments() {
                     <Form.Item name="planId" label="Renewal plan" rules={[{ required: true, message: 'Select a plan' }]}>
                         <Select
                             placeholder="Select a plan"
-                            options={activePlans.map((p) => ({ value: p.id, label: `${p.name} — ${money(p.priceMonthly, p.currency)}/mo (${p.maxClients} clients, ${p.maxTrainers} trainers)` }))}
+                            options={activePlans.map((p) => ({ value: p.id, label: p.name + ' — ' + money(p.priceMonthly, p.currency) + '/mo (' + p.maxClients + ' clients' + (isTrainer ? '' : ', ' + p.maxTrainers + ' trainers') + ')' }))}
                             onChange={onPlanChange}
                         />
                     </Form.Item>
@@ -300,7 +323,7 @@ export default function Payments() {
                     historyRes.loading ? (
                         <LoadingSkeleton cards={0} rows={3} />
                     ) : history.length === 0 ? (
-                        <EmptyState title="No payments yet" description="This member hasn't made a payment." />
+                        <EmptyState title="No payments yet" description={'This ' + cfg.label + " hasn't made a payment."} />
                     ) : (
                         <div className="flex flex-col gap-2">
                             {history.map((p) => (
@@ -321,6 +344,21 @@ export default function Payments() {
                     )
                 )}
             </Modal>
+        </div>
+    )
+}
+
+export default function Payments() {
+    const [kind, setKind] = useState('member')
+    return (
+        <div>
+            <Segmented
+                className="mb-4"
+                value={kind}
+                onChange={setKind}
+                options={[{ value: 'member', label: 'Members' }, { value: 'trainer', label: 'Trainers' }]}
+            />
+            <SubscriptionsView key={kind} kind={kind} />
         </div>
     )
 }

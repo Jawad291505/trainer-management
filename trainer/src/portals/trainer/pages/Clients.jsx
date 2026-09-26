@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Select, Segmented, Progress, Dropdown, Button } from 'antd'
+import { Select, Segmented, Progress, Dropdown, Button, App, Modal, Form, Input, InputNumber } from 'antd'
 import {
     AppstoreOutlined,
     UnorderedListOutlined,
@@ -10,6 +10,7 @@ import {
     ThunderboltOutlined,
     MessageOutlined,
     WarningFilled,
+    PlusOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import FilterBar from '../../../components/common/FilterBar'
@@ -22,9 +23,20 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import ClientCard from '../components/ClientCard'
 import { api } from '../../../services/api'
+import { useAuth } from '../../../context/AuthContext'
+
+const CLIENT_GOALS = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
+const PROGRAMME_PLANS = ['Starter', 'Standard', 'Premium', 'Elite']
 
 export default function Clients() {
     const navigate = useNavigate()
+    const { message } = App.useApp()
+    const { trainer, refreshUser } = useAuth()
+    // Only independent (outsourced) trainers own their client list; everyone else's clients are assigned to them.
+    const canAddClients = trainer?.affiliation === 'outsourced'
+    const [addOpen, setAddOpen] = useState(false)
+    const [addSaving, setAddSaving] = useState(false)
+    const [addForm] = Form.useForm()
     const [data, setData] = useState([])
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(null)
@@ -38,6 +50,34 @@ export default function Clients() {
         api.get('/clients').then((res) => setData(res.items || [])).catch(setLoadError).finally(() => setLoading(false))
     }, [])
     useEffect(() => { load() }, [load])
+
+    const createClient = async () => {
+        const v = await addForm.validateFields()
+        setAddSaving(true)
+        try {
+            const created = await api.post('/clients', {
+                name: v.name,
+                email: v.email,
+                goal: v.goal,
+                plan: v.plan,
+                startWeight: v.weight,
+                weight: v.weight,
+                target: v.targetWeight,
+            })
+            setAddOpen(false)
+            load()
+            refreshUser() // keeps the capacity check on the Add button current
+            if (created.inviteWarning) {
+                message.warning(`${v.name} added, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
+            } else {
+                message.success(`${v.name} added — an invite email was sent to ${v.email}`)
+            }
+        } catch (err) {
+            message.error(err.message)
+        } finally {
+            setAddSaving(false)
+        }
+    }
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -99,7 +139,18 @@ export default function Clients() {
 
     return (
         <div>
-            <PageHeader title="My Clients" subtitle={`${filtered.length} clients assigned to you`} />
+            <PageHeader title="My Clients" subtitle={`${filtered.length} clients ${canAddClients ? 'on your roster' : 'assigned to you'}`}>
+                {canAddClients && (
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        disabled={trainer.clientCount >= trainer.capacity}
+                        onClick={() => { addForm.resetFields(); setAddOpen(true) }}
+                    >
+                        Add client
+                    </Button>
+                )}
+            </PageHeader>
             <FilterBar>
                 <SearchInput value={search} onChange={setSearch} placeholder="Search clients…" />
                 <Select value={status} onChange={setStatus} style={{ width: 150 }} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
@@ -121,6 +172,19 @@ export default function Clients() {
                     <div className="grid grid-cols-1 gap-4 sm:hidden">{filtered.map((c) => <ClientCard key={c.id} client={c} />)}</div>
                 </>
             )}
+
+            <Modal title="Add client" open={addOpen} onCancel={() => setAddOpen(false)} onOk={createClient} okText="Add client" confirmLoading={addSaving} width={560} centered>
+                <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ plan: 'Standard', goal: 'Fat Loss' }}>
+                    <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}><Input placeholder="e.g. Jordan Blake" /></Form.Item>
+                    <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}><Input placeholder="jordan.blake@gmail.com" /></Form.Item>
+                    <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                        <Form.Item name="weight" label="Weight (kg)" rules={[{ required: true, message: 'Required' }]}><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="82" /></Form.Item>
+                        <Form.Item name="targetWeight" label="Target (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="75" /></Form.Item>
+                        <Form.Item name="goal" label="Goal" rules={[{ required: true }]}><Select options={CLIENT_GOALS.map((g) => ({ value: g, label: g }))} /></Form.Item>
+                        <Form.Item name="plan" label="Programme" rules={[{ required: true }]}><Select options={PROGRAMME_PLANS.map((p) => ({ value: p, label: p }))} /></Form.Item>
+                    </div>
+                </Form>
+            </Modal>
         </div>
     )
 }

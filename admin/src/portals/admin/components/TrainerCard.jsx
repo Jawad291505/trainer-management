@@ -1,4 +1,4 @@
-import { Dropdown, Button, Rate, Tag } from 'antd'
+import { Dropdown, Button, Rate } from 'antd'
 import {
     MoreOutlined,
     EyeOutlined,
@@ -8,16 +8,18 @@ import {
     StopOutlined,
     CheckCircleOutlined,
     DeleteOutlined,
+    SyncOutlined,
 } from '@ant-design/icons'
+import AffiliationTag from './AffiliationTag'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
 import CapacityBar from '../../../components/common/CapacityBar'
 
 // Premium trainer summary card used on the Trainers page grid.
-// `showType` surfaces the in-house / third-party badge — pass it only where
-// the distinction is actually informative (the admin Trainers page); a Member
-// viewing their own trainers, or a single Member's detail page, already knows
-// they're all "third-party" from Admin's perspective, so it's noise there.
+// `showType` surfaces the affiliation badge (in-house / for a member /
+// independent) — pass it only where the distinction is actually informative (the
+// admin Trainers page); a Member viewing their own trainers, or a single Member's
+// detail page, already knows they're all that member's, so it's noise there.
 // `showRevenue` is off for Members — revenue is Admin-only data for them.
 export default function TrainerCard({ trainer, onAction, showType = false, showRevenue = true }) {
     const atCapacity = trainer.clients >= trainer.capacity
@@ -29,6 +31,10 @@ export default function TrainerCard({ trainer, onAction, showType = false, showR
             { key: 'edit', icon: <EditOutlined />, label: 'Edit trainer' },
             { key: 'increase', icon: <PlusOutlined />, label: 'Increase capacity' },
             { key: 'decrease', icon: <MinusOutlined />, label: 'Decrease capacity' },
+            // Outsourced trainers pay for their own plan, so Admin can record a renewal.
+            ...(showType && trainer.affiliation === 'outsourced'
+                ? [{ key: 'renew', icon: <SyncOutlined />, label: 'Renew subscription' }]
+                : []),
             { type: 'divider' },
             {
                 key: 'toggle',
@@ -63,14 +69,7 @@ export default function TrainerCard({ trainer, onAction, showType = false, showR
             <div className="mt-3 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                     <StatusBadge status={trainer.status} />
-                    {showType && (
-                        <Tag
-                            color={trainer.trainerType === 'third-party' ? 'purple' : 'default'}
-                            style={{ borderRadius: 999, margin: 0 }}
-                        >
-                            {trainer.trainerType === 'third-party' ? `Third-party${trainer.memberName ? ` — ${trainer.memberName}` : ''}` : 'In-house'}
-                        </Tag>
-                    )}
+                    {showType && <AffiliationTag trainer={trainer} />}
                 </div>
                 <div className="flex items-center gap-1">
                     <Rate disabled allowHalf value={trainer.rating} count={5} style={{ fontSize: 12 }} />

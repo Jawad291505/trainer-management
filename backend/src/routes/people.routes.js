@@ -11,6 +11,7 @@ import { createAdmin } from '../controllers/admins.controller.js'
 import {
     listMembers, subscriptionSummary, getMember, createMember, updateMember, deleteMember,
 } from '../controllers/members.controller.js'
+import { listTrainerSubscriptions, trainerSubscriptionSummary } from '../controllers/trainerSubscriptions.controller.js'
 
 const router = Router()
 router.use(authenticate)
@@ -33,6 +34,9 @@ router.delete('/members/:id', authorize('admin'), deleteMember)
 
 // ---- Trainers ----
 router.get('/trainers', authorize('admin', 'member'), listTrainers)
+// Payments page (Trainers view) — declared before '/trainers/:id' so they aren't read as an id.
+router.get('/trainers/subscriptions', authorize('admin'), listTrainerSubscriptions)
+router.get('/trainers/subscription-summary', authorize('admin'), trainerSubscriptionSummary)
 router.get('/trainers/:id', authorize('admin', 'member', 'trainer'), getTrainer) // ':id' may be 'me'
 router.post('/trainers', authorize('admin', 'member'), createTrainer)
 router.patch('/trainers/:id', authorize('admin', 'member'), updateTrainer)
@@ -42,7 +46,7 @@ router.delete('/trainers/:id', authorize('admin', 'member'), deleteTrainer)
 // ---- Clients ----
 router.get('/clients', authorize('admin', 'member', 'trainer'), listClients)
 router.get('/clients/:id', authorize('admin', 'member', 'trainer', 'client'), getClient) // ':id' may be 'me'
-router.post('/clients', authorize('admin', 'member'), createClient)
+router.post('/clients', authorize('admin', 'member', 'trainer'), createClient)
 router.patch('/clients/:id', authorize('admin', 'member', 'trainer', 'client'), updateClient)
 router.patch('/clients/:id/assign', authorize('admin', 'member'), assignClient)
 router.delete('/clients/:id', authorize('admin', 'member'), deleteClient)

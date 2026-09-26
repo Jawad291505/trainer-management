@@ -114,6 +114,15 @@ export const MEMBER_ONBOARDING_STAGES = [
     'approved',
 ]
 
+// Who a Trainer belongs to. 'admin' = Admin's own in-house trainers (legacy
+// default), 'member' = in-house for a Member (Trainer.managedBy set),
+// 'outsourced' = independent trainer with their own plan + own clients.
+export const TRAINER_AFFILIATIONS = ['admin', 'member', 'outsourced']
+
+// Who a SubscriptionPlan is sold to. Members see 'member' plans during signup,
+// self-signup Trainers see 'trainer' plans.
+export const PLAN_AUDIENCES = ['member', 'trainer']
+
 // controllers/memberPayments.controller.js — a Member's submitted proof-of-payment.
 export const MEMBER_PAYMENT_STATUS = ['pending', 'approved', 'rejected']
 

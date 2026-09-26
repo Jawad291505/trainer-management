@@ -1,7 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { notifyAdmins, notifyMember } from '../services/notify.service.js'
-import { User, Member, SubscriptionPlan } from '../models/index.js'
+import { User, Member, Trainer, SubscriptionPlan } from '../models/index.js'
 import { hashPassword } from '../utils/password.js'
 import { generateOtp, hashOtp, compareOtp, otpExpiryDate } from '../utils/otp.js'
 import { sendOtpEmail } from '../services/email.service.js'
@@ -9,11 +9,18 @@ import { signToken } from '../utils/jwt.js'
 import { profileFor } from './auth.controller.js'
 import { ensureMemberReferralCode, findReferrerByCode, recordMemberReferral } from '../services/memberReferral.service.js'
 
-function issue(user) {
+// Members and self-signup Trainers share the OTP -> plan steps; only the profile
+// model differs.
+const PROFILE_MODEL = { member: Member, trainer: Trainer }
+function assertOnboardee(req) {
+    if (!PROFILE_MODEL[req.user.role]) throw ApiError.forbidden()
+}
+
+export function issue(user) {
     return signToken({ sub: String(user._id), role: user.role })
 }
 
-async function sendOtp(user) {
+export async function sendOtp(user) {
     const otp = generateOtp()
     user.otpCodeHash = await hashOtp(otp)
     user.otpExpires = otpExpiryDate()
@@ -76,9 +83,9 @@ export const signup = asyncHandler(async (req, res) => {
     })
 })
 
-// POST /api/member-signup/resend-otp   (member, pending)
+// POST /api/member-signup/resend-otp   (member or trainer, pending)
 export const resendOtp = asyncHandler(async (req, res) => {
-    if (req.user.role !== 'member') throw ApiError.forbidden()
+    assertOnboardee(req)
     if (req.user.emailVerified) throw ApiError.badRequest('Your email is already verified')
 
     const user = await User.findById(req.user._id)
@@ -86,9 +93,9 @@ export const resendOtp = asyncHandler(async (req, res) => {
     res.json({ otpSent, ...(otpSent ? {} : { otpWarning, devOtp }) })
 })
 
-// POST /api/member-signup/verify-otp   (member, pending)   Body: { otp }
+// POST /api/member-signup/verify-otp   (member or trainer, pending)   Body: { otp }
 export const verifyOtp = asyncHandler(async (req, res) => {
-    if (req.user.role !== 'member') throw ApiError.forbidden()
+    assertOnboardee(req)
     const { otp } = req.body
     if (!otp) throw ApiError.badRequest('Enter the verification code')
 
@@ -103,21 +110,23 @@ export const verifyOtp = asyncHandler(async (req, res) => {
     user.otpExpires = undefined
     await user.save()
 
-    await Member.updateOne({ user: user._id }, { onboardingStage: 'select_plan' })
+    await PROFILE_MODEL[user.role].updateOne({ user: user._id }, { onboardingStage: 'select_plan' })
 
     res.json({ user: await profileFor(user) })
 })
 
-// POST /api/member-signup/select-plan   (member, pending, email verified)   Body: { planId }
+// POST /api/member-signup/select-plan   (member or trainer, pending, email verified)   Body: { planId }
 export const selectPlan = asyncHandler(async (req, res) => {
-    if (req.user.role !== 'member') throw ApiError.forbidden()
+    assertOnboardee(req)
     if (!req.user.emailVerified) throw ApiError.badRequest('Verify your email before selecting a plan')
 
     const { planId } = req.body
-    const plan = planId && await SubscriptionPlan.findOne({ _id: planId, active: true })
+    // Members buy member plans (incl. ones saved before `audience` existed); Trainers buy trainer plans.
+    const audienceFilter = req.user.role === 'trainer' ? 'trainer' : { $ne: 'trainer' }
+    const plan = planId && await SubscriptionPlan.findOne({ _id: planId, active: true, audience: audienceFilter })
     if (!plan) throw ApiError.badRequest('Select a valid plan')
 
-    await Member.updateOne(
+    await PROFILE_MODEL[req.user.role].updateOne(
         { user: req.user._id },
         { pendingPlan: plan._id, onboardingStage: 'submit_payment' },
     )

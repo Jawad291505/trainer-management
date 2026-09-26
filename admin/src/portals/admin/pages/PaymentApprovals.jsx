@@ -17,17 +17,19 @@ const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 const fmtDate = (d) => (d ? new Date(d).toLocaleString() : '—')
 
 const STATUS_TAG = { pending: 'gold', approved: 'green', rejected: 'red' }
+const PAYER_LABEL = { member: 'Member', trainer: 'Trainer' }
 const SOURCE_LABEL = { self_signup: 'Self-signup', admin_renewal: 'Admin renewal' }
 
-// Admin-only review queue for Member self-signup payment proofs
-// (memberPayments.controller.js). Approving flips the Member active and
+// Admin-only review queue for Member and Trainer self-signup payment proofs
+// (memberPayments.controller.js). Approving flips the account active and
 // applies the plan's client limit; rejecting keeps them pending and lets them
 // resubmit from their own Pending Approval screen.
 export default function PaymentApprovals() {
     const { message } = App.useApp()
     const [status, setStatus] = useState('pending')
+    const [payer, setPayer] = useState('all')
     const [search, setSearch] = useState('')
-    const list = usePagedList('/member-payments', { params: { status }, search, pageSize: 10 })
+    const list = usePagedList('/member-payments', { params: { status, payer }, search, pageSize: 10 })
     const { items: data, total, loading, error: loadError, reload: fetchPayments } = list
     const [viewing, setViewing] = useState(null)
     const [rejecting, setRejecting] = useState(null)
@@ -39,7 +41,7 @@ export default function PaymentApprovals() {
         try {
             await api.patch(`/member-payments/${payment.id}/approve`, {})
             fetchPayments()
-            message.success(`${payment.memberName} approved — their account is now active`)
+            message.success(`${payment.payerName} approved — their account is now active`)
             setViewing(null)
         } catch (err) {
             message.error(err.message)
@@ -53,7 +55,7 @@ export default function PaymentApprovals() {
         try {
             await api.patch(`/member-payments/${rejecting.id}/reject`, { reason })
             fetchPayments()
-            message.success(`${rejecting.memberName}'s payment was rejected`)
+            message.success(`${rejecting.payerName}'s payment was rejected`)
             setRejecting(null)
             setReason('')
             setViewing(null)
@@ -66,14 +68,17 @@ export default function PaymentApprovals() {
 
     const columns = [
         {
-            title: 'Member',
-            dataIndex: 'memberName',
+            title: 'Payer',
+            dataIndex: 'payerName',
             render: (_, r) => (
                 <div className="flex items-center gap-3">
-                    <UserAvatar name={r.memberName} color={r.memberAvatarColor} size={36} />
+                    <UserAvatar name={r.payerName} color={r.payerAvatarColor} size={36} />
                     <div className="min-w-0">
-                        <div className="truncate font-semibold text-text-primary">{r.memberName}</div>
-                        <div className="truncate text-xs text-text-muted">{r.memberEmail}</div>
+                        <div className="flex items-center gap-2">
+                            <span className="truncate font-semibold text-text-primary">{r.payerName}</span>
+                            <Tag color={r.payerType === 'trainer' ? 'purple' : 'blue'} style={{ borderRadius: 999, margin: 0 }}>{PAYER_LABEL[r.payerType]}</Tag>
+                        </div>
+                        <div className="truncate text-xs text-text-muted">{r.payerEmail}</div>
                     </div>
                 </div>
             ),
@@ -117,7 +122,17 @@ export default function PaymentApprovals() {
             <PageHeader title="Payment Approvals" subtitle={loading ? 'Loading…' : `${total} submissions`} />
 
             <FilterBar>
-                <SearchInput value={search} onChange={setSearch} placeholder="Search by member…" />
+                <SearchInput value={search} onChange={setSearch} placeholder="Search by name or email…" />
+                <Select
+                    value={payer}
+                    onChange={setPayer}
+                    style={{ width: 150 }}
+                    options={[
+                        { value: 'all', label: 'Members & Trainers' },
+                        { value: 'member', label: 'Members' },
+                        { value: 'trainer', label: 'Trainers' },
+                    ]}
+                />
                 <Select
                     value={status}
                     onChange={setStatus}
@@ -160,10 +175,10 @@ export default function PaymentApprovals() {
                 {viewing && (
                     <div>
                         <div className="mb-4 flex items-center gap-3">
-                            <UserAvatar name={viewing.memberName} color={viewing.memberAvatarColor} size={44} />
+                            <UserAvatar name={viewing.payerName} color={viewing.payerAvatarColor} size={44} />
                             <div>
-                                <div className="font-bold text-text-primary">{viewing.memberName}</div>
-                                <div className="text-xs text-text-muted">{viewing.memberEmail}</div>
+                                <div className="font-bold text-text-primary">{viewing.payerName} <Tag color={viewing.payerType === 'trainer' ? 'purple' : 'blue'} style={{ borderRadius: 999 }}>{PAYER_LABEL[viewing.payerType]}</Tag></div>
+                                <div className="text-xs text-text-muted">{viewing.payerEmail}</div>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm">
@@ -202,7 +217,7 @@ export default function PaymentApprovals() {
                 okButtonProps={{ danger: true, loading: acting }}
                 centered
             >
-                <p className="text-sm text-text-secondary">Let {rejecting?.memberName} know why (optional) — they&apos;ll see this and can resubmit.</p>
+                <p className="text-sm text-text-secondary">Let {rejecting?.payerName} know why (optional) — they&apos;ll see this and can resubmit.</p>
                 <Input.TextArea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Screenshot doesn't show the transaction amount" />
             </Modal>
         </div>

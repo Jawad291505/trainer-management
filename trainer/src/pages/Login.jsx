@@ -101,6 +101,9 @@ export default function Login() {
                         </div>
                         <Button type="primary" size="large" block htmlType="submit" loading={loading} iconPosition="end" icon={loading ? undefined : <ArrowRightOutlined />}>Sign in</Button>
                     </Form>
+                    <p className="mt-4 text-center text-sm text-text-secondary">
+                        New trainer? <Link to="/signup" className="font-semibold text-primary">Create an account</Link>
+                    </p>
                 </div>
             </div>
         </div>

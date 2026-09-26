@@ -42,7 +42,7 @@ export default function Members() {
     // Subscription plans only feed the create/edit modal's plan picker — fetched
     // the first time the modal opens, not with the page.
     const [wantPlans, setWantPlans] = useState(false)
-    const plansRes = useAsyncData(() => api.get('/subscription-plans', { ttl: 60_000 }), [], { enabled: wantPlans })
+    const plansRes = useAsyncData(() => api.get('/subscription-plans?audience=member', { ttl: 60_000 }), [], { enabled: wantPlans })
     const plans = plansRes.data?.items || []
     const selectedPlan = plans.find((p) => p.id === planId)
 

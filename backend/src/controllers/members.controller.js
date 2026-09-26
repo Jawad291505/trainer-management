@@ -34,12 +34,13 @@ async function countsFor(memberIds) {
 
 // Purchase-history extras for a batch of members (Payments page): the last
 // approved payment's date and how many payments each member has on record.
-async function paymentExtrasFor(memberIds) {
+// `key` is the MemberPayment field holding the payer ('member' | 'trainer').
+export async function paymentExtrasFor(ids, key = 'member') {
     const rows = await MemberPayment.aggregate([
-        { $match: { member: { $in: memberIds } } },
+        { $match: { [key]: { $in: ids } } },
         {
             $group: {
-                _id: '$member',
+                _id: `$${key}`,
                 paymentCount: { $sum: 1 },
                 purchasedAt: { $max: { $cond: [{ $eq: ['$status', 'approved'] }, '$submittedAt', null] } },
             },
@@ -131,7 +132,7 @@ export const subscriptionSummary = asyncHandler(async (_req, res) => {
         Member.countDocuments(subscriptionFilter('expiring', now)),
         Member.countDocuments(subscriptionFilter('expired', now)),
         MemberPayment.aggregate([
-            { $match: { status: 'approved' } },
+            { $match: { status: 'approved', member: { $ne: null } } },
             { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
         ]),
     ])

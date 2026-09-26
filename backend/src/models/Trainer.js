@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { ACCOUNT_STATUS } from '../config/constants.js'
+import { ACCOUNT_STATUS, MEMBER_ONBOARDING_STAGES, TRAINER_AFFILIATIONS } from '../config/constants.js'
 
 // Trainer profile. One-to-one with a User (role: 'trainer').
 // Fields mirror admin/src/services/mockData.js `trainers[]` plus the referral
@@ -11,6 +11,17 @@ const trainerSchema = new mongoose.Schema(
         // Which Member this trainer is scoped under (admin Member Management ->
         // Trainers -> Clients hierarchy). null = managed directly by Admin.
         managedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Member', default: null, index: true },
+
+        // Docs saved before this field existed derive it from managedBy
+        // (see trainers.controller#affiliationOf).
+        affiliation: { type: String, enum: TRAINER_AFFILIATIONS, default: 'admin' },
+
+        // Self-signup (outsourced) trainers only — mirrors Member's onboarding
+        // fields; null for trainers an admin/member created.
+        onboardingStage: { type: String, enum: MEMBER_ONBOARDING_STAGES, default: null },
+        plan: { type: mongoose.Schema.Types.ObjectId, ref: 'SubscriptionPlan', default: null },
+        pendingPlan: { type: mongoose.Schema.Types.ObjectId, ref: 'SubscriptionPlan', default: null },
+        planExpiryDate: { type: Date, default: null },
 
         specialization: { type: String, default: 'General Fitness', trim: true },
 

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { PLAN_AUDIENCES } from '../config/constants.js'
 
 // Member subscription tiers — Super Admin managed (subscriptionPlans.controller.js)
 // so new plans/prices/limits can be added without a code change. Referenced by
@@ -7,6 +8,9 @@ import mongoose from 'mongoose'
 const subscriptionPlanSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
+        // Who can pick this plan at signup. Docs saved before this field existed
+        // are treated as 'member' plans (see subscriptionPlans.controller).
+        audience: { type: String, enum: PLAN_AUDIENCES, default: 'member', index: true },
         priceMonthly: { type: Number, required: true, min: 0 },
         currency: { type: String, default: 'PKR', trim: true },
         maxClients: { type: Number, required: true, min: 0 },

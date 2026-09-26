@@ -6,7 +6,10 @@ import { MEMBER_PAYMENT_STATUS } from '../config/constants.js'
 // (rejected -> resubmit), so history is kept rather than overwritten in place.
 const memberPaymentSchema = new mongoose.Schema(
     {
-        member: { type: mongoose.Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
+        // Exactly one payer: a Member OR an outsourced Trainer — both subscription
+        // types share this model so Admin reviews a single queue.
+        member: { type: mongoose.Schema.Types.ObjectId, ref: 'Member', default: null, index: true },
+        trainer: { type: mongoose.Schema.Types.ObjectId, ref: 'Trainer', default: null, index: true },
         plan: { type: mongoose.Schema.Types.ObjectId, ref: 'SubscriptionPlan', required: true },
 
         // Snapshotted from the plan at submission time — survives the plan being

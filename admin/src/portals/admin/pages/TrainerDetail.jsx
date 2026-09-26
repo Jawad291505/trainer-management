@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Rate, Tabs, Progress, Modal, Input, App, Tag, Skeleton } from 'antd'
+import { Button, Rate, Tabs, Progress, Modal, Input, App, Skeleton } from 'antd'
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -9,6 +9,7 @@ import {
     TeamOutlined,
     UsergroupAddOutlined,
 } from '@ant-design/icons'
+import AffiliationTag from '../components/AffiliationTag'
 import StatCard from '../../../components/common/StatCard'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
@@ -94,11 +95,7 @@ export default function TrainerDetail() {
                             <div className="flex items-center gap-3">
                                 <h1 className="m-0 text-xl font-extrabold text-text-primary md:text-2xl">{trainer.name}</h1>
                                 <StatusBadge status={trainer.status} />
-                                {user?.role === 'admin' && (
-                                    <Tag color={trainer.trainerType === 'third-party' ? 'purple' : 'default'} style={{ borderRadius: 999, margin: 0 }}>
-                                        {trainer.trainerType === 'third-party' ? `Third-party${trainer.memberName ? ` — ${trainer.memberName}` : ''}` : 'In-house'}
-                                    </Tag>
-                                )}
+                                {user?.role === 'admin' && <AffiliationTag trainer={trainer} />}
                             </div>
                             <div className="mt-1 text-sm text-text-muted">{trainer.specialization}</div>
                             <div className="mt-1.5 flex items-center gap-1">

@@ -9,6 +9,12 @@ import { useAuth } from '../context/AuthContext'
 // Each page is its own chunk — a portal only downloads the pages it actually visits.
 const ForgotPassword = lazy(() => import('../pages/ForgotPassword'))
 const SetPassword = lazy(() => import('../pages/SetPassword'))
+const Signup = lazy(() => import('../pages/Signup'))
+const VerifyEmail = lazy(() => import('../pages/VerifyEmail'))
+const SelectPlan = lazy(() => import('../pages/SelectPlan'))
+const SubmitPayment = lazy(() => import('../pages/SubmitPayment'))
+const PendingApproval = lazy(() => import('../pages/PendingApproval'))
+const PlanExpired = lazy(() => import('../pages/PlanExpired'))
 const Dashboard = lazy(() => import('../portals/trainer/pages/Dashboard'))
 const Clients = lazy(() => import('../portals/trainer/pages/Clients'))
 const ClientProfile = lazy(() => import('../portals/trainer/pages/ClientProfile'))
@@ -23,9 +29,26 @@ const NotificationsPage = lazy(() => import('../portals/trainer/pages/Notificati
 const Settings = lazy(() => import('../portals/trainer/pages/Settings'))
 const NotFound = lazy(() => import('../pages/NotFound'))
 
+// Where a self-signup trainer mid-onboarding belongs, keyed by Trainer.onboardingStage.
+const ONBOARDING_ROUTE = {
+    verify_email: '/verify-email',
+    select_plan: '/select-plan',
+    submit_payment: '/submit-payment',
+    awaiting_approval: '/pending-approval',
+    rejected: '/pending-approval',
+}
+
 export default function AppRoutes() {
-    const { authed, loading, user } = useAuth()
+    const { authed, loading, user, trainer } = useAuth()
     const mustChangePassword = !!user?.mustChangePassword
+    // Admin/member-created trainers are never 'pending' — this only gates a
+    // self-signup (outsourced) trainer awaiting payment approval.
+    const stage = trainer?.onboardingStage
+    const isOnboarding = trainer?.status === 'pending' && !!stage
+    // A lapsed paid period locks a subscribed trainer out (backend: PLAN_EXPIRED) until an admin renews.
+    const isExpired = trainer?.status === 'active' && !!trainer?.planExpiryDate && new Date(trainer.planExpiryDate) < new Date()
+    const onboardingPath = ONBOARDING_ROUTE[stage] || '/verify-email'
+    const gate = (allowed, page) => (authed ? (isOnboarding && allowed.includes(stage) ? page : <Navigate to="/" replace />) : <Navigate to="/login" replace />)
 
     if (loading) {
         return (
@@ -40,11 +63,28 @@ export default function AppRoutes() {
             <Routes>
                 <Route path="/login" element={authed ? <Navigate to="/" replace /> : <Login />} />
                 <Route path="/forgot-password" element={authed ? <Navigate to="/" replace /> : <ForgotPassword />} />
+                <Route path="/signup" element={authed ? <Navigate to="/" replace /> : <Signup />} />
+                <Route path="/verify-email" element={gate(['verify_email'], <VerifyEmail />)} />
+                <Route path="/select-plan" element={gate(['select_plan'], <SelectPlan />)} />
+                <Route path="/submit-payment" element={gate(['submit_payment', 'rejected'], <SubmitPayment />)} />
+                <Route path="/pending-approval" element={gate(['awaiting_approval', 'rejected'], <PendingApproval />)} />
                 <Route
                     path="/set-password"
                     element={authed ? (mustChangePassword ? <SetPassword /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />}
                 />
-                <Route element={authed ? (mustChangePassword ? <Navigate to="/set-password" replace /> : <AppLayout />) : <Navigate to="/login" replace />}>
+                <Route
+                    element={
+                        authed
+                            ? mustChangePassword
+                                ? <Navigate to="/set-password" replace />
+                                : isOnboarding
+                                    ? <Navigate to={onboardingPath} replace />
+                                    : isExpired
+                                        ? <PlanExpired />
+                                        : <AppLayout />
+                            : <Navigate to="/login" replace />
+                    }
+                >
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/clients" element={<Clients />} />
                     <Route path="/clients/:id" element={<ClientProfile />} />

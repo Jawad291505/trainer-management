@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, App, Modal, Form, Input, InputNumber, Switch, Dropdown, Tag } from 'antd'
+import { Button, App, Modal, Form, Input, InputNumber, Switch, Dropdown, Tag, Select } from 'antd'
 import { PlusOutlined, MoreOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, StopOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
@@ -10,17 +10,26 @@ import { api } from '../../../services/api'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 
-// Super Admin manages the Member subscription tiers shown on the self-signup
-// plan-selection page (admin/src/pages/SelectPlan.jsx) — fully data-driven,
-// nothing about plans is hardcoded in the app.
+const AUDIENCE_OPTIONS = [
+    { value: 'member', label: 'Member plan' },
+    { value: 'trainer', label: 'Trainer plan' },
+]
+
+// Super Admin manages the subscription tiers shown on the self-signup
+// plan-selection pages — Member plans in this app (admin/src/pages/SelectPlan.jsx),
+// Trainer plans in the trainer portal (visible only to trainers after they sign
+// up). Fully data-driven, nothing about plans is hardcoded in the app.
 export default function SubscriptionPlans() {
     const { message } = App.useApp()
     const [data, setData] = useState([])
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(null)
+    const [audienceFilter, setAudienceFilter] = useState('all')
     const [editing, setEditing] = useState(null)
     const [saving, setSaving] = useState(false)
     const [form] = Form.useForm()
+    const wAudience = Form.useWatch('audience', form)
+    const visible = data.filter((p) => audienceFilter === 'all' || p.audience === audienceFilter)
 
     const fetchPlans = async () => {
         setLoading(true)
@@ -39,7 +48,7 @@ export default function SubscriptionPlans() {
 
     const openCreate = () => {
         setEditing('new')
-        form.setFieldsValue({ name: '', priceMonthly: 5000, currency: 'PKR', maxClients: 20, maxTrainers: 5, description: '', active: true })
+        form.setFieldsValue({ audience: audienceFilter === 'trainer' ? 'trainer' : 'member', name: '', priceMonthly: 5000, currency: 'PKR', maxClients: 20, maxTrainers: 5, description: '', active: true })
     }
     const openEdit = (plan) => {
         setEditing(plan)
@@ -95,22 +104,33 @@ export default function SubscriptionPlans() {
 
     return (
         <div>
-            <PageHeader title="Subscription Plans" subtitle="Manage the plans Members can sign up for">
+            <PageHeader title="Subscription Plans" subtitle="Manage the plans Members and Trainers can sign up for">
+                <Select
+                    value={audienceFilter}
+                    onChange={setAudienceFilter}
+                    style={{ width: 190 }}
+                    options={[
+                        { value: 'all', label: 'All plans' },
+                        { value: 'member', label: 'Member plans' },
+                        { value: 'trainer', label: 'Trainer subscription plans' },
+                    ]}
+                />
                 <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Add plan</Button>
             </PageHeader>
 
-            {data.length === 0 ? (
+            {visible.length === 0 ? (
                 <div className="app-card">
-                    <EmptyState title="No plans yet" description="Add a plan to let Members sign up." />
+                    <EmptyState title="No plans yet" description="Add a plan to let Members or Trainers sign up." />
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {data.map((plan) => (
+                    {visible.map((plan) => (
                         <div key={plan.id} className="app-card flex flex-col p-5">
                             <div className="flex items-start justify-between">
                                 <div>
                                     <div className="flex items-center gap-2 font-bold text-text-primary">
                                         {plan.name}
+                                        <Tag color={plan.audience === 'trainer' ? 'purple' : 'blue'} style={{ borderRadius: 999, margin: 0 }}>{plan.audience === 'trainer' ? 'Trainer' : 'Member'}</Tag>
                                         {!plan.active && <Tag color="default">Inactive</Tag>}
                                     </div>
                                     {plan.description && <div className="text-xs text-text-muted">{plan.description}</div>}
@@ -140,7 +160,7 @@ export default function SubscriptionPlans() {
                             <div className="mt-4 text-2xl font-extrabold text-text-primary">
                                 {money(plan.priceMonthly, plan.currency)}<span className="text-xs font-medium text-text-muted"> /mo</span>
                             </div>
-                            <div className="mt-2 text-sm text-text-secondary">Up to {plan.maxClients} clients · {plan.maxTrainers} trainers</div>
+                            <div className="mt-2 text-sm text-text-secondary">Up to {plan.maxClients} clients{plan.audience === 'trainer' ? '' : ` · ${plan.maxTrainers} trainers`}</div>
                         </div>
                     ))}
                 </div>
@@ -156,6 +176,9 @@ export default function SubscriptionPlans() {
                 centered
             >
                 <Form form={form} layout="vertical" className="mt-4">
+                    <Form.Item name="audience" label="Plan type" tooltip="Trainer plans are only shown to trainers after they sign up in the trainer portal." rules={[{ required: true }]}>
+                        <Select options={AUDIENCE_OPTIONS} />
+                    </Form.Item>
                     <Form.Item name="name" label="Plan name" rules={[{ required: true, message: 'Name is required' }]}>
                         <Input placeholder="e.g. Starter" />
                     </Form.Item>
@@ -182,6 +205,7 @@ export default function SubscriptionPlans() {
                             />
                         </Form.Item>
                     </div>
+                    {wAudience !== 'trainer' && (
                     <Form.Item
                         name="maxTrainers"
                         label="Max trainers"
@@ -199,6 +223,7 @@ export default function SubscriptionPlans() {
                     >
                         <InputNumber min={0} style={{ width: '100%' }} />
                     </Form.Item>
+                    )}
                     <Form.Item name="active" label="Visible for signup" valuePropName="checked">
                         <Switch />
                     </Form.Item>
