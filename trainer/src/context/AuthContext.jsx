@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
     }, [])
 
     const login = useCallback(async (email, password) => {
-        const data = await api.post('/auth/login', { email, password })
+        const data = await api.post('/auth/login', { email, password, portal: 'trainer' })
         setToken(data.token)
         setUser(data.user)
         return data.user

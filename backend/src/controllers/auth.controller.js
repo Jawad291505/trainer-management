@@ -96,14 +96,30 @@ export const register = asyncHandler(async (req, res) => {
     res.status(201).json({ token: issue(user), user: await profileFor(user) })
 })
 
-// POST /api/auth/login  Body: { email, password }
+// Which roles each frontend may sign in. The admin app serves admins and members.
+const PORTAL_ROLES = {
+    admin: { roles: [ROLES.ADMIN, ROLES.MEMBER], label: 'admins and members' },
+    trainer: { roles: [ROLES.TRAINER], label: 'trainers' },
+    client: { roles: [ROLES.CLIENT], label: 'clients' },
+}
+
+// POST /api/auth/login  Body: { email, password, portal? }
+// `portal` ('admin' | 'trainer' | 'client') makes the server refuse, before a
+// token is issued, an account whose role doesn't belong to the calling app.
 export const login = asyncHandler(async (req, res) => {
-    const { email, password } = req.body
+    const { email, password, portal } = req.body
     if (!email || !password) throw ApiError.badRequest('email and password are required')
 
     const user = await User.findOne({ email: email.toLowerCase() }).select('+passwordHash')
     if (!user || !(await comparePassword(password, user.passwordHash))) {
         throw ApiError.unauthorized('Invalid email or password')
+    }
+    if (portal !== undefined) {
+        const target = PORTAL_ROLES[portal]
+        if (!target) throw ApiError.badRequest('Unknown portal')
+        if (!target.roles.includes(user.role)) {
+            throw ApiError.forbidden(`This portal is for ${target.label} only`)
+        }
     }
     if (user.status === 'inactive') throw ApiError.forbidden('Account is inactive')
 
