@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ExperimentOutlined, LinkOutlined, ExportOutlined } from '@ant-design/icons'
+import { ExperimentOutlined, LinkOutlined, ExportOutlined, CheckOutlined, LoadingOutlined } from '@ant-design/icons'
 
 const hostOf = (url) => {
     try { return new URL(url).hostname.replace(/^www\./i, '') } catch { return '' }
@@ -42,29 +42,72 @@ export function SupplementLinkCard({ url, preview }) {
     )
 }
 
-// Read-only supplements block for a meal card — its own labelled section, kept
-// visually apart from the meal's food items.
-export default function SupplementList({ supplements, className = '' }) {
+// Supplements block for a meal card — its own labelled section, kept visually
+// apart from the meal's food items.
+//   taken     — optional boolean[] (by index): shows each one as taken / not taken.
+//   onToggle  — optional (index) => void: makes each row a checkbox the client ticks.
+//   busyIndex — the index currently saving; `disabled` blocks ticking altogether.
+export default function SupplementList({ supplements, className = '', taken = null, onToggle, busyIndex = null, disabled = false }) {
     if (!supplements?.length) return null
+    const takenCount = taken ? supplements.filter((_, i) => taken[i]).length : 0
     return (
         <div className={`border-t pt-3 ${className}`} style={{ borderColor: 'var(--color-border)' }}>
-            <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-text-muted">
-                <ExperimentOutlined /> Supplements
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs font-semibold text-text-muted">
+                <span className="flex items-center gap-1"><ExperimentOutlined /> Supplements</span>
+                {taken && <span>{takenCount}/{supplements.length} taken</span>}
             </div>
             <div className="flex flex-col gap-2">
-                {supplements.map((s, i) => (
-                    <div key={s.id || i} className="rounded-lg px-3 py-2" style={{ background: 'var(--color-surface-secondary)' }}>
-                        <div className="flex items-center justify-between gap-3 text-sm">
-                            <span className="min-w-0 truncate font-medium text-text-primary">{s.name}</span>
+                {supplements.map((s, i) => {
+                    const on = !!taken?.[i]
+                    const saving = busyIndex === i
+                    const blocked = disabled || busyIndex != null
+                    const head = (
+                        <>
+                            {taken && (
+                                <span
+                                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors"
+                                    style={{
+                                        borderColor: on ? 'var(--color-success)' : 'var(--color-border-strong)',
+                                        background: on ? 'var(--color-success)' : 'transparent',
+                                        color: '#fff',
+                                    }}
+                                >
+                                    {saving
+                                        ? <LoadingOutlined style={{ fontSize: 11, color: on ? '#fff' : 'var(--color-text-muted)' }} />
+                                        : on && <CheckOutlined style={{ fontSize: 11 }} />}
+                                </span>
+                            )}
+                            <span className={`min-w-0 flex-1 truncate font-medium ${on && onToggle ? 'text-text-muted line-through' : 'text-text-primary'}`}>{s.name}</span>
                             {s.dosage && <span className="shrink-0 text-text-muted">{s.dosage}</span>}
+                        </>
+                    )
+                    return (
+                        <div
+                            key={s.id || i}
+                            className="rounded-lg px-3 py-2 transition-colors"
+                            style={{ background: on ? 'var(--color-success-soft)' : 'var(--color-surface-secondary)', opacity: blocked && !saving && onToggle ? 0.6 : 1 }}
+                        >
+                            {onToggle ? (
+                                <button
+                                    type="button"
+                                    onClick={() => onToggle(i)}
+                                    disabled={blocked}
+                                    aria-pressed={on}
+                                    className="flex w-full items-center gap-3 text-left text-sm"
+                                >
+                                    {head}
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-3 text-sm">{head}</div>
+                            )}
+                            {s.url && (
+                                <div className="mt-2">
+                                    <SupplementLinkCard url={s.url} preview={s.preview} />
+                                </div>
+                            )}
                         </div>
-                        {s.url && (
-                            <div className="mt-2">
-                                <SupplementLinkCard url={s.url} preview={s.preview} />
-                            </div>
-                        )}
-                    </div>
-                ))}
+                    )
+                })}
             </div>
         </div>
     )

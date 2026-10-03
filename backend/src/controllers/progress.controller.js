@@ -99,6 +99,7 @@ async function seedTasksForClient(clientId, userId, date = new Date()) {
                     done: false,
                     mealId: m._id,
                     itemsDone: new Array(selected?.items?.length || 0).fill(false),
+                    supplementsDone: new Array(m.supplements?.length || 0).fill(false),
                 })
             }
         }
@@ -210,16 +211,26 @@ export const setTask = asyncHandler(async (req, res) => {
     res.json({ id: String(log._id), tasks: log.tasks, completionPct: log.completionPct })
 })
 
-// PATCH /api/progress/daily/meal-item   Body: { date?, mealId, itemIndex, done }   (client)
-// Toggles a single food item within a meal. The meal's own `done` flag is
-// derived from itemsDone (true only once every item is checked) so a client
-// eating 2 of 3 items shows up as partial everywhere else that reads `done`.
-export const setMealItem = asyncHandler(async (req, res) => {
+const flagsOf = (flags) => (Array.isArray(flags) ? flags : [])
+
+// A meal task is done only once every food item AND every supplement is ticked.
+const mealTaskDone = (task) => {
+    const all = [...flagsOf(task.itemsDone), ...flagsOf(task.supplementsDone)]
+    return all.length > 0 && all.every(Boolean)
+}
+
+// Toggle one entry of a meal task's `itemsDone` / `supplementsDone` (`field`)
+// for the calling client, creating/merging the day's log as needed. The meal's
+// own `done` flag is derived (see mealTaskDone) so a client who had 2 of 3
+// things shows up as partial everywhere else that reads `done`.
+async function setMealFlag(req, field, index, name) {
     const clientId = req.client._id
     const date = startOfDay(req.body.date ? new Date(req.body.date) : new Date())
-    const { mealId, itemIndex, done } = req.body
+    const { mealId, done } = req.body
     if (!mealId) throw ApiError.badRequest('mealId is required')
-    if (itemIndex === undefined || itemIndex === null) throw ApiError.badRequest('itemIndex is required')
+    if (index === undefined || index === null) throw ApiError.badRequest(`${name} is required`)
+    const itemIndex = Number(index)
+    if (!Number.isInteger(itemIndex) || itemIndex < 0 || itemIndex > 200) throw ApiError.badRequest(`${name} is invalid`)
 
     let log = await DailyLog.findOne({ client: clientId, date })
     if (!log) log = await DailyLog.create({ client: clientId, date, tasks: await seedTasksForClient(clientId, req.user._id, date) })
@@ -236,18 +247,37 @@ export const setMealItem = asyncHandler(async (req, res) => {
     }
     if (!task) throw ApiError.notFound('Meal not found in today\'s log')
 
-    const itemsDone = Array.isArray(task.itemsDone) ? [...task.itemsDone] : []
-    while (itemsDone.length <= itemIndex) itemsDone.push(false)
-    itemsDone[itemIndex] = done ?? !itemsDone[itemIndex]
-    task.itemsDone = itemsDone
-    task.done = itemsDone.length > 0 && itemsDone.every(Boolean)
+    const flags = [...flagsOf(task[field])]
+    // A log seeded before the trainer added supplements to this meal has no
+    // flags for them yet — size the list from the plan so totals are right.
+    if (field === 'supplementsDone' && !Array.isArray(task.supplementsDone)) {
+        const plan = await DietPlan.findOne({ client: clientId, status: 'published' }).sort({ publishedAt: -1 })
+        const meal = plan?.days.flatMap((d) => d.meals).find((m) => String(m._id) === String(mealId))
+        while (flags.length < (meal?.supplements?.length || 0)) flags.push(false)
+    }
+    while (flags.length <= itemIndex) flags.push(false)
+    flags[itemIndex] = done ?? !flags[itemIndex]
+    task[field] = flags
+    task.done = mealTaskDone(task)
     log.markModified('tasks')
     await log.save()
 
     // Roll the day's completion into the Client.progress headline number.
     await Client.updateOne({ _id: clientId }, { progress: log.completionPct })
 
-    res.json({ id: String(log._id), tasks: log.tasks, completionPct: log.completionPct })
+    return { id: String(log._id), tasks: log.tasks, completionPct: log.completionPct }
+}
+
+// PATCH /api/progress/daily/meal-item   Body: { date?, mealId, itemIndex, done }   (client)
+// Toggles a single food item within a meal.
+export const setMealItem = asyncHandler(async (req, res) => {
+    res.json(await setMealFlag(req, 'itemsDone', req.body.itemIndex, 'itemIndex'))
+})
+
+// PATCH /api/progress/daily/meal-supplement   Body: { date?, mealId, supplementIndex, done }   (client)
+// Toggles a single supplement of a meal as taken.
+export const setMealSupplement = asyncHandler(async (req, res) => {
+    res.json(await setMealFlag(req, 'supplementsDone', req.body.supplementIndex, 'supplementIndex'))
 })
 
 
@@ -464,21 +494,26 @@ const completionOf = (tasks) => (tasks.length ? Math.round((tasks.filter((t) => 
 // is nothing to measure, so the UI can show "no data" instead of a fake 0%.
 function summarizeDietLog(log, tasks = log?.tasks || []) {
     const cheatIds = new Set((log?.cheats || []).map((c) => String(c.mealId)))
-    const s = { mealsTotal: 0, mealsDone: 0, mealsPartial: 0, mealsCheat: 0, itemsDone: 0, itemsTotal: 0 }
+    const s = { mealsTotal: 0, mealsDone: 0, mealsPartial: 0, mealsCheat: 0, itemsDone: 0, itemsTotal: 0, supplementsDone: 0, supplementsTotal: 0 }
     for (const t of tasks.filter((t) => t.type === 'meal')) {
         s.mealsTotal += 1
+        s.itemsTotal += flagsOf(t.itemsDone).length
+        s.supplementsTotal += flagsOf(t.supplementsDone).length
         if (cheatIds.has(String(t.mealId))) {
             s.mealsCheat += 1
-            s.itemsTotal += (t.itemsDone || []).length
             continue
         }
-        const eaten = (t.itemsDone || []).filter(Boolean).length
+        const eaten = flagsOf(t.itemsDone).filter(Boolean).length
+        const taken = flagsOf(t.supplementsDone).filter(Boolean).length
         s.itemsDone += eaten
-        s.itemsTotal += (t.itemsDone || []).length
+        s.supplementsDone += taken
         if (t.done) s.mealsDone += 1
-        else if (eaten > 0) s.mealsPartial += 1
+        else if (eaten + taken > 0) s.mealsPartial += 1
     }
-    return { ...s, adherencePct: s.itemsTotal ? Math.round((s.itemsDone / s.itemsTotal) * 100) : null }
+    // Supplements count towards adherence exactly like food items (they are
+    // reported separately above, and never touch macros).
+    const total = s.itemsTotal + s.supplementsTotal
+    return { ...s, adherencePct: total ? Math.round(((s.itemsDone + s.supplementsDone) / total) * 100) : null }
 }
 
 // GET /api/progress/daily/history?client=&days=14
@@ -581,6 +616,9 @@ export const getDietDay = asyncHandler(async (req, res) => {
             eaten: !!flags[i],
         }))
         const itemsEaten = items.filter((i) => i.eaten).length
+        const suppFlags = flagsOf(task?.supplementsDone)
+        const supplements = (m.supplements || []).map((s, i) => ({ ...s, taken: !!suppFlags[i] }))
+        const supplementsTaken = supplements.filter((s) => s.taken).length
         for (const it of items) {
             for (const k of Object.keys(planned)) {
                 planned[k] += it[k] || 0
@@ -592,13 +630,14 @@ export const getDietDay = asyncHandler(async (req, res) => {
             name: m.name,
             time: m.time,
             notes: m.notes,
-            supplements: m.supplements || [],
+            supplements,
+            supplementsTaken,
             optionLabel: m.options.length > 1 ? m.options.find((o) => o.id === m.selectedOptionId)?.label || null : null,
             items,
             totals: m.totals,
             glLevel: m.mealGLLevel,
             removed: false,
-            status: statusFor(cheat, task?.done, itemsEaten),
+            status: statusFor(cheat, task?.done, itemsEaten + supplementsTaken),
             itemsEaten,
             cheat: cheat ? { note: cheat.note, items: cheat.items } : null,
             glucose: {
@@ -647,7 +686,7 @@ export const getDietDay = asyncHandler(async (req, res) => {
     // "Submitted" = the client actually did something that day (opening the app
     // alone seeds an untouched log, which is not progress).
     const hasActivity = !!log && (
-        diet.itemsDone > 0 || diet.mealsCheat > 0 || glucose.length > 0 || habits.some((h) => h.done)
+        diet.itemsDone > 0 || diet.supplementsDone > 0 || diet.mealsCheat > 0 || glucose.length > 0 || habits.some((h) => h.done)
     )
 
     res.json({

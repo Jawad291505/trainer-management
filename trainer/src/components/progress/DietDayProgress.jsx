@@ -69,7 +69,7 @@ function MealRow({ meal, hasLog, isFuture }) {
                         <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: meta.soft, color: meta.fg }}>
                             {meal.status === 'cheat' && <FireOutlined />}
                             {meta.label}
-                            {meal.status === 'partial' && ` · ${meal.itemsEaten}/${meal.itemsTotal}`}
+                            {meal.status === 'partial' && ` · ${meal.itemsEaten + (meal.supplementsTaken || 0)}/${meal.itemsTotal + (meal.supplements?.length || 0)}`}
                         </span>
                         {meal.removed && <span className="text-[11px] text-text-muted">{meal.counted ? '(no longer in the plan)' : '(from an earlier plan — not counted)'}</span>}
                     </div>
@@ -116,7 +116,7 @@ function MealRow({ meal, hasLog, isFuture }) {
                 </div>
             )}
 
-            <SupplementList supplements={meal.supplements} className="mt-3" />
+            <SupplementList supplements={meal.supplements} taken={(meal.supplements || []).map((s) => s.taken)} className="mt-3" />
 
             {meal.cheat && (
                 <div className="mt-3 rounded-lg p-3" style={{ background: 'var(--color-warning-soft)' }}>
@@ -309,7 +309,7 @@ export default function DietDayProgress({ clientId, initialDate }) {
                                 <span className="font-bold text-text-primary">
                                     {summary.adherencePct == null
                                         ? 'No items to measure'
-                                        : `${summary.itemsDone}/${summary.itemsTotal} items · ${summary.adherencePct}%`}
+                                        : `${summary.itemsDone}/${summary.itemsTotal} items${summary.supplementsTotal ? ` · ${summary.supplementsDone}/${summary.supplementsTotal} supplements` : ''} · ${summary.adherencePct}%`}
                                 </span>
                             </div>
                             <Progress

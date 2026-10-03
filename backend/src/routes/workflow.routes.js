@@ -14,7 +14,7 @@ import {
     getSchedule, addActivity, updateActivity, deleteActivity,
 } from '../controllers/schedule.controller.js'
 import {
-    listWeight, addWeight, getDailyLog, setTask, setMealItem,
+    listWeight, addWeight, getDailyLog, setTask, setMealItem, setMealSupplement,
     logCheat, removeCheat, updateCheat, dailyHistory,
     logGlucose, removeGlucose, glucoseHistory, getDietDay,
 } from '../controllers/progress.controller.js'
@@ -60,6 +60,7 @@ router.get('/progress/daily', getDailyLog)
 router.get('/progress/diet-day', getDietDay)
 router.patch('/progress/daily', authorize('client'), setTask)
 router.patch('/progress/daily/meal-item', authorize('client'), setMealItem)
+router.patch('/progress/daily/meal-supplement', authorize('client'), setMealSupplement)
 router.post('/progress/daily/cheat', authorize('client'), logCheat)
 router.patch('/progress/daily/cheat/:mealId', authorize('client'), updateCheat)
 router.delete('/progress/daily/cheat/:mealId', authorize('client'), removeCheat)

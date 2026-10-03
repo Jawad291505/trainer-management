@@ -194,8 +194,10 @@ export default function MyDiet() {
       setGlucose(loadedGlucose)
 
       const itemsByMeal = {}
+      const supplementsByMeal = {}
       ;(daily?.tasks || []).filter((t) => t.type === 'meal').forEach((t) => {
         itemsByMeal[String(t.mealId)] = t.itemsDone || []
+        supplementsByMeal[String(t.mealId)] = t.supplementsDone || []
       })
       const activeDayForFetch = pickDayForDate(plan, selectedDate, pktDateStr())
       const seed = {}
@@ -204,6 +206,11 @@ export default function MyDiet() {
         const itemsDone = itemsByMeal[String(mealId)] || []
         m.items.forEach((_, i) => {
           seed[`${mealId}:${i}`] = !!itemsDone[i]
+        })
+        // Supplements share the map under their own `s`-prefixed keys.
+        const supplementsDone = supplementsByMeal[String(mealId)] || []
+        ;(m.supplements || []).forEach((_, i) => {
+          seed[`${mealId}:s${i}`] = !!supplementsDone[i]
         })
       })
       setChecked(seed)
@@ -313,18 +320,20 @@ export default function MyDiet() {
     }
   }
 
-  // Toggle a single food item and save it to the server immediately — every
-  // click hits the API, so 2 of 3 items checked is never silently dropped.
-  const toggleItem = async (mealId, idx) => {
+  // Toggle a single food item (or, with `supplement`, a supplement) and save it
+  // to the server immediately — every click hits the API, so 2 of 3 items
+  // checked is never silently dropped.
+  const toggleItem = async (mealId, idx, supplement = false) => {
     if (isCheat(mealId) || isFuture || togglingKey) return
-    const key = `${mealId}:${idx}`
+    const key = `${mealId}:${supplement ? 's' : ''}${idx}`
     const prevChecked = checked
     const newVal = !checked[key]
     setChecked((prev) => ({ ...prev, [key]: newVal }))
 
     setTogglingKey(key)
     try {
-      await api.patch('/progress/daily/meal-item', { date: selectedDate, mealId, itemIndex: idx, done: newVal })
+      if (supplement) await api.patch('/progress/daily/meal-supplement', { date: selectedDate, mealId, supplementIndex: idx, done: newVal })
+      else await api.patch('/progress/daily/meal-item', { date: selectedDate, mealId, itemIndex: idx, done: newVal })
     } catch (err) {
       setChecked(prevChecked)
       message.error(err.message || "Couldn't save — please try again")
@@ -333,9 +342,13 @@ export default function MyDiet() {
     }
   }
 
+  // A meal's progress counts its supplements alongside its food items.
   const mealProgress = (meal) => {
+    const supplements = meal.supplements || []
     const done = meal.resolved.filter((_, i) => checked[`${meal.id}:${i}`]).length
-    return { done, total: meal.resolved.length, pct: meal.resolved.length ? Math.round((done / meal.resolved.length) * 100) : 0 }
+      + supplements.filter((_, i) => checked[`${meal.id}:s${i}`]).length
+    const total = meal.resolved.length + supplements.length
+    return { done, total, pct: total ? Math.round((done / total) * 100) : 0 }
   }
 
   const summary = useMemo(() => {
@@ -347,10 +360,9 @@ export default function MyDiet() {
         cheatMeals += 1
         return
       }
-      totalItems += m.resolved.length
-      m.resolved.forEach((_, i) => {
-        if (checked[`${m.id}:${i}`]) doneItems += 1
-      })
+      const p = mealProgress(m)
+      totalItems += p.total
+      doneItems += p.done
     })
     return {
       adherence: totalItems ? Math.round((doneItems / totalItems) * 100) : 0,
@@ -589,8 +601,15 @@ export default function MyDiet() {
                 })}
               </div>
 
-              {/* Supplements — prescribed alongside the meal, not part of its food checklist */}
-              <SupplementList supplements={meal.supplements} className="mt-3" />
+              {/* Supplements — their own checklist, separate from the foods; each tap saves immediately like a food item */}
+              <SupplementList
+                supplements={meal.supplements}
+                className={`mt-3 ${cheat || isFuture ? 'opacity-40' : ''}`}
+                taken={(meal.supplements || []).map((_, i) => !!checked[`${meal.id}:s${i}`])}
+                onToggle={(i) => toggleItem(meal.id, i, true)}
+                busyIndex={togglingKey?.startsWith(`${meal.id}:s`) ? Number(togglingKey.slice(`${meal.id}:s`.length)) : null}
+                disabled={cheat || isFuture || !!togglingKey}
+              />
 
               {/* Cheat details */}
               {cheat && (

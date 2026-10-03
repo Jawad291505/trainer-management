@@ -23,6 +23,9 @@ const taskSchema = new mongoose.Schema(
         // `done` above stays true only once every entry here is true, so
         // existing completion-pct/compliance math keeps working unchanged.
         itemsDone: { type: [Boolean], default: undefined },
+        // Same idea for the meal's supplements (by index in meal.supplements) —
+        // tracked apart from the food items, but `done` needs both lists complete.
+        supplementsDone: { type: [Boolean], default: undefined },
     },
     { _id: false },
 )
