@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import EmptyState from '../common/EmptyState'
+import SupplementList from '../common/SupplementList'
 import { api } from '../../services/api'
 import { pktDateStr, addDaysToDateStr, formatPkt } from '../../utils/pkt'
 import { formatMealTime } from '../../utils/time'
@@ -114,6 +115,8 @@ function MealRow({ meal, hasLog, isFuture }) {
                     ))}
                 </div>
             )}
+
+            <SupplementList supplements={meal.supplements} className="mt-3" />
 
             {meal.cheat && (
                 <div className="mt-3 rounded-lg p-3" style={{ background: 'var(--color-warning-soft)' }}>

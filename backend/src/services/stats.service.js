@@ -171,7 +171,7 @@ export async function getAdminDashboard() {
     const months = lastMonths(MONTHS_SHOWN, now)
     const since = monthsStart(MONTHS_SHOWN, now)
 
-    const [members, teams, paymentAgg, revenueAgg, totalTrainers, totalClients] = await Promise.all([
+    const [members, teams, paymentAgg, revenueAgg, trainers, totalClients, memberGrowthAgg, trainerGrowthAgg, paidTrainerAgg] = await Promise.all([
         Member.find({}, 'user plan status planExpiryDate trainerLimit clientLimit joinDate')
             .populate('user', 'name email avatarColor')
             .populate('plan', 'name priceMonthly currency')
@@ -186,9 +186,54 @@ export async function getAdminDashboard() {
             { $match: { status: 'approved', submittedAt: { $gte: since } } },
             { $group: { _id: monthGroup('$submittedAt'), n: { $sum: '$amount' } } },
         ]),
-        Trainer.countDocuments({}),
+        // Every trainer on the platform, however they got here: self-signup
+        // (outsourced) or added by the admin / a member.
+        Trainer.find({}, 'user managedBy affiliation plan planExpiryDate status capacity clientCount joinDate')
+            .populate('user', 'name email avatarColor')
+            .populate('plan', 'name')
+            .populate({ path: 'managedBy', select: 'user', populate: { path: 'user', select: 'name' } })
+            .lean(),
         Client.countDocuments({}),
+        Member.aggregate([
+            { $match: { joinDate: { $gte: since } } },
+            { $group: { _id: monthGroup('$joinDate'), n: { $sum: 1 } } },
+        ]),
+        Trainer.aggregate([
+            { $match: { joinDate: { $gte: since } } },
+            { $group: { _id: monthGroup('$joinDate'), n: { $sum: 1 } } },
+        ]),
+        // Trainers who have paid for a plan themselves (only independent trainers
+        // pay — in-house ones never appear as a payer): one row per trainer.
+        MemberPayment.aggregate([
+            { $match: { status: 'approved', trainer: { $ne: null } } },
+            { $group: { _id: '$trainer', total: { $sum: '$amount' } } },
+        ]),
     ])
+
+    // Same rule as trainers.controller#affiliationOf (docs saved before `affiliation` existed).
+    const affiliationOf = (t) => (t.affiliation && t.affiliation !== 'admin' ? t.affiliation : (t.managedBy ? 'member' : 'admin'))
+    const trainerRows = trainers.map((t) => {
+        const affiliation = affiliationOf(t)
+        return {
+            id: String(t._id),
+            name: t.user?.name,
+            email: t.user?.email,
+            avatarColor: t.user?.avatarColor,
+            affiliation,
+            memberName: t.managedBy?.user?.name || null,
+            status: t.status,
+            plan: t.plan?.name || null,
+            // Only independent trainers hold a subscription of their own.
+            subscriptionStatus: affiliation === 'outsourced' ? subscriptionStatus(t, now) : null,
+            clientCount: t.clientCount || 0,
+            capacity: t.capacity || 0,
+            joinDate: t.joinDate,
+        }
+    })
+    const affiliations = { outsourced: 0, member: 0, admin: 0 }
+    for (const r of trainerRows) affiliations[r.affiliation] += 1
+    const AFFILIATION_LABELS = { outsourced: 'Independent', member: "Members' teams", admin: 'In-house' }
+    const joinedSince = (rowsToCount, date) => rowsToCount.filter((r) => r.joinDate && new Date(r.joinDate) >= date).length
 
     const teamOf = new Map(teams.map((t) => [String(t._id), t]))
     const rows = members.map((mb) => {
@@ -237,24 +282,32 @@ export async function getAdminDashboard() {
         totalMembers: rows.length,
         activeMembers: rows.filter((r) => r.memberStatus === 'active').length,
         pendingSignups: rows.filter((r) => r.memberStatus === 'pending').length,
-        newMembers30d: rows.filter((r) => r.joinDate && new Date(r.joinDate) >= thirtyDaysAgo).length,
+        newMembers30d: joinedSince(rows, thirtyDaysAgo),
         subscriptions,
 
         totalRevenue: approved.total,
         approvedPayments: approved.count,
         revenueThisMonth: revenueAgg.find((r) => r._id.y === thisMonth.y && r._id.m === thisMonth.m)?.n || 0,
         monthlyRecurring: mrr,
+        paidTrainers: paidTrainerAgg.length,
+        paidTrainerRevenue: paidTrainerAgg.reduce((s, r) => s + r.total, 0),
         pendingApprovals: pending.count,
         pendingAmount: pending.total,
 
         // Footprint of the whole platform, for context next to the member numbers.
-        totalTrainers,
+        totalTrainers: trainerRows.length,
         totalClients,
 
-        memberGrowth: fillMonths(months, await Member.aggregate([
-            { $match: { joinDate: { $gte: since } } },
-            { $group: { _id: monthGroup('$joinDate'), n: { $sum: 1 } } },
-        ]), 'members'),
+        // Trainers: self-signups and those added by the admin or a member.
+        activeTrainers: trainerRows.filter((r) => r.status === 'active').length,
+        pendingTrainerSignups: trainerRows.filter((r) => r.status === 'pending').length,
+        newTrainers30d: joinedSince(trainerRows, thirtyDaysAgo),
+        trainerAffiliations: affiliations,
+        trainerTypeData: Object.entries(affiliations).map(([key, value]) => ({ key, name: AFFILIATION_LABELS[key], value })).filter((d) => d.value > 0),
+        trainerGrowth: fillMonths(months, trainerGrowthAgg, 'trainers'),
+        recentTrainers: [...trainerRows].sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate)).slice(0, 6),
+
+        memberGrowth: fillMonths(months, memberGrowthAgg, 'members'),
         revenueTrend: fillMonths(months, revenueAgg, 'revenue'),
         subscriptionData: Object.entries(subscriptions).map(([key, value]) => ({ key, name: SUB_LABELS[key], value })).filter((d) => d.value > 0),
         planDistribution: [...planCounts.entries()].map(([name, value]) => ({ name, value })),

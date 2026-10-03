@@ -6,7 +6,6 @@ import {
     IdcardOutlined,
     DollarOutlined,
     ClockCircleOutlined,
-    RiseOutlined,
     CheckCircleOutlined,
     UsergroupAddOutlined,
     ThunderboltOutlined,
@@ -28,6 +27,7 @@ import EmptyState from '../../../components/common/EmptyState'
 import AsyncSection from '../../../components/feedback/AsyncSection'
 import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
+import AffiliationTag from '../components/AffiliationTag'
 import { api } from '../../../services/api'
 import { useAsyncData } from '../../../hooks/useAsyncData'
 import { useAuth } from '../../../context/AuthContext'
@@ -87,12 +87,45 @@ function AdminDashboard() {
         { icon: <IdcardOutlined />, label: 'Total Members', value: d.totalMembers, hint: `${d.activeMembers} active · ${d.newMembers30d} joined in the last 30 days` },
         { icon: <CheckCircleOutlined />, label: 'Active Subscriptions', value: d.subscriptions.active + d.subscriptions.expiring, hint: `${d.subscriptions.no_plan} without a plan` },
         { icon: <DollarOutlined />, label: 'Total Revenue', value: money(d.totalRevenue, cur), hint: `${d.approvedPayments} approved payments · ${money(d.revenueThisMonth, cur)} this month` },
-        { icon: <RiseOutlined />, label: 'Monthly Recurring', value: money(d.monthlyRecurring, cur), hint: 'From members currently subscribed' },
+        { icon: <SolutionOutlined />, label: 'Paid Trainers', value: d.paidTrainers, hint: d.paidTrainers ? `${money(d.paidTrainerRevenue, cur)} paid · in-house not counted` : 'No trainer has paid yet · in-house not counted' },
         { icon: <FileDoneOutlined />, label: 'Pending Approvals', value: d.pendingApprovals, hint: d.pendingApprovals ? `${money(d.pendingAmount, cur)} awaiting review` : 'Nothing waiting', accent: 'var(--color-warning)' },
         { icon: <ClockCircleOutlined />, label: 'Expiring Soon', value: d.subscriptions.expiring, hint: 'Within 7 days', accent: 'var(--color-warning)' },
         { icon: <WarningOutlined />, label: 'Expired', value: d.subscriptions.expired, hint: 'Plan has lapsed', accent: 'var(--color-danger)' },
-        { icon: <SolutionOutlined />, label: 'Platform Trainers', value: d.totalTrainers, hint: `${d.totalClients} clients in total` },
+        { icon: <TeamOutlined />, label: 'Platform Clients', value: d.totalClients, hint: `Across ${d.totalTrainers} trainer${d.totalTrainers === 1 ? '' : 's'}` },
     ] : []
+
+    const aff = d?.trainerAffiliations
+    const trainerCards = d ? [
+        { icon: <SolutionOutlined />, label: 'Total Trainers', value: d.totalTrainers, hint: `${d.activeTrainers} active · ${d.newTrainers30d} joined in the last 30 days` },
+        { icon: <ThunderboltOutlined />, label: 'Independent Trainers', value: aff.outsourced, hint: 'Signed up or added with their own plan' },
+        { icon: <UsergroupAddOutlined />, label: 'Team Trainers', value: aff.member + aff.admin, hint: `${aff.member} in members' teams · ${aff.admin} in-house` },
+        { icon: <ClockCircleOutlined />, label: 'Pending Signups', value: d.pendingTrainerSignups, hint: d.pendingTrainerSignups ? 'Trainers still completing signup or awaiting approval' : 'Nothing waiting', accent: 'var(--color-warning)' },
+    ] : []
+
+    const recentTrainerColumns = [
+        {
+            title: 'Trainer', dataIndex: 'name',
+            render: (name, r) => (
+                <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate(`/trainers/${r.id}`)}>
+                    <UserAvatar name={name || ''} color={r.avatarColor} size={34} />
+                    <div className="min-w-0">
+                        <div className="truncate font-semibold text-text-primary">{name}</div>
+                        <div className="truncate text-xs text-text-muted">{r.email}</div>
+                    </div>
+                </div>
+            ),
+        },
+        { title: 'Type', dataIndex: 'affiliation', width: 200, render: (_, r) => <AffiliationTag trainer={r} /> },
+        {
+            title: 'Plan', dataIndex: 'plan', width: 170,
+            render: (p, r) => (r.subscriptionStatus
+                ? <div><span className="text-text-secondary">{p || '—'}</span><div className="mt-1"><SubTag status={r.subscriptionStatus} /></div></div>
+                : <span className="text-text-muted">—</span>),
+        },
+        { title: 'Clients', width: 100, render: (_, r) => <span className="text-text-secondary">{r.clientCount}{r.capacity ? ` / ${r.capacity}` : ''}</span> },
+        { title: 'Status', dataIndex: 'status', width: 110, render: (s) => <Tag color={s === 'active' ? 'green' : s === 'pending' ? 'gold' : 'default'} style={{ borderRadius: 999, margin: 0, textTransform: 'capitalize' }}>{s}</Tag> },
+        { title: 'Joined', dataIndex: 'joinDate', width: 120, render: (v) => <span className="text-text-secondary">{fmtDate(v)}</span> },
+    ]
 
     const memberCell = (name, r) => (
         <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate(`/members/${r.id}`)}>
@@ -184,6 +217,44 @@ function AdminDashboard() {
                             <DataTable columns={recentColumns} dataSource={d.recentMembers} pagination={false} scrollX={560} />
                         ) : (
                             <EmptyState icon={<IdcardOutlined />} title="No members yet" description="Invite a member from the Members page." />
+                        )}
+                    </AsyncSection>
+                </TableSection>
+            </div>
+
+            {/* Trainers — everyone who signed up themselves or was added by the admin / a member */}
+            <div className="mt-8 mb-3">
+                <h3 className="section-title m-0">Trainers</h3>
+                <p className="mt-0.5 mb-0 text-xs text-text-muted">Trainers who signed up or were added, across the whole platform</p>
+            </div>
+            {!res.error && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {res.loading ? <StatCardSkeletons count={4} /> : trainerCards.map((c, i) => <StatCard key={i} {...c} />)}
+                </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <ChartCard className="lg:col-span-2" title="Trainer Growth" subtitle="New trainers joined per month">
+                    <AsyncSection {...props} rows={6}>
+                        <GrowthChart data={d?.trainerGrowth || []} dataKey="trainers" name="Trainers" />
+                    </AsyncSection>
+                </ChartCard>
+                <ChartCard title="Trainer Types" subtitle="Independent, members' teams and in-house">
+                    <AsyncSection {...props} rows={6}>
+                        <OrEmpty empty={!d?.trainerTypeData?.length} text="No trainers yet.">
+                            <DonutChart data={d?.trainerTypeData || []} centerLabel="trainers" />
+                        </OrEmpty>
+                    </AsyncSection>
+                </ChartCard>
+            </div>
+
+            <div className="mt-6">
+                <TableSection title="Recent Trainers" subtitle="Newest trainers and how they joined">
+                    <AsyncSection {...props} rows={4}>
+                        {d?.recentTrainers?.length ? (
+                            <DataTable columns={recentTrainerColumns} dataSource={d.recentTrainers} pagination={false} scrollX={860} />
+                        ) : (
+                            <EmptyState icon={<SolutionOutlined />} title="No trainers yet" description="Trainers appear here once they sign up or are added." />
                         )}
                     </AsyncSection>
                 </TableSection>

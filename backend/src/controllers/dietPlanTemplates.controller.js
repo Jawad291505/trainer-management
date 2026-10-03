@@ -12,6 +12,43 @@ function mealOptionsInput(m) {
     return [{ label: 'Option 1', items: m.items || [] }]
 }
 
+const httpUrlOrNull = (value) => {
+    try {
+        const u = new URL(String(value || '').trim())
+        return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null
+    } catch {
+        return null
+    }
+}
+
+// A meal's supplements — kept apart from its food items (see DietPlan.js
+// supplementSchema). Nameless rows are dropped; links must be http(s), and the
+// stored preview only survives alongside a valid link.
+function normalizeSupplements(supplements) {
+    if (!Array.isArray(supplements)) return []
+    return supplements
+        .filter((s) => s && String(s.name || '').trim())
+        .map((s) => {
+            const rawUrl = String(s.url || '').trim()
+            const url = rawUrl ? httpUrlOrNull(rawUrl) : ''
+            if (url === null) throw ApiError.badRequest(`Invalid link for supplement "${String(s.name).trim()}"`)
+            const p = url && s.preview ? s.preview : null
+            return {
+                name: String(s.name).trim().slice(0, 120),
+                dosage: String(s.dosage || '').trim().slice(0, 120),
+                url,
+                preview: p
+                    ? {
+                        title: String(p.title || '').slice(0, 200),
+                        description: String(p.description || '').slice(0, 300),
+                        image: p.image ? httpUrlOrNull(p.image) : null,
+                        siteName: String(p.siteName || '').slice(0, 80),
+                    }
+                    : null,
+            }
+        })
+}
+
 // Turn incoming meal payloads into stored meals, linking each option item's
 // foodCode to a Food _id. Shared by templates and client diet plans.
 export async function normalizeMeals(meals = []) {
@@ -42,6 +79,7 @@ export async function normalizeMeals(meals = []) {
         time: m.time || '',
         notes: m.notes || '',
         taskKey: m.taskKey ?? null,
+        supplements: normalizeSupplements(m.supplements),
         options: mealOptionsInput(m).map((o) => ({
             label: o.label || 'Option 1',
             items: resolveItems(o.items),

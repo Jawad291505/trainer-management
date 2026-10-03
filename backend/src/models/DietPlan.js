@@ -30,11 +30,38 @@ const optionSchema = new mongoose.Schema(
     { _id: true },
 )
 
+// A supplement taken with a meal (e.g. "Omega-3 — 2 capsules"). Deliberately
+// NOT a food item: it has no Food ref, no macros, and never counts toward
+// totals, GL, adherence or the grocery list. `preview` is the link-card
+// metadata fetched once in the builder (GET /api/link-preview) and stored so
+// the client app never has to re-fetch the product page.
+const supplementSchema = new mongoose.Schema(
+    {
+        name: { type: String, required: true, trim: true },
+        dosage: { type: String, default: '', trim: true },
+        url: { type: String, default: '', trim: true },
+        preview: {
+            type: new mongoose.Schema(
+                {
+                    title: { type: String, default: '' },
+                    description: { type: String, default: '' },
+                    image: { type: String, default: null },
+                    siteName: { type: String, default: '' },
+                },
+                { _id: false },
+            ),
+            default: null,
+        },
+    },
+    { _id: true },
+)
+
 const mealSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
         time: { type: String, default: '' },
         notes: { type: String, default: '' },
+        supplements: { type: [supplementSchema], default: [] },
         // Links a meal to a client daily-checklist task key (user mockData taskId).
         taskKey: { type: String, default: null },
         options: { type: [optionSchema], default: [] },

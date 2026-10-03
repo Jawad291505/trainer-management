@@ -17,6 +17,7 @@ import {
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import GlycemicBadge from '../components/GlycemicBadge'
+import SupplementList from '../../../components/common/SupplementList'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
@@ -587,6 +588,9 @@ export default function MyDiet() {
                   )
                 })}
               </div>
+
+              {/* Supplements — prescribed alongside the meal, not part of its food checklist */}
+              <SupplementList supplements={meal.supplements} className="mt-3" />
 
               {/* Cheat details */}
               {cheat && (

@@ -592,6 +592,7 @@ export const getDietDay = asyncHandler(async (req, res) => {
             name: m.name,
             time: m.time,
             notes: m.notes,
+            supplements: m.supplements || [],
             optionLabel: m.options.length > 1 ? m.options.find((o) => o.id === m.selectedOptionId)?.label || null : null,
             items,
             totals: m.totals,

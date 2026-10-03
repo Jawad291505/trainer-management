@@ -30,6 +30,8 @@ import { formatMealTime, mealTimeToMinutes, sortMealsByTime } from '../../../uti
 import { WEEKDAYS, MEAL_TYPES } from '../../../constants/dietPlan'
 import FoodModal from '../components/FoodModal'
 import GlycemicBadge from '../components/GlycemicBadge'
+import SupplementsEditor, { newSupplement, supplementsError, cleanSupplements } from '../components/SupplementsEditor'
+import SupplementList from '../../../components/common/SupplementList'
 
 let daySeq = 100
 let mealSeq = 100
@@ -196,7 +198,16 @@ export default function DietPlans() {
                         gi: it.gi || 0,
                     })),
                 }))
-                return { id: mealId, name: m.name, time: m.time || '', notes: m.notes || '', options }
+                // The stored preview is tagged with the link it was fetched for, so the
+                // meal form only re-fetches when the trainer actually changes the URL.
+                const supplements = (m.supplements || []).map((s) => ({
+                    ...newSupplement(),
+                    name: s.name || '',
+                    dosage: s.dosage || '',
+                    url: s.url || '',
+                    preview: s.url && s.preview ? { ...s.preview, url: s.url } : null,
+                }))
+                return { id: mealId, name: m.name, time: m.time || '', notes: m.notes || '', supplements, options }
             }),
         }))
 
@@ -249,12 +260,17 @@ export default function DietPlans() {
     const [mealModal, setMealModal] = useState(false)
     const [foodModal, setFoodModal] = useState(null) // { mealId, optionId, index? } — index = item being edited
     const [mealForm] = Form.useForm()
+    // Supplements for the meal being added/edited — their own list, never mixed into the foods.
+    const [mealSupplements, setMealSupplements] = useState([])
+    const [supplementErrors, setSupplementErrors] = useState(false)
 
     // The one meal form serves both flows: null = adding, otherwise the id of the meal being edited.
     const [editingMealId, setEditingMealId] = useState(null)
 
     const openMealModal = () => {
         mealForm.resetFields()
+        setMealSupplements([])
+        setSupplementErrors(false)
         setEditingMealId(null)
         setMealModal(true)
     }
@@ -266,6 +282,8 @@ export default function DietPlans() {
             time: minutes == null ? null : dayjs().startOf('day').add(minutes, 'minute'),
             notes: meal.notes || '',
         })
+        setMealSupplements((meal.supplements || []).map((s) => ({ ...s })))
+        setSupplementErrors(false)
         setEditingMealId(meal.id)
         setMealModal(true)
     }
@@ -342,12 +360,19 @@ export default function DietPlans() {
     // options are untouched), otherwise appends a new one. Either way the list
     // re-sorts by time, so the meal lands in its chronological slot.
     const saveMeal = async () => {
+        const supplementProblem = supplementsError(mealSupplements)
+        setSupplementErrors(!!supplementProblem)
         const v = await mealForm.validateFields()
+        if (supplementProblem) {
+            message.warning(supplementProblem)
+            return
+        }
+        const supplements = cleanSupplements(mealSupplements)
         if (editingMealId) {
             setMeals((prev) =>
                 prev.map((m) =>
                     m.id === editingMealId
-                        ? { ...m, name: v.name, time: v.time.format('HH:mm'), notes: v.notes || '' }
+                        ? { ...m, name: v.name, time: v.time.format('HH:mm'), notes: v.notes || '', supplements }
                         : m,
                 ),
             )
@@ -363,6 +388,7 @@ export default function DietPlans() {
                 name: v.name,
                 time: v.time ? v.time.format('HH:mm') : '',
                 notes: v.notes || '',
+                supplements,
                 options: [{ id: `O${optionSeq++}`, label: 'Option 1', items: [] }],
             },
         ])
@@ -469,6 +495,7 @@ export default function DietPlans() {
                 name: m.name,
                 time: m.time,
                 notes: m.notes || '',
+                supplements: (m.supplements || []).map(({ name, dosage, url, preview }) => ({ name, dosage, url, preview })),
                 options: m.options.map((o) => ({
                     label: o.label,
                     items: o.items.map((it) => ({
@@ -735,6 +762,8 @@ export default function DietPlans() {
                                     }))}
                                 />
 
+                                <SupplementList supplements={m.supplements} className="mt-4" />
+
                                 {m.notes && (
                                     <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
                                         {m.notes}
@@ -748,7 +777,7 @@ export default function DietPlans() {
 
             <Modal
                 title={editingMealId ? (
-                    <ModalTitle icon={<EditOutlined />} title="Edit meal" subtitle="Change its name, time or notes — foods are edited on the meal card" />
+                    <ModalTitle icon={<EditOutlined />} title="Edit meal" subtitle="Change its name, time, notes or supplements — foods are edited on the meal card" />
                 ) : (
                     <ModalTitle icon={<ScheduleOutlined />} title="Add meal" subtitle="A slot in the day — you'll add foods to it next" />
                 )}
@@ -770,6 +799,9 @@ export default function DietPlans() {
                         <Input.TextArea rows={2} placeholder="Optional guidance" />
                     </Form.Item>
                 </Form>
+                <div className="border-t pt-4" style={{ borderColor: 'var(--color-border)' }}>
+                    <SupplementsEditor value={mealSupplements} onChange={setMealSupplements} showErrors={supplementErrors} />
+                </div>
             </Modal>
 
             <FoodModal open={!!foodModal} onCancel={() => setFoodModal(null)} onAdd={addFoodToMeal} editing={editingFoodItem} />

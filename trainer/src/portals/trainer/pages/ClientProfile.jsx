@@ -313,22 +313,30 @@ export default function ClientProfile() {
                     </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                    <button
-                        className="rounded-xl p-3 text-left transition-colors hover:opacity-80"
-                        style={{ background: 'var(--color-surface-secondary)' }}
-                        onClick={() => setGoalModal({ type: 'water', value: client.waterGoal ?? 2 })}
-                    >
-                        <div className="text-lg font-extrabold text-text-primary">{client.waterGoal ?? 2}L</div>
-                        <div className="text-[11px] text-text-muted">Daily water goal</div>
-                    </button>
-                    <button
-                        className="rounded-xl p-3 text-left transition-colors hover:opacity-80"
-                        style={{ background: 'var(--color-surface-secondary)' }}
-                        onClick={() => setGoalModal({ type: 'sleep', value: client.sleepGoal ?? 8 })}
-                    >
-                        <div className="text-lg font-extrabold text-text-primary">{client.sleepGoal ?? 8}h</div>
-                        <div className="text-[11px] text-text-muted">Daily sleep goal</div>
-                    </button>
+                    {[
+                        { type: 'water', value: client.waterGoal ?? 2, unit: 'L', label: 'Daily water goal' },
+                        { type: 'sleep', value: client.sleepGoal ?? 8, unit: 'h', label: 'Daily sleep goal' },
+                    ].map((g) => (
+                        <button
+                            key={g.type}
+                            type="button"
+                            className="group flex items-start justify-between gap-2 rounded-xl p-3 text-left"
+                            style={{ background: 'var(--color-surface-secondary)' }}
+                            onClick={() => setGoalModal({ type: g.type, value: g.value })}
+                            aria-label={`Edit ${g.label.toLowerCase()}`}
+                        >
+                            <span className="min-w-0">
+                                <span className="block text-lg font-extrabold text-text-primary">{g.value}{g.unit}</span>
+                                <span className="block text-[11px] text-text-muted">{g.label}</span>
+                            </span>
+                            <span
+                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs text-text-muted transition-colors group-hover:text-primary"
+                                style={{ background: 'var(--color-surface)' }}
+                            >
+                                <EditOutlined />
+                            </span>
+                        </button>
+                    ))}
                 </div>
             </div>
 

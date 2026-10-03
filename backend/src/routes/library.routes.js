@@ -11,6 +11,7 @@ import {
 import {
     getConfig, updateConfig, compute, mealGl,
 } from '../controllers/nutrition.controller.js'
+import { getLinkPreview } from '../controllers/linkPreview.controller.js'
 
 const router = Router()
 router.use(authenticate)
@@ -39,5 +40,8 @@ router.get('/nutrition/config', getConfig)
 router.put('/nutrition/config', authorize('admin', 'member'), updateConfig)
 router.post('/nutrition/compute', compute)
 router.post('/nutrition/meal-gl', mealGl)
+
+// ---- Link metadata (supplement purchase/reference links) ----
+router.get('/link-preview', authorize('admin', 'member', 'trainer'), getLinkPreview)
 
 export default router

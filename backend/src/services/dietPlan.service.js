@@ -80,6 +80,14 @@ async function resolveMeals(meals, thresholds, byCode) {
             time: meal.time,
             notes: meal.notes,
             taskKey: meal.taskKey,
+            // Separate from food items — never part of totals/GL (see DietPlan.js).
+            supplements: (meal.supplements || []).map((s) => ({
+                id: s._id ? String(s._id) : undefined,
+                name: s.name,
+                dosage: s.dosage || '',
+                url: s.url || '',
+                preview: s.url && s.preview ? { ...(s.preview.toObject?.() ?? s.preview) } : null,
+            })),
             options,
             selectedOptionId: selected ? selected.id : null,
             items: selected ? selected.items : [],
