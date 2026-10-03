@@ -3,6 +3,7 @@ import ApiError from '../utils/ApiError.js'
 import { DietPlanTemplate, Food } from '../models/index.js'
 import { MAX_DIET_PLAN_TEMPLATES } from '../config/constants.js'
 import { resolvePlanNutrition } from '../services/dietPlan.service.js'
+import { sortMealsByTime } from '../utils/mealTime.js'
 
 // A meal payload may arrive as `{ options: [{label, items}] }` (current shape)
 // or, from older callers, a flat `{ items }` — normalise to always be options.
@@ -35,7 +36,8 @@ export async function normalizeMeals(meals = []) {
             }
         })
 
-    return meals.map((m) => ({
+    // Stored chronologically, whatever order the meals were created/sent in.
+    return sortMealsByTime(meals).map((m) => ({
         name: m.name,
         time: m.time || '',
         notes: m.notes || '',

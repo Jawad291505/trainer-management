@@ -16,6 +16,12 @@ const clientSchema = new mongoose.Schema(
         plan: { type: String, enum: MEMBERSHIP_PLANS, default: 'Starter' },
         status: { type: String, enum: ACCOUNT_STATUS, default: 'active', index: true },
 
+        // Optional personal details captured when the client is added (phone
+        // lives on the User doc). Age in years, height in centimetres.
+        age: { type: Number, default: null, min: 1, max: 120 },
+        height: { type: Number, default: null, min: 50, max: 300 },
+        medicalNotes: { type: String, default: '', trim: true, maxlength: 2000 },
+
         // Weight tracking (user MyProgress: weightLost = startWeight - weight,
         // toGoal = weight - target). Kilograms.
         startWeight: { type: Number, default: null },

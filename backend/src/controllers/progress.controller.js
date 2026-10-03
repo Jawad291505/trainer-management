@@ -4,6 +4,7 @@ import { WeightEntry, DailyLog, Client, DietPlan, ExercisePlan, ScheduleActivity
 import { pktStartOfDay, pktDayName, resolveTodayDay } from '../utils/pktTime.js'
 import { assertClientAccess } from '../utils/clientAccess.js'
 import { serializeDietPlan } from '../services/dietPlan.service.js'
+import { sortMealsByTime } from '../utils/mealTime.js'
 
 const startOfDay = pktStartOfDay
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -86,7 +87,7 @@ async function seedTasksForClient(clientId, userId, date = new Date()) {
     if (plan) {
         const todayDietDay = resolveTodayDay(plan.days, plan.todayDayId, date)
         if (todayDietDay?.meals?.length) {
-            for (const m of todayDietDay.meals) {
+            for (const m of sortMealsByTime(todayDietDay.meals)) {
                 const options = m.options || []
                 const selected =
                     options.find((o) => String(o._id) === String(m.selectedOptionId)) || options[0] || null

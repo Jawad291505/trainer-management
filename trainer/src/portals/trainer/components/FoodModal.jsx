@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Modal, Select, InputNumber, Segmented, Form, Input, Button } from 'antd'
-import { AppleOutlined, PlusOutlined } from '@ant-design/icons'
+import { AppleOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
 import { useLibrary } from '../../../context/LibraryContext'
 import { foodCategories } from '../../../services/foodLibrary'
 import {
@@ -15,7 +15,9 @@ import GlycemicBadge from './GlycemicBadge'
 
 // Pick a category → a food and set its quantity (macros + GI/GL recalculate live
 // below), or add a fully custom food ("Add something else").
-export default function FoodModal({ open, onCancel, onAdd }) {
+// Pass `editing` (an existing meal item) to reuse the modal for changing that
+// item's food / quantity instead of adding a new one.
+export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
     const { foods, addFood } = useLibrary(['foods'])
     const [mode, setMode] = useState('library') // 'library' | 'custom'
     const [cat, setCat] = useState(foodCategories[0])
@@ -37,18 +39,17 @@ export default function FoodModal({ open, onCancel, onAdd }) {
     )
 
     useEffect(() => {
-        if (food) setQty(food.defaultQty)
-    }, [food])
-
-    useEffect(() => {
         if (open) {
+            // Editing starts on the item's current food + quantity.
+            const current = editing ? foods.find((f) => f.id === editing.foodId) : null
             setMode('library')
-            setCat(foodCategories[0])
-            setFoodId(null)
-            setQty(0)
+            setCat(current?.category || foodCategories[0])
+            setFoodId(current?.id || null)
+            setQty(current ? editing.qty : 0)
             customForm.resetFields()
         }
-    }, [open, customForm])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, editing, customForm])
 
     const nutrition = useMemo(() => (food ? computeNutrition(food, qty) : null), [food, qty])
 
@@ -83,15 +84,15 @@ export default function FoodModal({ open, onCancel, onAdd }) {
             title={
                 <ModalTitle
                     icon={<AppleOutlined />}
-                    title="Add food"
+                    title={editing ? 'Edit food' : 'Add food'}
                     subtitle={mode === 'library' ? 'Pick from the library — macros update live' : 'Enter a food that isn’t in the library'}
                 />
             }
             open={open}
             onCancel={onCancel}
             onOk={handleOk}
-            okText="Add food"
-            okButtonProps={{ icon: <PlusOutlined />, disabled: mode === 'library' && !food }}
+            okText={editing ? 'Save changes' : 'Add food'}
+            okButtonProps={{ icon: editing ? <SaveOutlined /> : <PlusOutlined />, disabled: mode === 'library' && !food }}
             centered
             width={560}
         >
@@ -127,7 +128,10 @@ export default function FoodModal({ open, onCancel, onAdd }) {
                                 showSearch
                                 placeholder="Select a food…"
                                 value={foodId}
-                                onChange={setFoodId}
+                                onChange={(id) => {
+                                    setFoodId(id)
+                                    setQty(foods.find((f) => f.id === id)?.defaultQty || 0)
+                                }}
                                 options={foodsInCat}
                                 optionFilterProp="label"
                                 style={{ width: '100%' }}

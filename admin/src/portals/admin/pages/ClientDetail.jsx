@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, Tabs, Progress, App, Skeleton } from 'antd'
 import dayjs from 'dayjs'
@@ -13,6 +13,9 @@ import {
     DashboardOutlined,
     CrownOutlined,
     IdcardOutlined,
+    PhoneOutlined,
+    MedicineBoxOutlined,
+    EditOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -37,6 +40,7 @@ import DietDayProgress from '../../../components/progress/DietDayProgress'
 import GlucoseChart from '../../../components/progress/GlucoseChart'
 import HabitHistory from '../../../components/progress/HabitHistory'
 import { api } from '../../../services/api'
+import ClientDetailsModal from '../components/ClientDetailsModal'
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA') : '—'
 
@@ -49,6 +53,7 @@ export default function ClientDetail() {
     const clientRes = useAsyncData(() => orNullOn404(api.get(`/clients/${id}`)), [id])
     const weightRes = useAsyncData(() => api.get(`/progress/weight?client=${id}`), [id])
     const client = clientRes.data
+    const [editOpen, setEditOpen] = useState(false)
     const loading = clientRes.loading
     const weightData = useMemo(
         () => (weightRes.data?.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })),
@@ -72,9 +77,15 @@ export default function ClientDetail() {
     const overview = (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="app-card p-5 lg:col-span-1">
-                <h3 className="section-title mb-4">Profile</h3>
+                <div className="mb-4 flex items-center justify-between">
+                    <h3 className="section-title m-0">Profile</h3>
+                    <Button size="small" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>Edit</Button>
+                </div>
                 <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-3"><MailOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.email}</span></div>
+                    <div className="flex items-center gap-3"><PhoneOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.phone || '—'}</span></div>
+                    <div className="flex items-center gap-3"><IdcardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Age: {client.age ?? '—'} · Height: {client.height ? `${client.height} cm` : '—'}</span></div>
+                    <div className="flex items-start gap-3"><MedicineBoxOutlined className="mt-1" style={{ color: 'var(--color-text-muted)' }} /><span className="whitespace-pre-wrap text-text-secondary">Medical notes: {client.medicalNotes || '—'}</span></div>
                     <div className="flex items-center gap-3"><AimOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Goal: {client.goal}</span></div>
                     <div className="flex items-center gap-3"><CreditCardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.plan} plan</span></div>
                     <div className="flex items-center gap-3"><UserOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Trainer: {client.trainerName || '—'}</span></div>
@@ -161,6 +172,7 @@ export default function ClientDetail() {
                     ]}
                 />
             </div>
+            <ClientDetailsModal client={client} open={editOpen} onClose={() => setEditOpen(false)} onSaved={clientRes.setData} />
         </div>
     )
 }

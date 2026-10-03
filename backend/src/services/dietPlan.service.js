@@ -1,5 +1,6 @@
 import { getFoodsByCode, getThresholds } from './libraryCache.js'
 import { resolveTodayDay } from '../utils/pktTime.js'
+import { sortMealsByTime } from '../utils/mealTime.js'
 import {
     computeNutrition,
     formatQty,
@@ -54,7 +55,9 @@ function pickSelectedOption(options, selectedOptionId) {
 }
 
 async function resolveMeals(meals, thresholds, byCode) {
-    return meals.map((meal) => {
+    // Always chronological on read too, so plans saved before meals were
+    // ordered on write still display earliest-first.
+    return sortMealsByTime(meals).map((meal) => {
         const options = (meal.options || []).map((opt) => {
             const items = resolveItems(opt.items, thresholds, byCode)
             const totals = sumMacros(items)

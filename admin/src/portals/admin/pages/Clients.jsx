@@ -77,6 +77,9 @@ export default function Clients() {
                 name: v.name,
                 email: v.email,
                 phone: v.phone,
+                age: v.age,
+                height: v.height,
+                medicalNotes: v.medicalNotes,
                 goal,
                 plan: v.plan,
                 startWeight: v.weight,
@@ -229,19 +232,23 @@ export default function Clients() {
                     <div className="mb-1 text-xs font-bold uppercase tracking-wide text-text-muted">Contact</div>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                         <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}><Input placeholder="e.g. Jordan Blake" /></Form.Item>
-                        <Form.Item name="phone" label="Phone"><Input placeholder="+1 (555) 000-0000" /></Form.Item>
+                        <Form.Item name="phone" label="Phone" rules={[{ pattern: /^\+?[\d\s().-]{6,20}$/, message: 'Enter a valid phone number' }]}><Input placeholder="+1 (555) 000-0000" /></Form.Item>
                     </div>
                     <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}><Input placeholder="jordan.blake@gmail.com" /></Form.Item>
                     <div className="mb-1 mt-2 text-xs font-bold uppercase tracking-wide text-text-muted">Body metrics</div>
-                    <div className="grid grid-cols-2 gap-x-4 sm:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <Form.Item name="age" label="Age"><InputNumber min={1} max={120} precision={0} style={{ width: '100%' }} placeholder="32" /></Form.Item>
+                        <Form.Item name="height" label="Height (cm)"><InputNumber min={50} max={300} style={{ width: '100%' }} placeholder="178" /></Form.Item>
                         <Form.Item name="weight" label="Weight (kg)" rules={[{ required: true, message: 'Required' }]}><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="82" /></Form.Item>
-                        <Form.Item name="height" label="Height (cm)" rules={[{ required: true, message: 'Required' }]}><InputNumber min={90} max={250} style={{ width: '100%' }} placeholder="178" /></Form.Item>
                         <Form.Item name="targetWeight" label="Target (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="75" /></Form.Item>
                     </div>
                     <div className="mb-4 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
                         <span className="font-semibold text-text-secondary">BMI</span>
                         <span className="font-bold" style={{ color: bmiColor }}>{bmi == null ? 'Enter weight & height' : `${bmi} · ${bmiCategory}`}</span>
                     </div>
+                    <Form.Item name="medicalNotes" label="Medical notes">
+                        <Input.TextArea rows={2} maxLength={2000} placeholder="Conditions, injuries, allergies, medication… (optional)" />
+                    </Form.Item>
                     <div className="mb-1 text-xs font-bold uppercase tracking-wide text-text-muted">Programme</div>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                         <Form.Item name="goal" label="Goal" rules={[{ required: true }]}>

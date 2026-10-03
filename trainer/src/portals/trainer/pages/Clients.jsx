@@ -58,6 +58,10 @@ export default function Clients() {
             const created = await api.post('/clients', {
                 name: v.name,
                 email: v.email,
+                phone: v.phone,
+                age: v.age,
+                height: v.height,
+                medicalNotes: v.medicalNotes,
                 goal: v.goal,
                 plan: v.plan,
                 startWeight: v.weight,
@@ -177,12 +181,18 @@ export default function Clients() {
                 <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ plan: 'Standard', goal: 'Fat Loss' }}>
                     <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}><Input placeholder="e.g. Jordan Blake" /></Form.Item>
                     <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}><Input placeholder="jordan.blake@gmail.com" /></Form.Item>
+                    <Form.Item name="phone" label="Phone" rules={[{ pattern: /^\+?[\d\s().-]{6,20}$/, message: 'Enter a valid phone number' }]}><Input placeholder="+1 (555) 000-0000" /></Form.Item>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                        <Form.Item name="age" label="Age"><InputNumber min={1} max={120} precision={0} style={{ width: '100%' }} placeholder="32" /></Form.Item>
+                        <Form.Item name="height" label="Height (cm)"><InputNumber min={50} max={300} style={{ width: '100%' }} placeholder="178" /></Form.Item>
                         <Form.Item name="weight" label="Weight (kg)" rules={[{ required: true, message: 'Required' }]}><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="82" /></Form.Item>
                         <Form.Item name="targetWeight" label="Target (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="75" /></Form.Item>
                         <Form.Item name="goal" label="Goal" rules={[{ required: true }]}><Select options={CLIENT_GOALS.map((g) => ({ value: g, label: g }))} /></Form.Item>
                         <Form.Item name="plan" label="Programme" rules={[{ required: true }]}><Select options={PROGRAMME_PLANS.map((p) => ({ value: p, label: p }))} /></Form.Item>
                     </div>
+                    <Form.Item name="medicalNotes" label="Medical notes">
+                        <Input.TextArea rows={2} maxLength={2000} placeholder="Conditions, injuries, allergies, medication… (optional)" />
+                    </Form.Item>
                 </Form>
             </Modal>
         </div>

@@ -13,6 +13,8 @@ import {
     LineChartOutlined,
     DashboardOutlined,
     CrownOutlined,
+    IdcardOutlined,
+    MedicineBoxOutlined,
 } from '@ant-design/icons'
 import {
     ResponsiveContainer,
@@ -38,6 +40,8 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import { useAsyncData, orNullOn404 } from '../../../hooks/useAsyncData'
 import ExerciseDayCard from '../components/ExerciseDayCard'
+import ClientDetailsModal from '../components/ClientDetailsModal'
+import { useAuth } from '../../../context/AuthContext'
 import DietDayProgress from '../../../components/progress/DietDayProgress'
 import GlucoseChart from '../../../components/progress/GlucoseChart'
 import HabitHistory from '../../../components/progress/HabitHistory'
@@ -218,6 +222,9 @@ export default function ClientProfile() {
     const { pendingCountForClient, loadedFor: photosLoadedFor } = useProgressPhotos()
     const [goalModal, setGoalModal] = useState(null) // { type: 'water' | 'sleep', value }
     const [goalSaving, setGoalSaving] = useState(false)
+    const [detailsOpen, setDetailsOpen] = useState(false)
+    // Only independent (outsourced) trainers own their clients' accounts, so only they may rename one.
+    const { trainer } = useAuth()
     const [expandedSession, setExpandedSession] = useState(null) // sessionId
 
     // Each tab loads its own data the first time it's opened, so the page only
@@ -283,10 +290,15 @@ export default function ClientProfile() {
     const overview = (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="app-card p-5 lg:col-span-1">
-                <h3 className="section-title mb-4">Profile</h3>
+                <div className="mb-4 flex items-center justify-between">
+                    <h3 className="section-title m-0">Profile</h3>
+                    <Button size="small" icon={<EditOutlined />} onClick={() => setDetailsOpen(true)}>Edit</Button>
+                </div>
                 <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-3"><MailOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.email}</span></div>
-                    <div className="flex items-center gap-3"><PhoneOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.phone}</span></div>
+                    <div className="flex items-center gap-3"><PhoneOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.phone || '—'}</span></div>
+                    <div className="flex items-center gap-3"><IdcardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Age: {client.age ?? '—'} · Height: {client.height ? `${client.height} cm` : '—'}</span></div>
+                    <div className="flex items-start gap-3"><MedicineBoxOutlined className="mt-1" style={{ color: 'var(--color-text-muted)' }} /><span className="whitespace-pre-wrap text-text-secondary">Medical notes: {client.medicalNotes || '—'}</span></div>
                     <div className="flex items-center gap-3"><AimOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Goal: {client.goal}</span></div>
                     <div className="flex items-center gap-3"><CalendarOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Next follow-up: {nextFollowUpLabel}</span></div>
                 </div>
@@ -646,6 +658,14 @@ export default function ClientProfile() {
                     ]}
                 />
             </div>
+
+            <ClientDetailsModal
+                client={client}
+                open={detailsOpen}
+                onClose={() => setDetailsOpen(false)}
+                onSaved={setClientData}
+                canEditName={trainer?.affiliation === 'outsourced'}
+            />
 
             <Modal
                 title={goalModal?.type === 'water' ? 'Set daily water goal' : 'Set daily sleep goal'}

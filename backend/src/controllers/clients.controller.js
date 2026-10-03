@@ -16,6 +16,9 @@ function flatten(client) {
         avatarColor: u?.avatarColor,
         phone: u?.phone,
         role: 'Client',
+        age: client.age ?? null,
+        height: client.height ?? null,
+        medicalNotes: client.medicalNotes || '',
         goal: client.goal,
         plan: client.plan,
         status: client.status,
@@ -31,6 +34,37 @@ function flatten(client) {
         lastFollowUp: client.lastFollowUp,
         nextFollowUp: client.nextFollowUp,
     }
+}
+
+// Optional personal details (age / height / phone / medical notes). Only keys
+// present in `body` are returned, so a PATCH never touches what it didn't send;
+// a blank value clears the field rather than failing validation.
+const PHONE_RE = /^\+?[\d\s().-]{6,20}$/
+function parseDetails(body) {
+    const out = {}
+    const blank = (v) => v === null || v === undefined || String(v).trim() === ''
+    const number = (key, label, min, max, integer) => {
+        if (body[key] === undefined) return
+        if (blank(body[key])) { out[key] = null; return }
+        const n = Number(body[key])
+        if (!Number.isFinite(n) || n < min || n > max || (integer && !Number.isInteger(n))) {
+            throw ApiError.badRequest(`${label} must be ${integer ? 'a whole number' : 'a number'} between ${min} and ${max}`)
+        }
+        out[key] = n
+    }
+    number('age', 'Age', 1, 120, true)
+    number('height', 'Height (cm)', 50, 300, false)
+    if (body.phone !== undefined) {
+        const phone = blank(body.phone) ? '' : String(body.phone).trim()
+        if (phone && !PHONE_RE.test(phone)) throw ApiError.badRequest('Enter a valid phone number')
+        out.phone = phone
+    }
+    if (body.medicalNotes !== undefined) {
+        const notes = blank(body.medicalNotes) ? '' : String(body.medicalNotes).trim()
+        if (notes.length > 2000) throw ApiError.badRequest('Medical notes must be 2000 characters or fewer')
+        out.medicalNotes = notes
+    }
+    return out
 }
 
 // Recompute a trainer's denormalised clientCount from the source of truth.
@@ -141,7 +175,8 @@ export const createClient = asyncHandler(async (req, res) => {
         if (req.trainer.affiliation !== 'outsourced') throw ApiError.forbidden('Your clients are assigned by your administrator')
         trainerId = String(req.trainer._id)
     }
-    if (!name || !email) throw ApiError.badRequest('name and email are required')
+    if (!String(name || '').trim() || !email) throw ApiError.badRequest('name and email are required')
+    const details = parseDetails(req.body)
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
     // A Member's client visibility is scoped to `trainer: { $in: their trainers }`
     // (listClients above) — a trainer-less client would be invisible to them
@@ -166,9 +201,16 @@ export const createClient = asyncHandler(async (req, res) => {
         avatarColor: req.body.avatarColor,
         status: req.body.status || 'active',
     })
+    if (details.phone) {
+        user.phone = details.phone
+        await user.save()
+    }
     const client = await Client.create({
         user: user._id,
         trainer: trainerId || null,
+        age: details.age,
+        height: details.height,
+        medicalNotes: details.medicalNotes,
         goal,
         plan,
         startWeight: req.body.startWeight,
@@ -215,11 +257,23 @@ export const updateClient = asyncHandler(async (req, res) => {
     const allowed = ['admin', 'member'].includes(req.user.role) ? adminFields : isTrainer ? trainerFields : selfFields
     for (const k of allowed) if (req.body[k] !== undefined) client[k] = req.body[k]
 
-    if (['admin', 'member'].includes(req.user.role) && client.user) {
-        if (req.body.name) client.user.name = req.body.name
-        if (req.body.email) client.user.email = req.body.email
-        if (req.body.status) client.user.status = req.body.status
-        if (req.body.phone !== undefined) client.user.phone = req.body.phone
+    // Personal details are editable by whoever manages the client (admin,
+    // member, or the assigned trainer) — not by the client themselves here.
+    const canEditDetails = ['admin', 'member'].includes(req.user.role) || isTrainer
+    const details = canEditDetails ? parseDetails(req.body) : {}
+    for (const k of ['age', 'height', 'medicalNotes']) if (details[k] !== undefined) client[k] = details[k]
+
+    if (canEditDetails && client.user) {
+        const isManager = ['admin', 'member'].includes(req.user.role)
+        // A name is required, so a blank one is rejected rather than saved.
+        if (req.body.name !== undefined && (isManager || req.trainer?.affiliation === 'outsourced')) {
+            const name = String(req.body.name).trim()
+            if (!name) throw ApiError.badRequest('Name is required')
+            client.user.name = name
+        }
+        if (isManager && req.body.email) client.user.email = req.body.email
+        if (isManager && req.body.status) client.user.status = req.body.status
+        if (details.phone !== undefined) client.user.phone = details.phone
         await client.user.save()
     }
     await client.save()

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import dayjs from 'dayjs'
 import { Select, Button, Modal, Form, Input, InputNumber, TimePicker, Tag, App, Alert, Spin, Segmented, Tabs, Typography } from 'antd'
 import {
     PlusOutlined,
+    EditOutlined,
     DeleteOutlined,
     ClockCircleOutlined,
     ScheduleOutlined,
@@ -24,7 +26,7 @@ import {
     mealGL,
     glycemicMeta,
 } from '../../../utils/nutrition'
-import { formatMealTime } from '../../../utils/time'
+import { formatMealTime, mealTimeToMinutes, sortMealsByTime } from '../../../utils/time'
 import { WEEKDAYS, MEAL_TYPES } from '../../../constants/dietPlan'
 import FoodModal from '../components/FoodModal'
 import GlycemicBadge from '../components/GlycemicBadge'
@@ -37,7 +39,7 @@ const emptyDay = (day) => ({ id: `D${daySeq++}`, day, meals: [] })
 
 // One option's food list: an "Add food" action + item table, scoped to a
 // single option so several options can coexist under the same meal.
-function OptionPane({ option, onAddFood, onChangeQty, onRemoveFood, foods }) {
+function OptionPane({ option, onAddFood, onEditFood, onChangeQty, onRemoveFood, foods }) {
     const gl = mealGL(option.items)
     const level = glMealLevel(gl)
     return (
@@ -73,7 +75,7 @@ function OptionPane({ option, onAddFood, onChangeQty, onRemoveFood, foods }) {
                                 <th className="px-3 py-2 text-right font-semibold text-text-secondary">Cal</th>
                                 <th className="hidden px-3 py-2 text-right font-semibold text-text-secondary sm:table-cell">P/C/F</th>
                                 <th className="px-3 py-2 text-right font-semibold text-text-secondary">GI/GL</th>
-                                <th className="w-10 px-3 py-2"></th>
+                                <th className="w-20 px-3 py-2"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -101,7 +103,8 @@ function OptionPane({ option, onAddFood, onChangeQty, onRemoveFood, foods }) {
                                         <td className="px-3 py-2 text-right">
                                             <GlycemicBadge type="GL" value={it.gl || 0} level={glItemLevel(it.gl || 0)} />
                                         </td>
-                                        <td className="px-3 py-2 text-right">
+                                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                                            <Button size="small" type="text" icon={<EditOutlined />} onClick={() => onEditFood(idx)} />
                                             <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => onRemoveFood(idx)} />
                                         </td>
                                     </tr>
@@ -142,7 +145,9 @@ export default function DietPlans() {
     const [templates, setTemplates] = useState([])
 
     const activeDay = useMemo(() => days.find((d) => d.id === activeDayId) || null, [days, activeDayId])
-    const meals = activeDay?.meals || []
+    // Always shown chronologically by meal time — never in creation order — so
+    // adding a meal or changing its time repositions it straight away.
+    const meals = useMemo(() => sortMealsByTime(activeDay?.meals || []), [activeDay])
 
     // Apply an updater to the active day's meals array.
     const setMeals = (updater) => {
@@ -242,10 +247,42 @@ export default function DietPlans() {
     const [templateId, setTemplateId] = useState(undefined)
     const [templateName, setTemplateName] = useState('')
     const [mealModal, setMealModal] = useState(false)
-    const [foodModal, setFoodModal] = useState(null) // { mealId, optionId }
+    const [foodModal, setFoodModal] = useState(null) // { mealId, optionId, index? } — index = item being edited
     const [mealForm] = Form.useForm()
 
-    const openMealModal = () => setMealModal(true)
+    // The one meal form serves both flows: null = adding, otherwise the id of the meal being edited.
+    const [editingMealId, setEditingMealId] = useState(null)
+
+    const openMealModal = () => {
+        mealForm.resetFields()
+        setEditingMealId(null)
+        setMealModal(true)
+    }
+
+    const openEditMeal = (meal) => {
+        const minutes = mealTimeToMinutes(meal.time)
+        mealForm.setFieldsValue({
+            name: meal.name,
+            time: minutes == null ? null : dayjs().startOf('day').add(minutes, 'minute'),
+            notes: meal.notes || '',
+        })
+        setEditingMealId(meal.id)
+        setMealModal(true)
+    }
+
+    // Template-sourced meals can carry a name outside the fixed list — keep it selectable while editing.
+    const editingMealName = editingMealId ? meals.find((m) => m.id === editingMealId)?.name : null
+    const mealNameOptions = [...new Set([...MEAL_TYPES, ...(editingMealName ? [editingMealName] : [])])]
+        .map((t) => ({ value: t, label: t }))
+
+    const editingFoodItem = foodModal?.index != null
+        ? meals.find((m) => m.id === foodModal.mealId)?.options.find((o) => o.id === foodModal.optionId)?.items[foodModal.index] || null
+        : null
+
+    const closeMealModal = () => {
+        setMealModal(false)
+        setEditingMealId(null)
+    }
 
     // Apply an admin diet-plan template via API — populates a single
     // "Everyday" day; the trainer can split it into weekdays afterward.
@@ -301,8 +338,24 @@ export default function DietPlans() {
         setActiveOptionByMeal({})
     }
 
-    const addMeal = async () => {
+    // Save the meal form — updates the meal in place when editing (its foods and
+    // options are untouched), otherwise appends a new one. Either way the list
+    // re-sorts by time, so the meal lands in its chronological slot.
+    const saveMeal = async () => {
         const v = await mealForm.validateFields()
+        if (editingMealId) {
+            setMeals((prev) =>
+                prev.map((m) =>
+                    m.id === editingMealId
+                        ? { ...m, name: v.name, time: v.time.format('HH:mm'), notes: v.notes || '' }
+                        : m,
+                ),
+            )
+            mealForm.resetFields()
+            closeMealModal()
+            message.success('Meal updated — save or publish the plan to apply it')
+            return
+        }
         setMeals((prev) => [
             ...prev,
             {
@@ -314,7 +367,7 @@ export default function DietPlans() {
             },
         ])
         mealForm.resetFields()
-        setMealModal(false)
+        closeMealModal()
         message.success('Meal added')
     }
 
@@ -357,16 +410,19 @@ export default function DietPlans() {
 
     const addFoodToMeal = (item) => {
         if (!foodModal) return
-        const { mealId, optionId } = foodModal
+        // `index` is set when an existing item is being edited — replace it in place.
+        const { mealId, optionId, index } = foodModal
+        const editing = index != null
+        const nextItems = (items) => (editing ? items.map((it, i) => (i === index ? item : it)) : [...items, item])
         setMeals((prev) =>
             prev.map((m) =>
                 m.id !== mealId
                     ? m
-                    : { ...m, options: m.options.map((o) => (o.id !== optionId ? o : { ...o, items: [...o.items, item] })) },
+                    : { ...m, options: m.options.map((o) => (o.id !== optionId ? o : { ...o, items: nextItems(o.items) })) },
             ),
         )
         setFoodModal(null)
-        message.success('Food added')
+        message.success(editing ? 'Food updated' : 'Food added')
     }
 
     // Changing a food's quantity re-derives its macros + GL automatically.
@@ -633,7 +689,10 @@ export default function DietPlans() {
                                         <div className="font-bold text-text-primary">{m.name}</div>
                                         <div className="flex items-center gap-1 text-xs text-text-muted"><ClockCircleOutlined /> {formatMealTime(m.time)}</div>
                                     </div>
-                                    <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeMeal(m.id)} />
+                                    <div className="flex items-center gap-1">
+                                        <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEditMeal(m)}>Edit</Button>
+                                        <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeMeal(m.id)} />
+                                    </div>
                                 </div>
 
                                 {m.options.length > 1 && (
@@ -668,6 +727,7 @@ export default function DietPlans() {
                                                 option={o}
                                                 foods={foods}
                                                 onAddFood={() => setFoodModal({ mealId: m.id, optionId: o.id })}
+                                                onEditFood={(idx) => setFoodModal({ mealId: m.id, optionId: o.id, index: idx })}
                                                 onChangeQty={(idx, qty) => changeQty(m.id, o.id, idx, qty)}
                                                 onRemoveFood={(idx) => removeFood(m.id, o.id, idx)}
                                             />
@@ -687,17 +747,21 @@ export default function DietPlans() {
             )}
 
             <Modal
-                title={<ModalTitle icon={<ScheduleOutlined />} title="Add meal" subtitle="A slot in the day — you'll add foods to it next" />}
+                title={editingMealId ? (
+                    <ModalTitle icon={<EditOutlined />} title="Edit meal" subtitle="Change its name, time or notes — foods are edited on the meal card" />
+                ) : (
+                    <ModalTitle icon={<ScheduleOutlined />} title="Add meal" subtitle="A slot in the day — you'll add foods to it next" />
+                )}
                 open={mealModal}
-                onCancel={() => setMealModal(false)}
-                onOk={addMeal}
-                okText="Add meal"
-                okButtonProps={{ icon: <PlusOutlined /> }}
+                onCancel={closeMealModal}
+                onOk={saveMeal}
+                okText={editingMealId ? 'Save changes' : 'Add meal'}
+                okButtonProps={{ icon: editingMealId ? <SaveOutlined /> : <PlusOutlined /> }}
                 centered
             >
                 <Form form={mealForm} layout="vertical" className="mt-1">
                     <Form.Item name="name" label="Meal name" rules={[{ required: true, message: 'Select a meal name' }]}>
-                        <Select placeholder="Select a meal" options={MEAL_TYPES.map((t) => ({ value: t, label: t }))} />
+                        <Select placeholder="Select a meal" options={mealNameOptions} />
                     </Form.Item>
                     <Form.Item name="time" label="Time" rules={[{ required: true, message: 'Select a time' }]}>
                         <TimePicker use12Hours format="h:mm A" minuteStep={5} style={{ width: '100%' }} />
@@ -708,7 +772,7 @@ export default function DietPlans() {
                 </Form>
             </Modal>
 
-            <FoodModal open={!!foodModal} onCancel={() => setFoodModal(null)} onAdd={addFoodToMeal} />
+            <FoodModal open={!!foodModal} onCancel={() => setFoodModal(null)} onAdd={addFoodToMeal} editing={editingFoodItem} />
         </div>
     )
 }
