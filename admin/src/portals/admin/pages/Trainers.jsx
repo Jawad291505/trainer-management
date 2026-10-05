@@ -13,6 +13,7 @@ import SectionError from '../../../components/feedback/SectionError'
 import TrainerCard from '../components/TrainerCard'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
+import { planFinalPrice } from '../../../utils/plans'
 import { useAuth } from '../../../context/AuthContext'
 
 export default function Trainers() {
@@ -301,8 +302,8 @@ export default function Trainers() {
                     <Form.Item name="planId" label="Trainer plan" rules={[{ required: true, message: 'Pick a plan' }]}>
                         <Select
                             placeholder="Select a plan"
-                            options={trainerPlans.map((p) => ({ value: p.id, label: `${p.name} — ${p.currency} ${Number(p.priceMonthly).toLocaleString()}/mo (${p.maxClients} clients)` }))}
-                            onChange={(id) => renewForm.setFieldsValue({ amount: trainerPlans.find((p) => p.id === id)?.priceMonthly })}
+                            options={trainerPlans.map((p) => ({ value: p.id, label: `${p.name} — ${p.currency} ${planFinalPrice(p).toLocaleString()}/mo (${p.maxClients} clients)` }))}
+                            onChange={(id) => renewForm.setFieldsValue({ amount: planFinalPrice(trainerPlans.find((p) => p.id === id)) })}
                         />
                     </Form.Item>
                     <Form.Item name="amount" label="Amount received" rules={[{ required: true, message: 'Enter the amount' }]}>

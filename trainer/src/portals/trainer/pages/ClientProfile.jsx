@@ -43,6 +43,8 @@ import ExerciseDayCard from '../components/ExerciseDayCard'
 import ClientDetailsModal from '../components/ClientDetailsModal'
 import { useAuth } from '../../../context/AuthContext'
 import DietDayProgress from '../../../components/progress/DietDayProgress'
+import WorkoutDayProgress from '../../../components/progress/WorkoutDayProgress'
+import { sortByWeekday } from '../../../utils/weekdays'
 import GlucoseChart from '../../../components/progress/GlucoseChart'
 import HabitHistory from '../../../components/progress/HabitHistory'
 import { api } from '../../../services/api'
@@ -443,12 +445,22 @@ export default function ClientProfile() {
                 </h3>
                 <Button type="primary" onClick={() => navigate('/exercise-plans')}>Edit plan</Button>
             </div>
-            {exercisePlanRes.loading && <Skeleton active paragraph={{ rows: 3 }} />}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                {(exercisePlan?.days || []).map((d) => (
-                    <ExerciseDayCard key={d.id} day={d} />
-                ))}
-            </div>
+            {exercisePlanRes.loading ? (
+                <Skeleton active paragraph={{ rows: 3 }} />
+            ) : !exercisePlanRes.error && (
+                <WorkoutDayProgress clientId={id} plan={exercisePlan} />
+            )}
+
+            {exercisePlan?.days?.length > 0 && (
+                <div className="mt-6">
+                    <h3 className="section-title mb-3">Weekly Plan</h3>
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                        {sortByWeekday(exercisePlan.days).map((d) => (
+                            <ExerciseDayCard key={d.id} day={d} />
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="mt-6">
                 <h3 className="section-title mb-3">Workout History &amp; Performance</h3>

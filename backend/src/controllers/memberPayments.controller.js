@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { notifyAdmins, notifyMember, notifyTrainer } from '../services/notify.service.js'
 import { User, Member, Trainer, MemberPayment, SubscriptionPlan } from '../models/index.js'
+import { planFinalPrice } from '../models/SubscriptionPlan.js'
 import { uploadPaymentProof } from '../services/cloudinary.service.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
@@ -91,7 +92,7 @@ export const submitPayment = asyncHandler(async (req, res) => {
         [isTrainer ? 'trainer' : 'member']: payer._id,
         plan: plan._id,
         planName: plan.name,
-        amount: plan.priceMonthly,
+        amount: planFinalPrice(plan),
         currency: plan.currency,
         maxClients: plan.maxClients,
         maxTrainers: plan.maxTrainers,

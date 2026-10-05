@@ -11,6 +11,7 @@ export function summarizeExercisePlan(plan) {
             id: String(day._id),
             day: day.day,
             focus: day.focus,
+            note: day.note || '',
             exercises: day.exercises,
             total,
             done,

@@ -24,6 +24,7 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { api } from '../../../services/api'
+import { planFinalPrice } from '../../../utils/plans'
 
 const money = (n, currency = 'PKR') => `${currency} ${Number(n || 0).toLocaleString()}`
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-CA') : '—')
@@ -119,14 +120,14 @@ function SubscriptionsView({ kind }) {
         const defaultPlan = member.plan || activePlans[0] || null
         form.setFieldsValue({
             planId: defaultPlan?.id,
-            amount: defaultPlan?.priceMonthly,
+            amount: defaultPlan ? planFinalPrice(defaultPlan) : undefined,
             renewalDate: dayjs(),
         })
     }
 
     const onPlanChange = (planId) => {
         const plan = plans.find((p) => p.id === planId)
-        if (plan) form.setFieldsValue({ amount: plan.priceMonthly })
+        if (plan) form.setFieldsValue({ amount: planFinalPrice(plan) })
     }
 
     const submitRenewal = async () => {
@@ -188,7 +189,7 @@ function SubscriptionsView({ kind }) {
         {
             title: 'Price',
             width: 130,
-            render: (_, r) => r.plan ? <span className="font-semibold text-text-primary">{money(r.plan.priceMonthly, r.plan.currency)}<span className="text-xs font-normal text-text-muted">/mo</span></span> : '—',
+            render: (_, r) => r.plan ? <span className="font-semibold text-text-primary">{money(planFinalPrice(r.plan), r.plan.currency)}<span className="text-xs font-normal text-text-muted">/mo</span></span> : '—',
         },
         { title: 'Purchased', dataIndex: 'purchasedAt', width: 130, render: fmtDate },
         {
@@ -288,7 +289,7 @@ function SubscriptionsView({ kind }) {
                         <div className="mb-4 rounded-lg p-3 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
                             <span className="text-text-muted">Current plan: </span>
                             <span className="font-semibold text-text-primary">
-                                {renewing.plan ? `${renewing.plan.name} (${money(renewing.plan.priceMonthly, renewing.plan.currency)}/mo)` : 'No plan yet'}
+                                {renewing.plan ? `${renewing.plan.name} (${money(planFinalPrice(renewing.plan), renewing.plan.currency)}/mo)` : 'No plan yet'}
                             </span>
                         </div>
                     )}
@@ -296,7 +297,7 @@ function SubscriptionsView({ kind }) {
                     <Form.Item name="planId" label="Renewal plan" rules={[{ required: true, message: 'Select a plan' }]}>
                         <Select
                             placeholder="Select a plan"
-                            options={activePlans.map((p) => ({ value: p.id, label: p.name + ' — ' + money(p.priceMonthly, p.currency) + '/mo (' + p.maxClients + ' clients' + (isTrainer ? '' : ', ' + p.maxTrainers + ' trainers') + ')' }))}
+                            options={activePlans.map((p) => ({ value: p.id, label: p.name + ' — ' + money(planFinalPrice(p), p.currency) + '/mo (' + p.maxClients + ' clients' + (isTrainer ? '' : ', ' + p.maxTrainers + ' trainers') + ')' }))}
                             onChange={onPlanChange}
                         />
                     </Form.Item>

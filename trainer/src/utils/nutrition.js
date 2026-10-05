@@ -37,6 +37,13 @@ export function formatQty(food, qty) {
     return `${qty}${food.unit}`
 }
 
+// min/step for a quantity input. Fractions are always allowed (0.5, 0.75,
+// 1.5…) — `step` only drives the +/- arrows, so countable foods move in halves.
+export function qtyInputProps(unit, step) {
+    if (unit === 'count') return { min: 0.25, step: 0.5 }
+    return { min: 0.25, step: step || 1 }
+}
+
 // Classify a value against a {medium, high} threshold pair.
 function levelFor(value, { medium, high }) {
     if (value >= high) return 'high'

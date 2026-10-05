@@ -5,6 +5,7 @@ import { CheckCircleFilled } from '@ant-design/icons'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
 import LoadingSkeleton from '../components/feedback/LoadingSkeleton'
+import { planDiscount, planFinalPrice } from '../utils/plans'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 
@@ -55,8 +56,19 @@ export default function SelectPlan() {
                         <div key={plan.id} className="app-card flex flex-col p-6">
                             <div className="text-lg font-extrabold text-text-primary">{plan.name}</div>
                             {plan.description && <div className="mt-1 text-sm text-text-muted">{plan.description}</div>}
-                            <div className="mt-4 flex items-baseline gap-1">
-                                <span className="text-3xl font-extrabold text-text-primary">{money(plan.priceMonthly, plan.currency)}</span>
+                            {planDiscount(plan) > 0 && (
+                                <div className="mt-4 flex items-center gap-2">
+                                    <span className="text-sm text-text-muted line-through">{money(plan.priceMonthly, plan.currency)}</span>
+                                    <span
+                                        className="rounded-full px-2 py-0.5 text-xs font-bold"
+                                        style={{ background: 'var(--color-success-soft)', color: 'var(--color-success)' }}
+                                    >
+                                        {planDiscount(plan)}% off
+                                    </span>
+                                </div>
+                            )}
+                            <div className={`${planDiscount(plan) > 0 ? 'mt-1' : 'mt-4'} flex items-baseline gap-1`}>
+                                <span className="text-3xl font-extrabold text-text-primary">{money(planFinalPrice(plan), plan.currency)}</span>
                                 <span className="text-sm text-text-muted">/ month</span>
                             </div>
                             <div className="mt-3 flex items-center gap-2 text-sm text-text-secondary">

@@ -5,6 +5,7 @@ import { InboxOutlined, BankOutlined } from '@ant-design/icons'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
 import LoadingSkeleton from '../components/feedback/LoadingSkeleton'
+import { planDiscount, planFinalPrice } from '../utils/plans'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 
@@ -71,7 +72,14 @@ export default function SubmitPayment() {
                         <div className="font-bold text-text-primary">{plan.name}</div>
                         <div className="text-xs text-text-muted">Up to {plan.maxClients} clients</div>
                     </div>
-                    <div className="text-xl font-extrabold text-text-primary">{money(plan.priceMonthly, plan.currency)}<span className="text-xs font-medium text-text-muted">/mo</span></div>
+                    <div className="text-right">
+                        {planDiscount(plan) > 0 && (
+                            <div className="text-xs text-text-muted">
+                                <span className="line-through">{money(plan.priceMonthly, plan.currency)}</span> · {planDiscount(plan)}% off
+                            </div>
+                        )}
+                        <div className="text-xl font-extrabold text-text-primary">{money(planFinalPrice(plan), plan.currency)}<span className="text-xs font-medium text-text-muted">/mo</span></div>
+                    </div>
                 </div>
             )}
 

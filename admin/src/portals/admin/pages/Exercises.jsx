@@ -20,6 +20,8 @@ import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { useLibrary, normalizeEx } from '../../../context/LibraryContext'
 import { exerciseCategories, exerciseTechniques, getTechnique } from '../../../services/exerciseLibrary'
+import { useLibraryCategories } from '../../../hooks/useLibraryCategories'
+import CategorySelect from '../../../components/common/CategorySelect'
 
 // Admin exercise management. Exercises added/edited here feed the shared
 // library that trainers read when building exercise plans.
@@ -35,12 +37,14 @@ export default function Exercises() {
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState(null)
     const [form] = Form.useForm()
+    // Built-in categories + any the admin has added since (new ones are created on save).
+    const cats = useLibraryCategories('exercises', exerciseCategories)
     const technique = Form.useWatch('technique', form)
 
     const openAdd = () => {
         setEditing(null)
         form.resetFields()
-        form.setFieldsValue({ category: 'Chest', defaultSets: 3, defaultReps: '10', defaultRest: '60s', technique: 'standard' })
+        form.setFieldsValue({ category: cats.categories.includes('Chest') ? 'Chest' : cats.categories[0], defaultSets: 3, defaultReps: '10', defaultRest: '60s', technique: 'standard' })
         setModalOpen(true)
     }
     const openEdit = (x) => {
@@ -62,6 +66,7 @@ export default function Exercises() {
                 reload()
                 message.success('Exercise added')
             }
+            cats.reload()
             setModalOpen(false)
         } catch (err) {
             message.error(err.message || 'Failed to save')
@@ -163,7 +168,7 @@ export default function Exercises() {
                     value={category}
                     onChange={setCategory}
                     style={{ width: 190 }}
-                    options={[{ value: 'all', label: 'All categories' }, ...exerciseCategories.map((c) => ({ value: c, label: c }))]}
+                    options={[{ value: 'all', label: 'All categories' }, ...cats.saved.map((c) => ({ value: c, label: c }))]}
                 />
             </FilterBar>
 
@@ -206,8 +211,8 @@ export default function Exercises() {
                         <Form.Item name="name" label="Exercise name" rules={[{ required: true, message: 'Enter a name' }]}>
                             <Input placeholder="e.g. Bench Press" />
                         </Form.Item>
-                        <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-                            <Select options={exerciseCategories.map((c) => ({ value: c, label: c }))} />
+                        <Form.Item name="category" label="Category" tooltip="Pick a category, or type a new one at the bottom of the list to add it." rules={[{ required: true, message: 'Pick a category' }]}>
+                            <CategorySelect categories={cats.categories} onCreate={cats.addCategory} />
                         </Form.Item>
                     </div>
                     <div className="grid grid-cols-3 gap-x-4">

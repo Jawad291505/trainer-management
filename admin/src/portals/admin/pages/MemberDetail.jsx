@@ -11,6 +11,7 @@ import SectionError from '../../../components/feedback/SectionError'
 import TrainerCard from '../components/TrainerCard'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
+import { planFinalPrice } from '../../../utils/plans'
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-CA') : '—')
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString() : '—')
@@ -232,7 +233,7 @@ export default function MemberDetail() {
                     </div>
                     {member.plan && (
                         <div className="mb-3 text-sm text-text-secondary">
-                            Active plan: <strong className="text-text-primary">{member.plan.name}</strong> — {money(member.plan.priceMonthly, member.plan.currency)}/mo, up to {member.plan.maxClients} clients
+                            Active plan: <strong className="text-text-primary">{member.plan.name}</strong> — {money(planFinalPrice(member.plan), member.plan.currency)}/mo, up to {member.plan.maxClients} clients
                         </div>
                     )}
                     {latestPayment ? (

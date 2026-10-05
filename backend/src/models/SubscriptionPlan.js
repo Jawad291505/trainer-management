@@ -11,7 +11,10 @@ const subscriptionPlanSchema = new mongoose.Schema(
         // Who can pick this plan at signup. Docs saved before this field existed
         // are treated as 'member' plans (see subscriptionPlans.controller).
         audience: { type: String, enum: PLAN_AUDIENCES, default: 'member', index: true },
+        // The actual (list) price. What a payer is charged is this minus
+        // discountPercent — always derived via planFinalPrice(), never stored.
         priceMonthly: { type: Number, required: true, min: 0 },
+        discountPercent: { type: Number, default: 0, min: 0, max: 100 },
         currency: { type: String, default: 'PKR', trim: true },
         maxClients: { type: Number, required: true, min: 0 },
         // Never allowed to exceed maxClients — a plan can't grant more trainer
@@ -36,4 +39,13 @@ const subscriptionPlanSchema = new mongoose.Schema(
     { timestamps: true },
 )
 
-export const SubscriptionPlan = mongoose.model('SubscriptionPlan', subscriptionPlanSchema)
+// Price after the plan's percentage discount, rounded to a whole currency unit.
+// Works on documents and lean/populated plain objects alike; plans saved before
+// discountPercent existed have no discount. Mirrored by utils/plans.js in the
+// admin and trainer apps.
+export function planFinalPrice(plan) {
+    const discount = Math.min(100, Math.max(0, Number(plan?.discountPercent) || 0))
+    return Math.round(((Number(plan?.priceMonthly) || 0) * (100 - discount)) / 100)
+}
+
+export const SubscriptionPlan =mongoose.model('SubscriptionPlan', subscriptionPlanSchema)

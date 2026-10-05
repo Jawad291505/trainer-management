@@ -1,7 +1,15 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { SubscriptionPlan } from '../models/index.js'
+import { planFinalPrice } from '../models/SubscriptionPlan.js'
 import { PLAN_AUDIENCES } from '../config/constants.js'
+
+// Body value -> a 0-100 percentage (blank / missing = no discount).
+function parseDiscount(value) {
+    const discount = Number(value ?? 0) || 0
+    if (discount < 0 || discount > 100) throw ApiError.badRequest('Discount must be between 0 and 100 percent')
+    return discount
+}
 
 function flatten(plan) {
     return {
@@ -9,6 +17,8 @@ function flatten(plan) {
         name: plan.name,
         audience: plan.audience || 'member',
         priceMonthly: plan.priceMonthly,
+        discountPercent: plan.discountPercent || 0,
+        finalPrice: planFinalPrice(plan),
         currency: plan.currency,
         maxClients: plan.maxClients,
         maxTrainers: plan.maxTrainers,
@@ -48,6 +58,7 @@ export const createPlan = asyncHandler(async (req, res) => {
         name,
         audience,
         priceMonthly,
+        discountPercent: parseDiscount(req.body.discountPercent),
         maxClients,
         maxTrainers,
         currency: req.body.currency || 'PKR',
@@ -69,6 +80,7 @@ export const updatePlan = asyncHandler(async (req, res) => {
     for (const k of ['name', 'audience', 'priceMonthly', 'currency', 'maxClients', 'maxTrainers', 'description', 'active', 'sortOrder']) {
         if (req.body[k] !== undefined) plan[k] = req.body[k]
     }
+    if (req.body.discountPercent !== undefined) plan.discountPercent = parseDiscount(req.body.discountPercent)
     if (plan.audience === 'trainer') plan.maxTrainers = 0
     if (plan.maxTrainers > plan.maxClients) throw ApiError.badRequest('Trainer capacity cannot exceed client capacity')
     await plan.save()

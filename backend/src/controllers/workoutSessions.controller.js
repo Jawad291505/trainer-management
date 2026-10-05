@@ -194,11 +194,27 @@ export const finishWorkoutSession = asyncHandler(async (req, res) => {
     res.json({ ...session.toObject(), ...summarizeWorkoutSession(session) })
 })
 
-// GET /api/workout-sessions?client=&limit=
+// 'YYYY-MM-DD' -> the instant that PKT calendar day starts (how WorkoutSession.date is keyed).
+function pktDayFromStr(value, label) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) throw ApiError.badRequest(`${label} must be YYYY-MM-DD`)
+    const date = new Date(`${value}T00:00:00+05:00`)
+    if (Number.isNaN(date.getTime())) throw ApiError.badRequest(`${label} must be YYYY-MM-DD`)
+    return date
+}
+
+// GET /api/workout-sessions?client=&limit=&from=&to=
+// `from` / `to` (YYYY-MM-DD, inclusive PKT calendar days) narrow the list to a
+// date range — the trainer's per-day workout progress view.
 export const listWorkoutSessions = asyncHandler(async (req, res) => {
     const clientId = await resolveClientId(req)
     const limit = Math.min(Number(req.query.limit) || 20, 100)
-    const sessions = await WorkoutSession.find({ client: clientId }).sort({ date: -1 }).limit(limit)
+    const filter = { client: clientId }
+    if (req.query.from || req.query.to) {
+        filter.date = {}
+        if (req.query.from) filter.date.$gte = pktDayFromStr(req.query.from, 'from')
+        if (req.query.to) filter.date.$lte = pktDayFromStr(req.query.to, 'to')
+    }
+    const sessions = await WorkoutSession.find(filter).sort({ date: -1, createdAt: -1 }).limit(limit)
     res.json({
         count: sessions.length,
         items: sessions.map((s) => ({ ...s.toObject(), ...summarizeWorkoutSession(s) })),

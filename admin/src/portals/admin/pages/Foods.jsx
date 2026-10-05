@@ -19,6 +19,8 @@ import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { useLibrary, normalize } from '../../../context/LibraryContext'
 import { foodCategories, foodUnits } from '../../../services/foodLibrary'
+import { useLibraryCategories } from '../../../hooks/useLibraryCategories'
+import CategorySelect from '../../../components/common/CategorySelect'
 
 // Admin food & nutrition management. Foods added/edited here feed the shared
 // library that trainers read when building diet plans.
@@ -34,13 +36,15 @@ export default function Foods() {
     const [modalOpen, setModalOpen] = useState(false)
     const [editing, setEditing] = useState(null)
     const [form] = Form.useForm()
+    // Built-in categories + any the admin has added since (new ones are created on save).
+    const cats = useLibraryCategories('foods', foodCategories)
 
     const unit = Form.useWatch('unit', form)
 
     const openAdd = () => {
         setEditing(null)
         form.resetFields()
-        form.setFieldsValue({ category: foodCategories[0], unit: 'g', base: 100, step: 10, defaultQty: 100, gi: 0 })
+        form.setFieldsValue({ category: cats.categories[0], unit: 'g', base: 100, step: 10, defaultQty: 100, gi: 0 })
         setModalOpen(true)
     }
     const openEdit = (f) => {
@@ -62,6 +66,7 @@ export default function Foods() {
                 reload()
                 message.success('Food added')
             }
+            cats.reload()
             setModalOpen(false)
         } catch (err) {
             message.error(err.message || 'Failed to save')
@@ -155,7 +160,7 @@ export default function Foods() {
                     value={category}
                     onChange={setCategory}
                     style={{ width: 190 }}
-                    options={[{ value: 'all', label: 'All categories' }, ...foodCategories.map((c) => ({ value: c, label: c }))]}
+                    options={[{ value: 'all', label: 'All categories' }, ...cats.saved.map((c) => ({ value: c, label: c }))]}
                 />
             </FilterBar>
 
@@ -198,8 +203,8 @@ export default function Foods() {
                         <Form.Item name="name" label="Food name" rules={[{ required: true, message: 'Enter a name' }]}>
                             <Input placeholder="e.g. Chicken Breast" />
                         </Form.Item>
-                        <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-                            <Select options={foodCategories.map((c) => ({ value: c, label: c }))} />
+                        <Form.Item name="category" label="Category" tooltip="Pick a category, or type a new one at the bottom of the list to add it." rules={[{ required: true, message: 'Pick a category' }]}>
+                            <CategorySelect categories={cats.categories} onCreate={cats.addCategory} />
                         </Form.Item>
                         <Form.Item name="unit" label="Unit" rules={[{ required: true }]}>
                             <Select options={foodUnits} />

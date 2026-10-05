@@ -3,6 +3,7 @@ import { Modal, Select, Segmented, Form, Input, InputNumber, Checkbox } from 'an
 import { ThunderboltOutlined, PlusOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import { useLibrary } from '../../../context/LibraryContext'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
+import { libraryCategories } from '../../../utils/categories'
 import ModalTitle from '../../../components/common/ModalTitle'
 import TechniqueField from './TechniqueField'
 
@@ -17,6 +18,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
     const [newForm] = Form.useForm()
 
     const exercise = useMemo(() => exercises.find((x) => x.id === exId), [exercises, exId])
+    const categories = useMemo(() => libraryCategories(exerciseCategories, exercises), [exercises])
 
     const exInCat = useMemo(
         () =>
@@ -142,7 +144,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                     setCat(c)
                                     setExId(null)
                                 }}
-                                options={exerciseCategories.map((c) => ({ value: c, label: c }))}
+                                options={categories.map((c) => ({ value: c, label: c }))}
                                 style={{ width: '100%' }}
                             />
                         </div>
@@ -238,7 +240,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                 <Input placeholder="e.g. Landmine Press" />
                             </Form.Item>
                             <Form.Item name="category" label="Category" initialValue={exerciseCategories[0]}>
-                                <Select options={exerciseCategories.map((c) => ({ value: c, label: c }))} />
+                                <Select options={categories.map((c) => ({ value: c, label: c }))} />
                             </Form.Item>
                         </div>
                         <Form.Item name="trackingType" label="Tracked by" initialValue="reps" className="mb-3">

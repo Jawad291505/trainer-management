@@ -25,6 +25,7 @@ function flatten(trainer, extras) {
             id: String(plan._id),
             name: plan.name,
             priceMonthly: plan.priceMonthly,
+            discountPercent: plan.discountPercent || 0,
             currency: plan.currency,
             maxClients: plan.maxClients,
         } : null,

@@ -3,13 +3,17 @@ import { Modal, Select, InputNumber, Segmented, Form, Input, Button } from 'antd
 import { AppleOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
 import { useLibrary } from '../../../context/LibraryContext'
 import { foodCategories } from '../../../services/foodLibrary'
+import { libraryCategories } from '../../../utils/categories'
 import {
     computeNutrition,
     formatQty,
     giLevel,
     glItemLevel,
     glycemicMeta,
+    qtyInputProps,
 } from '../../../utils/nutrition'
+
+const round2 = (n) => Math.round(n * 100) / 100
 import ModalTitle from '../../../components/common/ModalTitle'
 import GlycemicBadge from './GlycemicBadge'
 
@@ -26,6 +30,7 @@ export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
     const [customForm] = Form.useForm()
 
     const food = useMemo(() => foods.find((f) => f.id === foodId), [foods, foodId])
+    const categories = useMemo(() => libraryCategories(foodCategories, foods), [foods])
 
     const foodsInCat = useMemo(
         () =>
@@ -118,7 +123,7 @@ export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
                                     setFoodId(null)
                                     setQty(0)
                                 }}
-                                options={foodCategories.map((c) => ({ value: c, label: c }))}
+                                options={categories.map((c) => ({ value: c, label: c }))}
                                 style={{ width: '100%' }}
                             />
                         </div>
@@ -159,7 +164,7 @@ export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
                                 <Input placeholder="e.g. Homemade smoothie" />
                             </Form.Item>
                             <Form.Item name="category" label="Category" initialValue={foodCategories[0]}>
-                                <Select options={foodCategories.map((c) => ({ value: c, label: c }))} />
+                                <Select options={categories.map((c) => ({ value: c, label: c }))} />
                             </Form.Item>
                             <Form.Item name="unit" label="Unit" initialValue="g">
                                 <Select
@@ -171,7 +176,7 @@ export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
                                 />
                             </Form.Item>
                             <Form.Item name="qty" label="Quantity" rules={[{ required: true, message: 'Enter a quantity' }]}>
-                                <InputNumber min={1} style={{ width: '100%' }} />
+                                <InputNumber min={0.25} style={{ width: '100%' }} />
                             </Form.Item>
                         </div>
                     </div>
@@ -200,22 +205,14 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
     const hasServing = food.servingWeight && food.servingWeight > 0
     const [inputMode, setInputMode] = useState('grams') // 'grams' | 'units'
 
-    // When switching to units, snap to nearest whole unit
-    const unitCount = hasServing ? Math.max(1, Math.round(qty / food.servingWeight)) : 1
+    // Fractional servings are allowed (0.5 = half, 1.5 = one and a half…)
+    const unitCount = hasServing ? round2(qty / food.servingWeight) : 1
     const servingLabel = food.serving || '1 unit'
-
-    const handleModeChange = (mode) => {
-        setInputMode(mode)
-        if (mode === 'units' && hasServing) {
-            // Snap qty to nearest whole serving
-            const units = Math.max(1, Math.round(qty / food.servingWeight))
-            setQty(units * food.servingWeight)
-        }
-    }
+    const qtyProps = qtyInputProps(food.unit, food.step)
 
     const handleUnitChange = (units) => {
-        if (!units || units < 1) return
-        setQty(Math.round(units * food.servingWeight))
+        if (!units || units <= 0) return
+        setQty(round2(units * food.servingWeight))
     }
 
     return (
@@ -244,7 +241,7 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
                     <Segmented
                         size="small"
                         value={inputMode}
-                        onChange={handleModeChange}
+                        onChange={setInputMode}
                         options={[
                             { value: 'grams', label: `In ${food.unit}` },
                             { value: 'units', label: `In units (${servingLabel})` },
@@ -258,8 +255,8 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
                     <div className="flex-1">
                         <span className="field-label">How many ({servingLabel})</span>
                         <InputNumber
-                            min={1}
-                            step={1}
+                            min={0.25}
+                            step={0.5}
                             value={unitCount}
                             onChange={handleUnitChange}
                             addonAfter={servingLabel}
@@ -270,8 +267,8 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
                     <div className="flex-1">
                         <span className="field-label">Quantity ({food.unit})</span>
                         <InputNumber
-                            min={food.step}
-                            step={food.step}
+                            min={qtyProps.min}
+                            step={qtyProps.step}
                             value={qty}
                             onChange={(v) => setQty(v || 0)}
                             addonAfter={food.unit === 'count' ? null : food.unit}
@@ -289,8 +286,8 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
             {/* Quick picks */}
             <div className="mt-2 flex flex-wrap gap-1.5">
                 {inputMode === 'units' && hasServing
-                    ? [1, 2, 3, 4].map((n) => {
-                        const q = n * food.servingWeight
+                    ? [0.5, 1, 1.5, 2].map((n) => {
+                        const q = round2(n * food.servingWeight)
                         const active = qty === q
                         return (
                             <button key={n} type="button" onClick={() => setQty(q)} className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors" style={{ background: active ? 'var(--color-primary)' : 'var(--color-surface-secondary)', color: active ? '#fff' : 'var(--color-text-secondary)' }}>
@@ -299,7 +296,7 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
                         )
                     })
                     : [1, 2, 3, 4].map((mult) => {
-                        const q = food.unit === 'count' ? mult : food.step * mult
+                        const q = food.unit === 'count' ? mult * 0.5 : food.step * mult
                         const active = qty === q
                         return (
                             <button key={mult} type="button" onClick={() => setQty(q)} className="rounded-full px-2.5 py-1 text-xs font-semibold transition-colors" style={{ background: active ? 'var(--color-primary)' : 'var(--color-surface-secondary)', color: active ? '#fff' : 'var(--color-text-secondary)' }}>

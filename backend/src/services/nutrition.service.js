@@ -43,8 +43,9 @@ export function formatQty(food, qty) {
     if (food.unit === 'count') return `${qty}`
     if (food.servingWeight && food.serving && qty > 0) {
         const units = qty / food.servingWeight
-        if (Number.isInteger(units) || Math.abs(units - Math.round(units)) < 0.01) {
-            const n = Math.round(units)
+        // Clean multiples only — quarters included (0.5, 0.75, 1.5…).
+        const n = Math.round(units * 4) / 4
+        if (n > 0 && Math.abs(units - n) < 0.01) {
             return `${n} × ${food.serving} (${qty}${food.unit})`
         }
     }

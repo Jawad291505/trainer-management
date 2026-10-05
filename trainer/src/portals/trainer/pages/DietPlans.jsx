@@ -25,6 +25,7 @@ import {
     glMealLevel,
     mealGL,
     glycemicMeta,
+    qtyInputProps,
 } from '../../../utils/nutrition'
 import { formatMealTime, mealTimeToMinutes, sortMealsByTime } from '../../../utils/time'
 import { WEEKDAYS, MEAL_TYPES } from '../../../constants/dietPlan'
@@ -83,7 +84,7 @@ function OptionPane({ option, onAddFood, onEditFood, onChangeQty, onRemoveFood, 
                         <tbody>
                             {option.items.map((it, idx) => {
                                 const food = foods.find((f) => f.id === it.foodId)
-                                const step = food ? food.step : 1
+                                const { min, step } = qtyInputProps(it.unit, food?.step)
                                 return (
                                     <tr key={idx} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
                                         <td className="px-3 py-2 font-medium text-text-primary">{it.food}</td>
@@ -91,10 +92,10 @@ function OptionPane({ option, onAddFood, onEditFood, onChangeQty, onRemoveFood, 
                                             <div className="flex items-center gap-1.5">
                                                 <InputNumber
                                                     size="small"
-                                                    min={step}
+                                                    min={min}
                                                     step={step}
                                                     value={it.qty}
-                                                    onChange={(v) => onChangeQty(idx, v || step)}
+                                                    onChange={(v) => onChangeQty(idx, v || min)}
                                                     style={{ width: 78 }}
                                                 />
                                                 <span className="text-xs text-text-muted">{it.unit === 'count' ? '' : it.unit}</span>

@@ -13,6 +13,7 @@ import {
 import { bucketFor } from './followUp.service.js'
 import { pktStartOfDay } from '../utils/pktTime.js'
 import { subscriptionStatus, DAY_MS } from './subscription.service.js'
+import { planFinalPrice } from '../models/SubscriptionPlan.js'
 
 // ---- Admin dashboard + payments stats ----
 // Ports admin/src/services/mockData.js `getStats()`.
@@ -174,7 +175,7 @@ export async function getAdminDashboard() {
     const [members, teams, paymentAgg, revenueAgg, trainers, totalClients, memberGrowthAgg, trainerGrowthAgg, paidTrainerAgg] = await Promise.all([
         Member.find({}, 'user plan status planExpiryDate trainerLimit clientLimit joinDate')
             .populate('user', 'name email avatarColor')
-            .populate('plan', 'name priceMonthly currency')
+            .populate('plan', 'name priceMonthly discountPercent currency')
             .lean(),
         // Trainers grouped by the member who manages them (denormalised clientCount, as in getMemberStats).
         Trainer.aggregate([
@@ -266,7 +267,7 @@ export async function getAdminDashboard() {
     // Monthly recurring revenue: what members currently paying (or about to renew) are worth.
     const mrr = members.reduce((sum, mb, i) => {
         const live = rows[i].subscriptionStatus === 'active' || rows[i].subscriptionStatus === 'expiring'
-        return live ? sum + (mb.plan?.priceMonthly || 0) : sum
+        return live ? sum + planFinalPrice(mb.plan) : sum
     }, 0)
 
     const thisMonth = months[months.length - 1]

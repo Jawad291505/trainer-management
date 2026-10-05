@@ -14,6 +14,11 @@ export function pktDateStr(date = new Date()) {
     return new Intl.DateTimeFormat('en-CA', { timeZone: PKT_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 }
 
+// Full weekday name ("Monday") of the PKT calendar day containing `date`.
+export function pktWeekday(date = new Date()) {
+    return new Intl.DateTimeFormat('en-US', { timeZone: PKT_TZ, weekday: 'long' }).format(date)
+}
+
 // Step a 'YYYY-MM-DD' string by whole days.
 export function addDaysToDateStr(dateStr, delta) {
     const d = new Date(`${dateStr}T12:00:00Z`) // noon UTC avoids any offset edge case

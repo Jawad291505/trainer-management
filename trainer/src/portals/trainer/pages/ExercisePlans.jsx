@@ -19,7 +19,10 @@ import { useLibrary } from '../../../context/LibraryContext'
 import SectionError from '../../../components/feedback/SectionError'
 import { useClientList } from '../../../hooks/useClientList'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
+import { libraryCategories } from '../../../utils/categories'
 import { confirmDelete } from '../../../utils/confirm'
+import { WEEKDAYS } from '../../../constants/dietPlan'
+import { weekdayIndex, sortByWeekday } from '../../../utils/weekdays'
 import ExerciseModal from '../components/ExerciseModal'
 import TechniqueField from '../components/TechniqueField'
 import TechniqueTag from '../components/TechniqueTag'
@@ -112,6 +115,20 @@ export default function ExercisePlans() {
     const saveNote = () => {
         setDays((prev) => prev.map((d) => (d.id === noteEditing ? { ...d, note: noteDraft } : d)))
         setNoteEditing(null)
+    }
+
+    // One workout per weekday: options already taken by another day are disabled.
+    const weekdayOptions = (ownDayId = null) =>
+        WEEKDAYS.map((w, i) => ({
+            value: w,
+            label: w,
+            disabled: days.some((d) => d.id !== ownDayId && weekdayIndex(d.day) === i),
+        }))
+
+    const allWeekdaysUsed = WEEKDAYS.every((_, i) => days.some((d) => weekdayIndex(d.day) === i))
+
+    const changeDay = (id, day) => {
+        setDays((prev) => prev.map((d) => (d.id === id ? { ...d, day } : d)))
     }
 
     const removeDay = (id) => {
@@ -248,7 +265,7 @@ export default function ExercisePlans() {
                     style={{ width: 240 }}
                     options={clientList.map((c) => ({ value: c.id, label: c.name }))}
                 />
-                <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} onClick={() => setDayModal(true)}>
+                <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} disabled={allWeekdaysUsed} onClick={() => setDayModal(true)}>
                     Add day
                 </Button>
             </div>
@@ -269,12 +286,20 @@ export default function ExercisePlans() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    {days.map((d) => (
+                    {sortByWeekday(days).map((d) => (
                         <div key={d.id} className="app-card flex flex-col p-5">
-                            <div className="mb-3 flex items-center justify-between">
-                                <div>
-                                    <div className="font-bold text-text-primary">{d.day}</div>
-                                    <div className="text-xs text-text-muted">{d.focus}</div>
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                    <Select
+                                        size="small"
+                                        value={d.day}
+                                        onChange={(day) => changeDay(d.id, day)}
+                                        options={weekdayOptions(d.id)}
+                                        popupMatchSelectWidth={false}
+                                        style={{ minWidth: 130 }}
+                                        aria-label="Training day"
+                                    />
+                                    <div className="mt-1 text-xs text-text-muted">{d.focus}</div>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <Button size="small" icon={<PlusOutlined />} onClick={() => setExModal(d.id)} />
@@ -340,8 +365,8 @@ export default function ExercisePlans() {
                 centered
             >
                 <Form form={dayForm} layout="vertical" className="mt-1">
-                    <Form.Item name="day" label="Day" rules={[{ required: true, message: 'Enter a day' }]}>
-                        <Input placeholder="e.g. Monday" />
+                    <Form.Item name="day" label="Day" rules={[{ required: true, message: 'Pick a day' }]}>
+                        <Select placeholder="Select a day" options={weekdayOptions()} />
                     </Form.Item>
                     <Form.Item name="focus" label="Focus" rules={[{ required: true, message: 'Enter a focus' }]}>
                         <Input placeholder="e.g. Chest & Triceps" />
@@ -403,7 +428,7 @@ export default function ExercisePlans() {
                             <Input />
                         </Form.Item>
                         <Form.Item name="category" label="Category">
-                            <Select options={exerciseCategories.map((c) => ({ value: c, label: c }))} />
+                            <Select options={libraryCategories(exerciseCategories, customExercises).map((c) => ({ value: c, label: c }))} />
                         </Form.Item>
                     </div>
                     <div className="grid grid-cols-3 gap-x-4">

@@ -1,11 +1,12 @@
 import mongoose from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
-import { Food, LibraryCategory, NutritionConfig } from '../models/index.js'
+import { Food, NutritionConfig } from '../models/index.js'
 import { foodCode as makeCode } from '../utils/slugify.js'
 import { computeNutrition, giLevel, glItemLevel } from '../services/nutrition.service.js'
 import { masterFoods } from '../services/libraryCache.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
+import { ensureLibraryCategory, listLibraryCategories } from '../services/libraryCategory.service.js'
 
 // Master foods are served from memory (see services/libraryCache.js).
 
@@ -41,8 +42,7 @@ export const listFoods = asyncHandler(async (req, res) => {
 
 // GET /api/foods/categories
 export const listFoodCategories = asyncHandler(async (_req, res) => {
-    const cats = await LibraryCategory.find({ kind: 'food' }).sort({ order: 1, name: 1 })
-    res.json({ categories: cats.map((c) => c.name), items: cats })
+    res.json(await listLibraryCategories('food', await masterFoods.get()))
 })
 
 // GET /api/foods/thresholds  — GI/GL config the client-side calculator needs
@@ -67,7 +67,8 @@ export const createFood = asyncHandler(async (req, res) => {
     const doc = {
         code: body.code || makeCode(body.name),
         name: body.name,
-        category: body.category,
+        // A master food may introduce a new category; trainer-custom foods can't.
+        category: isTrainer ? body.category : await ensureLibraryCategory('food', body.category),
         unit: body.unit || 'g',
         base: body.base,
         step: body.step ?? (body.unit === 'count' ? 1 : 10),
@@ -107,6 +108,7 @@ export const updateFood = asyncHandler(async (req, res) => {
         'gi', 'gl', 'cal', 'protein', 'carbs', 'fat', 'fiber',
     ]
     for (const key of editable) if (req.body[key] !== undefined) food[key] = req.body[key]
+    if (food.isMaster && req.body.category) food.category = await ensureLibraryCategory('food', req.body.category)
     await food.save()
     if (food.isMaster) masterFoods.invalidate()
     res.json(food)

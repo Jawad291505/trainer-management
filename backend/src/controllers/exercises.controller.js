@@ -1,10 +1,11 @@
 import mongoose from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
-import { Exercise, ExerciseTechnique, LibraryCategory } from '../models/index.js'
+import { Exercise, ExerciseTechnique } from '../models/index.js'
 import { exerciseCode as makeCode } from '../utils/slugify.js'
 import { masterExercises } from '../services/libraryCache.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
+import { ensureLibraryCategory, listLibraryCategories } from '../services/libraryCategory.service.js'
 
 // Master exercises are served from memory (see services/libraryCache.js); only a
 // trainer's own custom exercises are read from the database per request.
@@ -39,8 +40,7 @@ export const listExercises = asyncHandler(async (req, res) => {
 
 // GET /api/exercises/categories
 export const listExerciseCategories = asyncHandler(async (_req, res) => {
-    const cats = await LibraryCategory.find({ kind: 'exercise' }).sort({ order: 1, name: 1 })
-    res.json({ categories: cats.map((c) => c.name), items: cats })
+    res.json(await listLibraryCategories('exercise', await masterExercises.get()))
 })
 
 // GET /api/exercises/techniques  (data/exerciseTechniques.json)
@@ -66,7 +66,8 @@ export const createExercise = asyncHandler(async (req, res) => {
     const ex = await Exercise.create({
         code,
         name: body.name,
-        category: body.category,
+        // A master exercise may introduce a new category; trainer-custom ones can't.
+        category: isTrainer ? body.category : await ensureLibraryCategory('exercise', body.category),
         technique: body.technique || 'standard',
         defaultSets: body.defaultSets ?? 3,
         defaultReps: body.defaultReps ?? '8-12',
@@ -96,6 +97,7 @@ export const updateExercise = asyncHandler(async (req, res) => {
         'youtube', 'notes', 'equipment', 'target',
     ]
     for (const key of editable) if (req.body[key] !== undefined) ex[key] = req.body[key]
+    if (ex.isMaster && req.body.category) ex.category = await ensureLibraryCategory('exercise', req.body.category)
     await ex.save()
     if (ex.isMaster) masterExercises.invalidate()
     res.json(ex)

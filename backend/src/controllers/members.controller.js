@@ -71,6 +71,7 @@ async function flatten(member, counts, extras) {
             id: String(member.plan._id || member.plan),
             name: member.plan.name,
             priceMonthly: member.plan.priceMonthly,
+            discountPercent: member.plan.discountPercent || 0,
             currency: member.plan.currency,
             maxClients: member.plan.maxClients,
             maxTrainers: member.plan.maxTrainers,

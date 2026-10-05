@@ -7,6 +7,7 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
+import { planDiscount, planFinalPrice } from '../../../utils/plans'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 
@@ -29,6 +30,9 @@ export default function SubscriptionPlans() {
     const [saving, setSaving] = useState(false)
     const [form] = Form.useForm()
     const wAudience = Form.useWatch('audience', form)
+    const wPrice = Form.useWatch('priceMonthly', form)
+    const wDiscount = Form.useWatch('discountPercent', form)
+    const wCurrency = Form.useWatch('currency', form)
     const visible = data.filter((p) => audienceFilter === 'all' || p.audience === audienceFilter)
 
     const fetchPlans = async () => {
@@ -48,11 +52,11 @@ export default function SubscriptionPlans() {
 
     const openCreate = () => {
         setEditing('new')
-        form.setFieldsValue({ audience: audienceFilter === 'trainer' ? 'trainer' : 'member', name: '', priceMonthly: 5000, currency: 'PKR', maxClients: 20, maxTrainers: 5, description: '', active: true })
+        form.setFieldsValue({ audience: audienceFilter === 'trainer' ? 'trainer' : 'member', name: '', priceMonthly: 5000, discountPercent: 0, currency: 'PKR', maxClients: 20, maxTrainers: 5, description: '', active: true })
     }
     const openEdit = (plan) => {
         setEditing(plan)
-        form.setFieldsValue(plan)
+        form.setFieldsValue({ ...plan, discountPercent: plan.discountPercent || 0 })
     }
 
     const savePlan = async () => {
@@ -157,8 +161,14 @@ export default function SubscriptionPlans() {
                                     <Button type="text" icon={<MoreOutlined />} />
                                 </Dropdown>
                             </div>
-                            <div className="mt-4 text-2xl font-extrabold text-text-primary">
-                                {money(plan.priceMonthly, plan.currency)}<span className="text-xs font-medium text-text-muted"> /mo</span>
+                            {planDiscount(plan) > 0 && (
+                                <div className="mt-4 flex items-center gap-2">
+                                    <span className="text-sm text-text-muted line-through">{money(plan.priceMonthly, plan.currency)}</span>
+                                    <Tag color="green" style={{ borderRadius: 999, margin: 0 }}>{planDiscount(plan)}% off</Tag>
+                                </div>
+                            )}
+                            <div className={`${planDiscount(plan) > 0 ? 'mt-1' : 'mt-4'} text-2xl font-extrabold text-text-primary`}>
+                                {money(planFinalPrice(plan), plan.currency)}<span className="text-xs font-medium text-text-muted"> /mo</span>
                             </div>
                             <div className="mt-2 text-sm text-text-secondary">Up to {plan.maxClients} clients{plan.audience === 'trainer' ? '' : ` · ${plan.maxTrainers} trainers`}</div>
                         </div>
@@ -185,9 +195,19 @@ export default function SubscriptionPlans() {
                     <Form.Item name="description" label="Description">
                         <Input placeholder="e.g. Up to 20 clients" />
                     </Form.Item>
-                    <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-3">
-                        <Form.Item name="priceMonthly" label="Price / month" rules={[{ required: true }]}>
+                    <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                        <Form.Item name="priceMonthly" label="Actual price / month" rules={[{ required: true }]}>
                             <InputNumber min={0} style={{ width: '100%' }} />
+                        </Form.Item>
+                        <Form.Item
+                            name="discountPercent"
+                            label="Discount"
+                            tooltip="Percentage off the actual price. Leave at 0 for no discount."
+                            extra={wPrice != null && Number(wDiscount) > 0
+                                ? `Final price: ${money(planFinalPrice({ priceMonthly: wPrice, discountPercent: wDiscount }), wCurrency || '')} / month`
+                                : null}
+                        >
+                            <InputNumber min={0} max={100} addonAfter="%" style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item name="currency" label="Currency" rules={[{ required: true }]}>
                             <Input placeholder="PKR" />

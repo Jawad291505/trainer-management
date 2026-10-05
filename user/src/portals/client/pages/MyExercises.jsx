@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Progress, Segmented } from 'antd'
+import { Progress, Tabs } from 'antd'
 import { PlayCircleOutlined, CheckCircleFilled, CalendarOutlined, ThunderboltOutlined, RightOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
@@ -9,6 +9,8 @@ import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { getTechnique } from '../../../services/exerciseLibrary'
+import { pktWeekday } from '../../../utils/pkt'
+import { sortByWeekday, dayForWeekday } from '../../../utils/weekdays'
 
 export default function MyExercises() {
     const navigate = useNavigate()
@@ -35,10 +37,16 @@ export default function MyExercises() {
 
     const [activeDay, setActiveDay] = useState(null)
 
-    const days = exercisePlan?.days || []
-    const todayId = exercisePlan?.todayDayId || days[0]?._id || days[0]?.id || null
+    // Tabs run Monday → Sunday. "Today" is the day the API would start right now
+    // (backend resolveTodayDay): an explicit todayDayId, else today's PKT weekday.
+    const days = useMemo(() => sortByWeekday(exercisePlan?.days || []), [exercisePlan])
+    const todayName = pktWeekday()
+    const todayDay = days.find((d) => (d._id || d.id) === exercisePlan?.todayDayId) || dayForWeekday(days, todayName)
+    const todayId = todayDay?._id || todayDay?.id || null
+    const firstId = days[0]?._id || days[0]?.id || null
 
-    useEffect(() => { if (todayId && !activeDay) setActiveDay(todayId) }, [todayId, activeDay])
+    // Open on today's workout; on a rest day fall back to the first day.
+    useEffect(() => { if (!activeDay && (todayId || firstId)) setActiveDay(todayId || firstId) }, [todayId, firstId, activeDay])
 
     // Any day can be started/redone at any time — not just the plan's "today"
     // day — so re-fetch that day's own session status whenever it changes.
@@ -63,10 +71,25 @@ export default function MyExercises() {
         navigate('/workout', { state: { planId, dayId: activeDay } })
     }
 
-    const dayOptions = days.map((d) => ({
-        label: (d._id || d.id) === todayId ? `${d.focus} · Today` : d.focus,
-        value: d._id || d.id,
-    }))
+    const dayTabs = days.map((d) => {
+        const isToday = (d._id || d.id) === todayId
+        return {
+            key: d._id || d.id,
+            label: (
+                <span className="flex items-center gap-1.5">
+                    {d.day}
+                    {isToday && (
+                        <span
+                            className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                            style={{ background: 'var(--color-primary)', color: '#fff' }}
+                        >
+                            Today
+                        </span>
+                    )}
+                </span>
+            ),
+        }
+    })
 
     if (loading) return <PageSpin />
     if (planError) return <div className="app-card"><SectionError title="Couldn't load your exercise plan" error={planError} onRetry={loadPlan} /></div>
@@ -89,9 +112,13 @@ export default function MyExercises() {
             </div>
 
             {/* Day switcher */}
-            <div className="mb-4 overflow-x-auto">
-                <Segmented options={dayOptions} value={activeDay} onChange={setActiveDay} />
-            </div>
+            {days.length > 0 && <Tabs activeKey={activeDay} onChange={setActiveDay} items={dayTabs} />}
+
+            {days.length > 0 && !todayId && (
+                <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'var(--color-info-soft)', color: 'var(--color-info)' }}>
+                    No workout is scheduled for today ({todayName}) — it's a rest day. You can still open any other day.
+                </div>
+            )}
 
             {day?.note && (
                 <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
@@ -102,7 +129,7 @@ export default function MyExercises() {
             <div className="app-card mb-4 p-4">
                 <div className="mb-1.5 flex items-center justify-between text-sm">
                     <span className="flex items-center gap-1.5 font-semibold text-text-secondary">
-                        <CalendarOutlined /> {day.day} — {day.focus}
+                        <CalendarOutlined /> {[day.day, day.focus].filter(Boolean).join(' — ')}
                     </span>
                     <span className="font-bold text-text-primary">{completed}/{exercises.length}</span>
                 </div>

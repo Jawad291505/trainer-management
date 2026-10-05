@@ -18,8 +18,9 @@ import ModalTitle from '../../../components/common/ModalTitle'
 import { confirmDelete } from '../../../utils/confirm'
 import { useLibrary } from '../../../context/LibraryContext'
 import { foodCategories } from '../../../services/foodLibrary'
+import { mergeCategories } from '../../../hooks/useLibraryCategories'
 import { MAX_DIET_PLANS, dietGoals } from '../../../services/dietPlans'
-import { computeNutrition, formatQty, mealGL, glMealLevel, glItemLevel, giLevel, glycemicMeta } from '../../../utils/nutrition'
+import { computeNutrition, formatQty, mealGL, glMealLevel, glItemLevel, giLevel, glycemicMeta, qtyInputProps } from '../../../utils/nutrition'
 
 let mealSeq = 1
 const uid = (p) => `${p}${Date.now()}${mealSeq++}`
@@ -400,6 +401,8 @@ function PlanEditor({ plan, onSave, onBack }) {
 /* ------------------------------------------------------------------ */
 function FoodPickerModal({ open, onCancel, onAdd }) {
     const { foods } = useLibrary(['foods'])
+    // Built-in categories + any admin-added ones the loaded foods carry.
+    const categories = useMemo(() => mergeCategories(foodCategories, foods.map((f) => f.category)), [foods])
     const [cat, setCat] = useState(foodCategories[0])
     const [foodId, setFoodId] = useState(null)
     const [qty, setQty] = useState(0)
@@ -445,7 +448,7 @@ function FoodPickerModal({ open, onCancel, onAdd }) {
                             setFoodId(null)
                             setQty(0)
                         }}
-                        options={foodCategories.map((c) => ({ value: c, label: c }))}
+                        options={categories.map((c) => ({ value: c, label: c }))}
                         style={{ width: '100%' }}
                     />
                 </div>
@@ -496,8 +499,7 @@ function FoodPickerModal({ open, onCancel, onAdd }) {
                         <div className="flex-1">
                             <span className="field-label">Quantity{unitLabel ? ` (${unitLabel})` : ''}</span>
                             <InputNumber
-                                min={food.step}
-                                step={food.step}
+                                {...qtyInputProps(food.unit, food.step)}
                                 value={qty}
                                 onChange={(v) => setQty(v || 0)}
                                 addonAfter={food.unit === 'count' ? null : food.unit}
@@ -509,7 +511,7 @@ function FoodPickerModal({ open, onCancel, onAdd }) {
 
                     <div className="mt-2 flex flex-wrap gap-1.5">
                         {[1, 2, 3, 4].map((mult) => {
-                            const q = food.unit === 'count' ? mult : food.step * mult
+                            const q = food.unit === 'count' ? mult * 0.5 : food.step * mult
                             const active = qty === q
                             return (
                                 <button
