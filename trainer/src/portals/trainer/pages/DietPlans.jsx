@@ -731,34 +731,49 @@ export default function DietPlans() {
 
                                 <Tabs
                                     className="mt-2 diet-option-tabs"
-                                    type="editable-card"
-                                    hideAdd={false}
+                                    type="card"
                                     activeKey={activeOptionId}
                                     onChange={(key) => setActiveOptionByMeal((a) => ({ ...a, [m.id]: key }))}
-                                    onEdit={(targetKey, action) => {
-                                        if (action === 'add') addOption(m.id)
-                                        else removeOption(m.id, targetKey)
-                                    }}
+                                    tabBarExtraContent={
+                                        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={() => addOption(m.id)}>
+                                            Add option
+                                        </Button>
+                                    }
+                                    // The whole tab is the click target — rename/remove live inside
+                                    // the option's own pane so they can't get in the way of switching.
                                     items={m.options.map((o) => ({
                                         key: o.id,
-                                        closable: m.options.length > 1,
-                                        label: (
-                                            <Typography.Text
-                                                editable={{ onChange: (val) => val.trim() && renameOption(m.id, o.id, val.trim()) }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                {o.label}
-                                            </Typography.Text>
-                                        ),
+                                        label: <span className="px-2 font-semibold">{o.label}</span>,
                                         children: (
-                                            <OptionPane
-                                                option={o}
-                                                foods={foods}
-                                                onAddFood={() => setFoodModal({ mealId: m.id, optionId: o.id })}
-                                                onEditFood={(idx) => setFoodModal({ mealId: m.id, optionId: o.id, index: idx })}
-                                                onChangeQty={(idx, qty) => changeQty(m.id, o.id, idx, qty)}
-                                                onRemoveFood={(idx) => removeFood(m.id, o.id, idx)}
-                                            />
+                                            <div>
+                                                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                    <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                                                        Option name:
+                                                        <Typography.Text
+                                                            strong
+                                                            editable={{
+                                                                tooltip: 'Rename option',
+                                                                onChange: (val) => val.trim() && renameOption(m.id, o.id, val.trim()),
+                                                            }}
+                                                        >
+                                                            {o.label}
+                                                        </Typography.Text>
+                                                    </span>
+                                                    {m.options.length > 1 && (
+                                                        <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeOption(m.id, o.id)}>
+                                                            Remove option
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                                <OptionPane
+                                                    option={o}
+                                                    foods={foods}
+                                                    onAddFood={() => setFoodModal({ mealId: m.id, optionId: o.id })}
+                                                    onEditFood={(idx) => setFoodModal({ mealId: m.id, optionId: o.id, index: idx })}
+                                                    onChangeQty={(idx, qty) => changeQty(m.id, o.id, idx, qty)}
+                                                    onRemoveFood={(idx) => removeFood(m.id, o.id, idx)}
+                                                />
+                                            </div>
                                         ),
                                     }))}
                                 />

@@ -15,6 +15,9 @@ const planExerciseSchema = new mongoose.Schema(
         exerciseCode: { type: String, default: null, trim: true },
 
         name: { type: String, required: true, trim: true },
+        // Muscle group — the library exercise's category ("Chest", "Back"…), copied
+        // here so every plan card can head the exercise with it.
+        category: { type: String, default: '', trim: true },
         sets: { type: Number, default: 3, min: 1 },
         reps: { type: String, default: '8-12' },
         rest: { type: String, default: '60s' },
@@ -27,6 +30,9 @@ const planExerciseSchema = new mongoose.Schema(
         trackingType: { type: String, enum: TRACKING_TYPES, default: 'reps' },
         targetWeight: { type: Number, default: null, min: 0 }, // kg
         targetDuration: { type: Number, default: null, min: 0 }, // seconds
+
+        // Trainer-flagged priority exercise — shown to the client with a star + "Important".
+        important: { type: Boolean, default: false },
 
         done: { type: Boolean, default: false },
     },

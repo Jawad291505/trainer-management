@@ -3,6 +3,7 @@ import ApiError from '../utils/ApiError.js'
 import { notifyClient } from '../services/notify.service.js'
 import { ExercisePlan, Exercise, Client, DailyLog } from '../models/index.js'
 import { summarizeExercisePlan } from '../services/exercisePlan.service.js'
+import { masterExercises } from '../services/libraryCache.js'
 
 function assertCanAccess(req, plan) {
     if (req.user.role === 'admin') return
@@ -42,6 +43,7 @@ async function normalizeDays(days = []) {
                 exercise: ref?._id || null,
                 exerciseCode: ref?.code || e.exerciseCode || null,
                 name: e.name || ref?.name,
+                category: e.category || ref?.category || '',
                 sets: e.sets ?? ref?.defaultSets ?? 3,
                 reps: e.reps ?? ref?.defaultReps ?? '8-12',
                 rest: e.rest ?? ref?.defaultRest ?? '60s',
@@ -51,10 +53,39 @@ async function normalizeDays(days = []) {
                 trackingType: e.trackingType ?? ref?.trackingType ?? 'reps',
                 targetWeight: e.targetWeight ?? ref?.defaultWeight ?? null,
                 targetDuration: e.targetDuration ?? ref?.defaultDuration ?? null,
+                important: !!e.important,
                 done: !!e.done,
             }
         }),
     }))
+}
+
+// The plan as sent to every app: the document + completion summary, with each
+// exercise's muscle group (`category`) filled in. Plans saved before that field
+// existed get it from the library by exercise code — masters from memory, only
+// trainer-custom codes cost a query.
+async function planBody(plan) {
+    const plain = plan.toObject()
+    const summary = summarizeExercisePlan(plan)
+
+    const missing = [...new Set(plain.days.flatMap((d) => d.exercises)
+        .filter((e) => !e.category && e.exerciseCode).map((e) => e.exerciseCode))]
+    const categoryByCode = new Map()
+    if (missing.length) {
+        const wanted = new Set(missing)
+        for (const x of await masterExercises.get()) if (wanted.has(x.code)) categoryByCode.set(x.code, x.category)
+        const custom = missing.filter((c) => !categoryByCode.has(c))
+        if (custom.length) {
+            for (const x of await Exercise.find({ code: { $in: custom } }).select('code category')) categoryByCode.set(x.code, x.category)
+        }
+    }
+    const withCategory = (e) => ({ ...e, category: e.category || categoryByCode.get(e.exerciseCode) || '' })
+
+    return {
+        ...plain,
+        ...summary,
+        days: summary.days.map((d, i) => ({ ...d, exercises: plain.days[i].exercises.map(withCategory) })),
+    }
 }
 
 // GET /api/exercise-plans?client=&status=
@@ -76,7 +107,7 @@ export const listExercisePlans = asyncHandler(async (req, res) => {
 export const getExercisePlan = asyncHandler(async (req, res) => {
     const plan = await loadPlanOr404(req.params.id)
     assertCanAccess(req, plan)
-    res.json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
+    res.json(await planBody(plan))
 })
 
 // GET /api/clients/:clientId/exercise-plan  -> current published plan
@@ -90,7 +121,7 @@ export const getClientExercisePlan = asyncHandler(async (req, res) => {
     const fallback = plan ? null : await ExercisePlan.findOne({ client: clientId }).sort({ updatedAt: -1 })
     const result = plan || fallback
     if (!result) throw ApiError.notFound('No exercise plan for this client yet')
-    res.json({ ...result.toObject(), ...summarizeExercisePlan(result) })
+    res.json(await planBody(result))
 })
 
 // POST /api/exercise-plans  (trainer)  Body: { clientId, title, days[], todayDayId? }
@@ -106,7 +137,7 @@ export const createExercisePlan = asyncHandler(async (req, res) => {
         status: 'draft',
         days: await normalizeDays(days || []),
     })
-    res.status(201).json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
+    res.status(201).json(await planBody(plan))
 })
 
 // PATCH /api/exercise-plans/:id  (trainer)  Body: { title?, days?, todayDayId? }
@@ -119,7 +150,7 @@ export const updateExercisePlan = asyncHandler(async (req, res) => {
     if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days)
     if (req.body.todayDayId !== undefined) plan.todayDayId = req.body.todayDayId
     await plan.save()
-    res.json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
+    res.json(await planBody(plan))
 })
 
 // PATCH /api/exercise-plans/:id/exercises/:exId  -> toggle `done` (client or trainer)
@@ -157,7 +188,7 @@ export const setExerciseDone = asyncHandler(async (req, res) => {
         }
     }
 
-    res.json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
+    res.json(await planBody(plan))
 })
 
 // POST /api/exercise-plans/:id/publish  (trainer)
@@ -178,7 +209,7 @@ export const publishExercisePlan = asyncHandler(async (req, res) => {
         title: 'New exercise plan',
         description: `Your trainer published "${plan.title}".`,
     })
-    res.json({ ...plan.toObject(), ...summarizeExercisePlan(plan) })
+    res.json(await planBody(plan))
 })
 
 // DELETE /api/exercise-plans/:id  (trainer)

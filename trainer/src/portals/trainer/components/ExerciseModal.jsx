@@ -61,6 +61,8 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 exerciseId: exercise.id || exercise._id,
                 exerciseCode: exercise.code,
                 name: exercise.name,
+                category: exercise.category || '',
+                important: !!v.important,
                 sets: v.sets,
                 reps: v.reps,
                 rest: v.rest || '60s',
@@ -94,6 +96,8 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
             exerciseId: created ? (created._id || created.id) : null,
             exerciseCode: created?.code || undefined,
             name: v.name,
+            category: created?.category || v.category || '',
+            important: !!v.important,
             sets: v.sets,
             reps: v.reps,
             rest: v.rest || '60s',
@@ -227,6 +231,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                 <Form.Item name="notes" label="Instructions" className="mb-0">
                                     <Input.TextArea rows={2} placeholder="Form cues, tempo, etc." />
                                 </Form.Item>
+                                <Form.Item name="important" valuePropName="checked" className="mb-0 mt-3">
+                                    <Checkbox>Mark as important — the client sees it with a star</Checkbox>
+                                </Form.Item>
                             </Form>
                         </div>
                     )}
@@ -277,6 +284,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                         </Form.Item>
                         <Form.Item name="notes" label="Instructions" className="mb-0">
                             <Input.TextArea rows={2} placeholder="Form cues, tempo, etc." />
+                        </Form.Item>
+                        <Form.Item name="important" valuePropName="checked" className="mb-0 mt-3">
+                            <Checkbox>Mark as important — the client sees it with a star</Checkbox>
                         </Form.Item>
                     </div>
                     <Form.Item name="saveToLibrary" valuePropName="checked" initialValue={true} className="mb-0 mt-3">

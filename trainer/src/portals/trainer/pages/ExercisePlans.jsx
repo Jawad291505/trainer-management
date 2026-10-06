@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin, Dropdown, Segmented, Checkbox } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -10,6 +10,9 @@ import {
     EditOutlined,
     AppstoreOutlined,
     CalendarOutlined,
+    StarFilled,
+    StarOutlined,
+    MoreOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
@@ -75,6 +78,8 @@ export default function ExercisePlans() {
                     exerciseId: ex.exercise,
                     exerciseCode: ex.exerciseCode,
                     name: ex.name,
+                    category: ex.category || '',
+                    important: !!ex.important,
                     sets: ex.sets,
                     reps: ex.reps,
                     rest: ex.rest || '60s',
@@ -95,6 +100,8 @@ export default function ExercisePlans() {
     const [editing, setEditing] = useState(null) // custom exercise being edited
     const [dayForm] = Form.useForm()
     const [editForm] = Form.useForm()
+    const [planExEditing, setPlanExEditing] = useState(null) // { dayId, ex } — plan exercise being edited
+    const [planExForm] = Form.useForm()
 
     const addDay = async () => {
         const v = await dayForm.validateFields()
@@ -148,6 +155,81 @@ export default function ExercisePlans() {
         setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, exercises: d.exercises.filter((e) => e.id !== exId) } : d)))
     }
 
+    const patchExercise = (dayId, exId, patch) => {
+        setDays((prev) => prev.map((d) => (d.id === dayId
+            ? { ...d, exercises: d.exercises.map((e) => (e.id === exId ? { ...e, ...patch } : e)) }
+            : d)))
+    }
+
+    // Edit an exercise already in the plan (sets, reps, targets, importance…).
+    const openPlanExEdit = (dayId, ex) => {
+        setPlanExEditing({ dayId, ex })
+        planExForm.setFieldsValue({
+            trackingType: ex.trackingType || 'reps',
+            sets: ex.sets,
+            reps: ex.reps,
+            rest: ex.rest,
+            targetWeight: ex.targetWeight ?? undefined,
+            targetDuration: ex.targetDuration ?? undefined,
+            technique: ex.technique || 'standard',
+            youtube: ex.youtube || '',
+            notes: ex.notes || '',
+            important: !!ex.important,
+        })
+    }
+
+    const savePlanExEdit = async () => {
+        const v = await planExForm.validateFields()
+        patchExercise(planExEditing.dayId, planExEditing.ex.id, {
+            trackingType: v.trackingType || 'reps',
+            sets: v.sets,
+            reps: v.reps,
+            rest: v.rest || '60s',
+            targetWeight: v.targetWeight ?? null,
+            targetDuration: v.targetDuration ?? null,
+            technique: v.technique || 'standard',
+            youtube: v.youtube || '',
+            notes: v.notes || '',
+            important: !!v.important,
+        })
+        setPlanExEditing(null)
+        message.success('Exercise updated — save or publish to apply')
+    }
+
+    const dayMenu = (d) => ({
+        items: [
+            { key: 'add', icon: <PlusOutlined />, label: 'Add exercise' },
+            { key: 'note', icon: <EditOutlined />, label: d.note ? 'Edit note' : 'Add note' },
+            { type: 'divider' },
+            { key: 'remove', icon: <DeleteOutlined />, label: 'Remove day', danger: true },
+        ],
+        onClick: ({ key }) => {
+            if (key === 'add') setExModal(d.id)
+            else if (key === 'note') openNoteEdit(d)
+            else if (key === 'remove') removeDay(d.id)
+        },
+    })
+
+    const exerciseMenu = (d, ex) => ({
+        items: [
+            { key: 'edit', icon: <EditOutlined />, label: 'Edit exercise' },
+            {
+                key: 'important',
+                icon: ex.important ? <StarOutlined /> : <StarFilled />,
+                label: ex.important ? 'Remove important' : 'Mark as important',
+            },
+            ...(ex.youtube ? [{ key: 'video', icon: <PlayCircleOutlined />, label: 'Watch video' }] : []),
+            { type: 'divider' },
+            { key: 'remove', icon: <DeleteOutlined />, label: 'Remove', danger: true },
+        ],
+        onClick: ({ key }) => {
+            if (key === 'edit') openPlanExEdit(d.id, ex)
+            else if (key === 'important') patchExercise(d.id, ex.id, { important: !ex.important })
+            else if (key === 'video') window.open(ex.youtube, '_blank', 'noopener,noreferrer')
+            else if (key === 'remove') removeExerciseFromDay(d.id, ex.id)
+        },
+    })
+
     // ---- My Exercises manager ----
     const openEdit = (ex) => {
         setEditing(ex)
@@ -188,6 +270,8 @@ export default function ExercisePlans() {
             exercises: d.exercises.map((ex) => ({
                 exerciseCode: ex.exerciseCode || undefined,
                 name: ex.name,
+                category: ex.category || '',
+                important: !!ex.important,
                 sets: ex.sets,
                 reps: ex.reps,
                 rest: ex.rest || '60s',
@@ -301,10 +385,9 @@ export default function ExercisePlans() {
                                     />
                                     <div className="mt-1 text-xs text-text-muted">{d.focus}</div>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    <Button size="small" icon={<PlusOutlined />} onClick={() => setExModal(d.id)} />
-                                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeDay(d.id)} />
-                                </div>
+                                <Dropdown trigger={['click']} menu={dayMenu(d)}>
+                                    <Button type="text" icon={<MoreOutlined />} aria-label="Day actions" />
+                                </Dropdown>
                             </div>
 
                             <button
@@ -327,19 +410,25 @@ export default function ExercisePlans() {
                                 <div className="flex flex-col gap-2">
                                     {d.exercises.map((ex) => (
                                         <div key={ex.id} className="rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                                            {ex.category && (
+                                                <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
+                                            )}
                                             <div className="flex items-center justify-between">
                                                 <span className="flex min-w-0 items-center gap-2">
                                                     <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
+                                                    {ex.important && (
+                                                        <span
+                                                            className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                                            style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                                                        >
+                                                            <StarFilled /> Important
+                                                        </span>
+                                                    )}
                                                     <TechniqueTag technique={ex.technique} />
                                                 </span>
-                                                <div className="flex items-center gap-2">
-                                                    {ex.youtube && (
-                                                        <a href={ex.youtube} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-danger)' }}>
-                                                            <PlayCircleOutlined />
-                                                        </a>
-                                                    )}
-                                                    <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeExerciseFromDay(d.id, ex.id)} />
-                                                </div>
+                                                <Dropdown trigger={['click']} menu={exerciseMenu(d, ex)}>
+                                                    <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Exercise actions" />
+                                                </Dropdown>
                                             </div>
                                             <div className="mt-1 text-xs text-text-muted">
                                                 {ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps} · Rest {ex.rest}
@@ -350,6 +439,10 @@ export default function ExercisePlans() {
                                     ))}
                                 </div>
                             )}
+
+                            <Button className="mt-3" type="dashed" block icon={<PlusOutlined />} onClick={() => setExModal(d.id)}>
+                                Add exercise
+                            </Button>
                         </div>
                     ))}
                 </div>
@@ -442,6 +535,49 @@ export default function ExercisePlans() {
                     </Form.Item>
                     <Form.Item name="notes" label="Instructions">
                         <Input.TextArea rows={2} />
+                    </Form.Item>
+                </Form>
+            </Modal>
+
+            {/* Edit an exercise already in the plan */}
+            <Modal
+                title={<ModalTitle icon={<EditOutlined />} title="Edit exercise" subtitle={planExEditing?.ex.name} />}
+                open={!!planExEditing}
+                onCancel={() => setPlanExEditing(null)}
+                onOk={savePlanExEdit}
+                okText="Save changes"
+                okButtonProps={{ icon: <SaveOutlined /> }}
+                centered
+                width={520}
+            >
+                <Form form={planExForm} layout="vertical" className="mt-1 builder-input">
+                    <Form.Item name="trackingType" label="Tracked by" className="mb-3">
+                        <Segmented
+                            block
+                            options={[
+                                { value: 'reps', label: 'Reps' },
+                                { value: 'duration', label: 'Timed' },
+                            ]}
+                        />
+                    </Form.Item>
+                    <div className="grid grid-cols-3 gap-x-4">
+                        <Form.Item name="sets" label="Sets" rules={[{ required: true, message: 'Required' }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                        <Form.Item name="reps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>
+                        <Form.Item name="rest" label="Rest"><Input placeholder="90s" /></Form.Item>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <Form.Item name="targetWeight" label="Target weight (kg)"><InputNumber min={0} style={{ width: '100%' }} placeholder="Optional" /></Form.Item>
+                        <Form.Item name="targetDuration" label="Target duration (sec)"><InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 30" /></Form.Item>
+                    </div>
+                    <TechniqueField form={planExForm} />
+                    <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
+                        <Input placeholder="https://youtube.com/watch?v=…" />
+                    </Form.Item>
+                    <Form.Item name="notes" label="Instructions" className="mb-0">
+                        <Input.TextArea rows={2} placeholder="Form cues, tempo, etc." />
+                    </Form.Item>
+                    <Form.Item name="important" valuePropName="checked" className="mb-0 mt-3">
+                        <Checkbox>Mark as important — the client sees it with a star</Checkbox>
                     </Form.Item>
                 </Form>
             </Modal>

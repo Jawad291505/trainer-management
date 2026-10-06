@@ -1,4 +1,4 @@
-import { PlayCircleOutlined, CheckCircleFilled } from '@ant-design/icons'
+import { PlayCircleOutlined, CheckCircleFilled, StarFilled } from '@ant-design/icons'
 import TechniqueTag from './TechniqueTag'
 
 // Displays a single training day and its exercises.
@@ -35,10 +35,21 @@ export default function ExerciseDayCard({ day }) {
                             borderLeft: `3px solid ${ex.done ? 'var(--color-success)' : 'var(--color-border)'}`,
                         }}
                     >
+                        {ex.category && (
+                            <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
+                        )}
                         <div className="flex items-center justify-between">
                             <span className="flex min-w-0 items-center gap-2">
                                 {ex.done && <CheckCircleFilled style={{ color: 'var(--color-success)', fontSize: 14 }} />}
                                 <span className={`truncate text-sm font-semibold ${ex.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{ex.name}</span>
+                                {ex.important && (
+                                    <span
+                                        className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                        style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                                    >
+                                        <StarFilled /> Important
+                                    </span>
+                                )}
                                 <TechniqueTag technique={ex.technique} />
                             </span>
                             {ex.youtube && (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Progress, Tabs } from 'antd'
-import { PlayCircleOutlined, CheckCircleFilled, CalendarOutlined, ThunderboltOutlined, RightOutlined } from '@ant-design/icons'
+import { PlayCircleOutlined, CheckCircleFilled, CalendarOutlined, ThunderboltOutlined, RightOutlined, StarFilled } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import PageSpin from '../../../components/common/PageSpin'
@@ -179,9 +179,20 @@ export default function MyExercises() {
                         <div key={exId} className="app-card p-5" style={isDone ? { borderColor: 'var(--color-success)' } : undefined}>
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
+                                    {ex.category && (
+                                        <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
+                                    )}
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="font-bold text-text-primary">{ex.name}</span>
                                         {isDone && <CheckCircleFilled style={{ color: 'var(--color-success)' }} />}
+                                        {ex.important && (
+                                            <span
+                                                className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                                style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                                            >
+                                                <StarFilled /> Important
+                                            </span>
+                                        )}
                                         {ex.technique && ex.technique !== 'standard' && (
                                             <span
                                                 className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"

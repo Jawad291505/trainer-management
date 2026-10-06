@@ -495,3 +495,21 @@ body {
 .modal-section+.modal-section {
     margin-top: 12px;
 }
+
+/* Diet plan meal-option tabs: the selected option is filled with the primary
+   colour so it's unmistakable next to the unselected ones. */
+.diet-option-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
+    background: var(--color-surface-secondary);
+    border-color: var(--color-border);
+    color: var(--color-text-secondary);
+}
+.diet-option-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab:hover {
+    color: var(--color-primary);
+}
+.diet-option-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab.ant-tabs-tab-active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+}
+.diet-option-tabs.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #fff;
+}
