@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Skeleton, Tag, Progress, Rate } from 'antd'
+import { Skeleton, Tag, Progress, Rate, Button } from 'antd'
 import dayjs from 'dayjs'
 import {
     TeamOutlined,
@@ -27,6 +28,7 @@ import EmptyState from '../../../components/common/EmptyState'
 import AsyncSection from '../../../components/feedback/AsyncSection'
 import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
+import ChangePlanModal from '../../../components/common/ChangePlanModal'
 import AffiliationTag from '../components/AffiliationTag'
 import { api } from '../../../services/api'
 import { useAsyncData } from '../../../hooks/useAsyncData'
@@ -266,6 +268,7 @@ function AdminDashboard() {
 // ---- Member: their own Trainers ----
 function MemberDashboard() {
     const navigate = useNavigate()
+    const [changingPlan, setChangingPlan] = useState(false)
     const res = useAsyncData(() => api.get('/stats/member/dashboard'), [])
     const d = res.data
     const props = { loading: res.loading, error: res.error, onRetry: res.reload, errorTitle: "Couldn't load the dashboard" }
@@ -314,17 +317,27 @@ function MemberDashboard() {
             <PageHeader title="Dashboard" subtitle="Your trainers' workload, ratings and client growth at a glance." />
 
             {sub?.plan && (
-                <div className="app-card mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
+                <div className="app-card mb-4 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 p-4">
                     <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Your subscription</div>
-                        <div className="mt-0.5 text-base font-bold text-text-primary">{sub.plan} plan</div>
+                        <div className="mt-0.5 flex items-center gap-2 text-base font-bold text-text-primary">{sub.plan} plan <SubTag status={sub.status} /></div>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-text-secondary">
-                        <span>{sub.planExpiryDate ? `${expiryText(sub.daysLeft)} · ${fmtDate(sub.planExpiryDate)}` : 'No expiry date'}</span>
-                        <SubTag status={sub.status} />
+                    <div className="flex flex-wrap gap-x-8 gap-y-2">
+                        {[
+                            ['Started', fmtDate(sub.startDate)],
+                            ['Ends', sub.endDate ? fmtDate(sub.endDate) : 'No expiry'],
+                            ['Days remaining', sub.daysLeft == null ? '—' : Math.max(0, sub.daysLeft)],
+                        ].map(([label, value]) => (
+                            <div key={label}>
+                                <div className="text-xs text-text-muted">{label}</div>
+                                <div className="text-sm font-bold text-text-primary">{value}</div>
+                            </div>
+                        ))}
+                        {sub.status !== 'inactive' && <Button className="self-center" onClick={() => setChangingPlan(true)}>Change plan</Button>}
                     </div>
                 </div>
             )}
+            <ChangePlanModal open={changingPlan} onClose={() => setChangingPlan(false)} showTrainerSeats />
 
             {res.error ? (
                 <SectionError title="Couldn't load the dashboard" error={res.error} onRetry={res.reload} />

@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import {
     getAdminStats, getMemberStats, getTrainerStats, getClientCompletion, getAdminDashboard, getMemberDashboard,
 } from '../services/stats.service.js'
+import { subscriptionSummary } from '../services/subscription.service.js'
 import { Payment } from '../models/index.js'
 import { assertClientAccess } from '../utils/clientAccess.js'
 
@@ -43,9 +44,14 @@ export const memberDashboard = asyncHandler(async (req, res) => {
     res.json(await getMemberDashboard(req.member._id))
 })
 
-// GET /api/stats/trainer   (trainer) — trainer dashboard cards
+// GET /api/stats/trainer   (trainer) — trainer dashboard cards, plus the trainer's
+// own subscription period (null for trainers without a plan of their own).
 export const trainerStats = asyncHandler(async (req, res) => {
-    res.json(await getTrainerStats(req.trainer._id))
+    const [stats, subscription] = await Promise.all([
+        getTrainerStats(req.trainer._id),
+        subscriptionSummary('trainer', req.trainer),
+    ])
+    res.json({ ...stats, subscription })
 })
 
 // GET /api/stats/client/completion?days=7   (client, or trainer/admin via ?client=)

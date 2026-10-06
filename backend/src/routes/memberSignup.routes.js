@@ -3,7 +3,7 @@ import { authenticate } from '../middlewares/auth.js'
 import { uploadImage } from '../middlewares/upload.js'
 import { signup, verifyOtp, resendOtp, selectPlan } from '../controllers/memberSignup.controller.js'
 import { signup as trainerSignup } from '../controllers/trainerSignup.controller.js'
-import { submitPayment, myPayments } from '../controllers/memberPayments.controller.js'
+import { submitPayment, myPayments, planChangeQuote, requestPlanChange } from '../controllers/memberPayments.controller.js'
 
 const router = Router()
 
@@ -18,5 +18,9 @@ router.post('/member-signup/select-plan', authenticate, selectPlan)
 
 router.post('/member-payments', authenticate, uploadImage.single('screenshot'), submitPayment)
 router.get('/member-payments/me', authenticate, myPayments)
+
+// ---- Mid-period plan change (already-active Members / subscribed Trainers) ----
+router.get('/plan-change', authenticate, planChangeQuote)
+router.post('/plan-change', authenticate, uploadImage.single('screenshot'), requestPlanChange)
 
 export default router

@@ -7,7 +7,7 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
-import { planDiscount, planFinalPrice } from '../../../utils/plans'
+import { planDiscount, planFinalPrice, isFreePlan } from '../../../utils/plans'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 
@@ -33,6 +33,7 @@ export default function SubscriptionPlans() {
     const wPrice = Form.useWatch('priceMonthly', form)
     const wDiscount = Form.useWatch('discountPercent', form)
     const wCurrency = Form.useWatch('currency', form)
+    const wIsFree = wPrice != null && isFreePlan({ priceMonthly: wPrice, discountPercent: wDiscount })
     const visible = data.filter((p) => audienceFilter === 'all' || p.audience === audienceFilter)
 
     const fetchPlans = async () => {
@@ -135,6 +136,7 @@ export default function SubscriptionPlans() {
                                     <div className="flex items-center gap-2 font-bold text-text-primary">
                                         {plan.name}
                                         <Tag color={plan.audience === 'trainer' ? 'purple' : 'blue'} style={{ borderRadius: 999, margin: 0 }}>{plan.audience === 'trainer' ? 'Trainer' : 'Member'}</Tag>
+                                        {isFreePlan(plan) && <Tag color="green" style={{ borderRadius: 999, margin: 0 }}>Free</Tag>}
                                         {!plan.active && <Tag color="default">Inactive</Tag>}
                                     </div>
                                     {plan.description && <div className="text-xs text-text-muted">{plan.description}</div>}
@@ -171,6 +173,7 @@ export default function SubscriptionPlans() {
                                 {money(planFinalPrice(plan), plan.currency)}<span className="text-xs font-medium text-text-muted"> /mo</span>
                             </div>
                             <div className="mt-2 text-sm text-text-secondary">Up to {plan.maxClients} clients{plan.audience === 'trainer' ? '' : ` · ${plan.maxTrainers} trainers`}</div>
+                            {isFreePlan(plan) && <div className="mt-1 text-xs text-text-muted">One-time per user · no payment receipt</div>}
                         </div>
                     ))}
                 </div>
@@ -196,7 +199,12 @@ export default function SubscriptionPlans() {
                         <Input placeholder="e.g. Up to 20 clients" />
                     </Form.Item>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-                        <Form.Item name="priceMonthly" label="Actual price / month" rules={[{ required: true }]}>
+                        <Form.Item
+                            name="priceMonthly"
+                            label="Actual price / month"
+                            tooltip="Set to 0 for a free plan: each user can take it only once and no payment receipt is asked for."
+                            rules={[{ required: true }]}
+                        >
                             <InputNumber min={0} style={{ width: '100%' }} />
                         </Form.Item>
                         <Form.Item
@@ -225,6 +233,11 @@ export default function SubscriptionPlans() {
                             />
                         </Form.Item>
                     </div>
+                    {wIsFree && (
+                        <div className="mb-4 rounded-lg p-3 text-xs text-text-secondary" style={{ background: 'var(--color-surface-secondary)' }}>
+                            This is a free plan — each {wAudience === 'trainer' ? 'trainer' : 'member'} can use it only once, and no payment receipt is requested. You still approve the request in Payment Approvals.
+                        </div>
+                    )}
                     {wAudience !== 'trainer' && (
                     <Form.Item
                         name="maxTrainers"

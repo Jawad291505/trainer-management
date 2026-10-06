@@ -5,7 +5,7 @@ import { InboxOutlined, BankOutlined } from '@ant-design/icons'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
 import LoadingSkeleton from '../components/feedback/LoadingSkeleton'
-import { planDiscount, planFinalPrice } from '../utils/plans'
+import { planDiscount, planFinalPrice, isFreePlan } from '../utils/plans'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 
@@ -19,36 +19,43 @@ const FIELD_LABEL = {
 
 // Step 4 of Trainer (outsourced) self-signup: pay externally via the bank details shown here,
 // then upload proof. The plan being paid for is whatever Trainer.pendingPlan is
-// server-side (set by SelectPlan) — never trusted from the client.
+// server-side (set by SelectPlan) — never trusted from the client. A free plan
+// skips the bank details and receipt upload and just asks for confirmation.
 export default function SubmitPayment() {
     const { message } = App.useApp()
     const navigate = useNavigate()
     const { user, refreshUser } = useAuth()
     const plan = user?.trainer?.pendingPlan
+    const isFree = !!plan && isFreePlan(plan)
     const [bank, setBank] = useState(null)
     const [loading, setLoading] = useState(true)
     const [file, setFile] = useState(null)
     const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
+        if (isFree) { setLoading(false); return }
         api.get('/organization/bank-details')
             .then(setBank)
             .catch(() => message.error('Failed to load payment details'))
             .finally(() => setLoading(false))
-    }, [])
+    }, [isFree])
 
     const submit = async () => {
-        if (!file) {
+        if (!isFree && !file) {
             message.error('Upload a screenshot of your payment first')
             return
         }
         setSubmitting(true)
         try {
-            const formData = new FormData()
-            formData.append('screenshot', file)
-            await api.upload('/member-payments', formData)
+            if (isFree) {
+                await api.post('/member-payments', {})
+            } else {
+                const formData = new FormData()
+                formData.append('screenshot', file)
+                await api.upload('/member-payments', formData)
+            }
             await refreshUser()
-            message.success('Payment submitted — awaiting approval.')
+            message.success(isFree ? 'Free plan requested — awaiting approval.' : 'Payment submitted — awaiting approval.')
             navigate('/pending-approval', { replace: true })
         } catch (err) {
             message.error(err.message || 'Could not submit your payment')
@@ -61,9 +68,11 @@ export default function SubmitPayment() {
 
     return (
         <div className="mx-auto max-w-xl p-6 sm:p-10">
-            <h2 className="text-2xl font-extrabold tracking-tight text-text-primary">Submit your payment</h2>
+            <h2 className="text-2xl font-extrabold tracking-tight text-text-primary">{isFree ? 'Confirm your free plan' : 'Submit your payment'}</h2>
             <p className="mt-1.5 text-sm text-text-secondary">
-                Pay for your plan using the bank details below, then upload a screenshot as proof.
+                {isFree
+                    ? 'This plan is free — no payment or receipt is needed. It can only be used once.'
+                    : 'Pay for your plan using the bank details below, then upload a screenshot as proof.'}
             </p>
 
             {plan && (
@@ -83,6 +92,8 @@ export default function SubmitPayment() {
                 </div>
             )}
 
+            {!isFree && (
+            <>
             <div className="app-card mt-4 p-5">
                 <div className="mb-3 flex items-center gap-2 font-bold text-text-primary">
                     <BankOutlined /> Bank details
@@ -117,9 +128,11 @@ export default function SubmitPayment() {
                     <p className="ant-upload-hint text-xs text-text-muted">PNG or JPG, up to 5MB</p>
                 </Upload.Dragger>
             </div>
+            </>
+            )}
 
             <Button type="primary" size="large" block className="mt-6" loading={submitting} onClick={submit}>
-                Submit for approval
+                {isFree ? 'Start free plan' : 'Submit for approval'}
             </Button>
         </div>
     )

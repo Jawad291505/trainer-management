@@ -18,7 +18,7 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleString() : '—')
 
 const STATUS_TAG = { pending: 'gold', approved: 'green', rejected: 'red' }
 const PAYER_LABEL = { member: 'Member', trainer: 'Trainer' }
-const SOURCE_LABEL = { self_signup: 'Self-signup', admin_renewal: 'Admin renewal' }
+const SOURCE_LABEL = { self_signup: 'Self-signup', admin_renewal: 'Admin renewal', plan_change: 'Plan change' }
 
 // Admin-only review queue for Member and Trainer self-signup payment proofs
 // (memberPayments.controller.js). Approving flips the account active and
@@ -41,7 +41,9 @@ export default function PaymentApprovals() {
         try {
             await api.patch(`/member-payments/${payment.id}/approve`, {})
             fetchPayments()
-            message.success(`${payment.payerName} approved — their account is now active`)
+            message.success(payment.source === 'plan_change'
+                ? `${payment.payerName} moved to the ${payment.planName} plan`
+                : `${payment.payerName} approved — their account is now active`)
             setViewing(null)
         } catch (err) {
             message.error(err.message)
@@ -84,13 +86,13 @@ export default function PaymentApprovals() {
             ),
         },
         { title: 'Plan', dataIndex: 'planName', width: 130 },
-        { title: 'Amount', dataIndex: 'amount', width: 130, render: (a, r) => money(a, r.currency) },
+        { title: 'Amount', dataIndex: 'amount', width: 130, render: (a, r) => (r.isFree ? <Tag color="green" style={{ borderRadius: 999 }}>Free</Tag> : money(a, r.currency)) },
         { title: 'Submitted', dataIndex: 'submittedAt', width: 170, render: fmtDate },
         {
             title: 'Source',
             dataIndex: 'source',
             width: 130,
-            render: (s) => <Tag color={s === 'admin_renewal' ? 'blue' : 'default'} style={{ borderRadius: 999 }}>{SOURCE_LABEL[s] || s}</Tag>,
+            render: (s) => <Tag color={s === 'admin_renewal' ? 'blue' : s === 'plan_change' ? 'purple' : 'default'} style={{ borderRadius: 999 }}>{SOURCE_LABEL[s] || s}</Tag>,
         },
         {
             title: 'Status',
@@ -186,6 +188,14 @@ export default function PaymentApprovals() {
                             <div className="text-right font-semibold">{viewing.planName} ({viewing.maxClients} clients)</div>
                             <div className="text-text-muted">Amount</div>
                             <div className="text-right font-semibold">{money(viewing.amount, viewing.currency)}</div>
+                            {viewing.source === 'plan_change' && (
+                                <>
+                                    <div className="text-text-muted">Plan price</div>
+                                    <div className="text-right font-semibold">{money(viewing.planPrice ?? viewing.amount, viewing.currency)}</div>
+                                    <div className="text-text-muted">Credit for unused days</div>
+                                    <div className="text-right font-semibold">− {money(viewing.creditAmount, viewing.currency)}</div>
+                                </>
+                            )}
                             <div className="text-text-muted">Submitted</div>
                             <div className="text-right font-semibold">{fmtDate(viewing.submittedAt)}</div>
                             {viewing.rejectionReason && (
@@ -200,7 +210,11 @@ export default function PaymentApprovals() {
                                 <Image src={viewing.screenshotUrl} alt="Payment proof" style={{ width: '100%', borderRadius: 8 }} />
                             ) : (
                                 <div className="rounded-lg p-3 text-center text-sm text-text-muted" style={{ background: 'var(--color-surface-secondary)' }}>
-                                    Recorded manually by an admin — no payment screenshot attached.
+                                    {viewing.source === 'admin_renewal'
+                                        ? 'Recorded manually by an admin — no payment screenshot attached.'
+                                        : viewing.source === 'plan_change'
+                                            ? 'Plan change fully covered by credit — no payment receipt required.'
+                                            : 'Free plan — no payment receipt required.'}
                                 </div>
                             )}
                         </div>

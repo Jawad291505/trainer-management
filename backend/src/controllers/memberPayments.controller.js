@@ -2,7 +2,8 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { notifyAdmins, notifyMember, notifyTrainer } from '../services/notify.service.js'
 import { User, Member, Trainer, MemberPayment, SubscriptionPlan } from '../models/index.js'
-import { planFinalPrice } from '../models/SubscriptionPlan.js'
+import { planFinalPrice, isFreePlan } from '../models/SubscriptionPlan.js'
+import { hasUsedFreePlan, FREE_PLAN_USED_MESSAGE, unusedCredit, planCapacityBlock, addPlanPeriod } from '../services/subscription.service.js'
 import { uploadPaymentProof } from '../services/cloudinary.service.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
@@ -30,6 +31,9 @@ function flatten(payment) {
         currency: payment.currency,
         maxClients: payment.maxClients,
         maxTrainers: payment.maxTrainers,
+        isFree: !!payment.isFree,
+        planPrice: payment.planPrice ?? null,
+        creditAmount: payment.creditAmount || 0,
         screenshotUrl: payment.screenshotUrl,
         source: payment.source,
         status: payment.status,
@@ -62,40 +66,39 @@ async function activatePayer(payment, paidThrough) {
     await User.updateOne({ _id: member.user }, { status: 'active' })
 }
 
-// A monthly plan's coverage period from a given start date — used to set
-// Member.planExpiryDate on both first approval (counted from the approval date)
-// and every later renewal (counted from the renewal date).
-function addOneMonth(date) {
-    const d = new Date(date)
-    d.setMonth(d.getMonth() + 1)
-    return d
-}
-
 // POST /api/member-payments   (member or trainer, pending)   multipart: { screenshot } — planId
 // always comes from pendingPlan (set by selectPlan), never the request body,
-// so nobody can submit a payment for a plan they never actually chose.
+// so nobody can submit a payment for a plan they never actually chose. A free
+// plan needs no screenshot (it is still Admin-approved) but can only be taken once.
 export const submitPayment = asyncHandler(async (req, res) => {
     const isTrainer = req.user.role === 'trainer'
     if (!isTrainer && req.user.role !== 'member') throw ApiError.forbidden()
     if (!req.user.emailVerified) throw ApiError.badRequest('Verify your email before submitting a payment')
-    if (!req.file) throw ApiError.badRequest('A payment screenshot is required')
 
+    const payerKey = isTrainer ? 'trainer' : 'member'
     const payer = isTrainer ? req.trainer : await Member.findOne({ user: req.user._id })
     if (!payer.pendingPlan) throw ApiError.badRequest('Select a plan before submitting a payment')
 
     const plan = await SubscriptionPlan.findById(payer.pendingPlan)
     if (!plan) throw ApiError.badRequest('Your selected plan is no longer available — please choose another')
 
-    const { url, publicId } = await uploadPaymentProof(req.file.buffer, { memberId: payer._id })
+    const isFree = isFreePlan(plan)
+    if (isFree && await hasUsedFreePlan(payerKey, payer._id)) throw ApiError.badRequest(FREE_PLAN_USED_MESSAGE)
+    if (!isFree && !req.file) throw ApiError.badRequest('A payment screenshot is required')
+
+    const { url, publicId } = isFree
+        ? { url: '', publicId: '' }
+        : await uploadPaymentProof(req.file.buffer, { memberId: payer._id })
 
     const payment = await MemberPayment.create({
-        [isTrainer ? 'trainer' : 'member']: payer._id,
+        [payerKey]: payer._id,
         plan: plan._id,
         planName: plan.name,
         amount: planFinalPrice(plan),
         currency: plan.currency,
         maxClients: plan.maxClients,
         maxTrainers: plan.maxTrainers,
+        isFree,
         screenshotUrl: url,
         screenshotPublicId: publicId,
     })
@@ -105,7 +108,113 @@ export const submitPayment = asyncHandler(async (req, res) => {
     await notifyAdmins({
         type: 'payment',
         title: 'Payment awaiting approval',
-        description: `${req.user.name} (${isTrainer ? 'trainer' : 'member'}) submitted payment proof for the ${plan.name} plan.`,
+        description: `${req.user.name} (${isTrainer ? 'trainer' : 'member'}) ${isFree ? 'requested the free' : 'submitted payment proof for the'} ${plan.name} plan.`,
+    })
+
+    await payment.populate(PAYER_POPULATE)
+    res.status(201).json(flatten(payment))
+})
+
+// ---- Mid-period plan change (active Member / subscribed Trainer) ----
+// The unused part of the current period is credited against the new plan; once
+// Admin approves, the new plan applies and a fresh 30-day period starts (activatePayer —
+// same path as a first approval). Until then the payer stays on their current plan.
+
+// Who is asking, and are they on a plan they can change from?
+function planChanger(req) {
+    const payerKey = req.user.role
+    if (payerKey !== 'member' && payerKey !== 'trainer') throw ApiError.forbidden()
+    const payer = req[payerKey]
+    if (!payer?.plan || payer.status !== 'active') throw ApiError.badRequest("You don't have an active subscription to change")
+    return { payerKey, payer }
+}
+
+// Every active plan sold to this payer, priced for a switch right now.
+// `blockedReason` (null = selectable) says why a plan can't be picked.
+async function planChangeOptions(payerKey, payer) {
+    const [plans, credit, freeUsed] = await Promise.all([
+        SubscriptionPlan.find({ active: true, audience: payerKey === 'trainer' ? 'trainer' : { $ne: 'trainer' } })
+            .sort({ sortOrder: 1, priceMonthly: 1 }),
+        unusedCredit(payerKey, payer),
+        hasUsedFreePlan(payerKey, payer._id),
+    ])
+    const options = await Promise.all(plans.map(async (plan) => {
+        const finalPrice = planFinalPrice(plan)
+        const isCurrent = String(plan._id) === String(payer.plan)
+        let blockedReason = null
+        if (isCurrent) blockedReason = 'This is your current plan'
+        else if (isFreePlan(plan)) blockedReason = freeUsed ? 'The free plan can only be used once' : "You can't switch to the free plan mid-subscription"
+        else blockedReason = await planCapacityBlock(payerKey, payer._id, plan)
+        return {
+            id: String(plan._id),
+            name: plan.name,
+            description: plan.description,
+            priceMonthly: plan.priceMonthly,
+            discountPercent: plan.discountPercent || 0,
+            finalPrice,
+            currency: plan.currency,
+            maxClients: plan.maxClients,
+            maxTrainers: plan.maxTrainers,
+            isCurrent,
+            credit: Math.min(credit, finalPrice),
+            amountDue: Math.max(0, finalPrice - credit),
+            blockedReason,
+        }
+    }))
+    return { credit, options }
+}
+
+const pendingPaymentOf = (payerKey, payerId) => MemberPayment.findOne({ [payerKey]: payerId, status: 'pending' }).populate(PAYER_POPULATE)
+
+// GET /api/plan-change   (member or trainer, active on a plan) — the plans they
+// can switch to with today's credit and amount due, plus any request already
+// awaiting approval (only one may be open at a time).
+export const planChangeQuote = asyncHandler(async (req, res) => {
+    const { payerKey, payer } = planChanger(req)
+    const [{ credit, options }, pending] = await Promise.all([
+        planChangeOptions(payerKey, payer),
+        pendingPaymentOf(payerKey, payer._id),
+    ])
+    res.json({ credit, options, pending: pending ? flatten(pending) : null })
+})
+
+// POST /api/plan-change   (member or trainer, active on a plan)   multipart: { planId, screenshot? }
+// — the amount is always recomputed here, never taken from the client. A
+// screenshot is required unless the credit covers the whole price.
+export const requestPlanChange = asyncHandler(async (req, res) => {
+    const { payerKey, payer } = planChanger(req)
+    if (await MemberPayment.exists({ [payerKey]: payer._id, status: 'pending' })) {
+        throw ApiError.badRequest('You already have a request awaiting approval')
+    }
+
+    const { options } = await planChangeOptions(payerKey, payer)
+    const option = options.find((o) => o.id === String(req.body.planId || ''))
+    if (!option) throw ApiError.badRequest('Select a valid plan')
+    if (option.blockedReason) throw ApiError.badRequest(option.blockedReason)
+    if (option.amountDue > 0 && !req.file) throw ApiError.badRequest('A payment screenshot is required')
+
+    const { url, publicId } = option.amountDue > 0
+        ? await uploadPaymentProof(req.file.buffer, { memberId: payer._id })
+        : { url: '', publicId: '' }
+
+    const payment = await MemberPayment.create({
+        [payerKey]: payer._id,
+        plan: option.id,
+        planName: option.name,
+        amount: option.amountDue,
+        planPrice: option.finalPrice,
+        creditAmount: option.credit,
+        currency: option.currency,
+        maxClients: option.maxClients,
+        maxTrainers: option.maxTrainers,
+        screenshotUrl: url,
+        screenshotPublicId: publicId,
+        source: 'plan_change',
+    })
+    await notifyAdmins({
+        type: 'payment',
+        title: 'Plan change awaiting approval',
+        description: `${req.user.name} (${payerKey}) asked to switch to the ${option.name} plan.`,
     })
 
     await payment.populate(PAYER_POPULATE)
@@ -164,12 +273,20 @@ export const approveMemberPayment = asyncHandler(async (req, res) => {
     if (!payment) throw ApiError.notFound('Payment not found')
     if (payment.status !== 'pending') throw ApiError.badRequest('This payment has already been reviewed')
 
+    // A plan change was checked against the payer's team size when requested —
+    // they may have grown past the new plan's limits since.
+    if (payment.source === 'plan_change') {
+        const payerKey = payment.trainer ? 'trainer' : 'member'
+        const over = await planCapacityBlock(payerKey, payment[payerKey], payment)
+        if (over) throw ApiError.badRequest(`This ${payerKey} no longer fits the ${payment.planName} plan — reject the request instead`)
+    }
+
     payment.status = 'approved'
     payment.reviewedAt = new Date()
     payment.reviewedBy = req.user._id
     await payment.save()
 
-    const paidThrough = addOneMonth(payment.reviewedAt)
+    const paidThrough = addPlanPeriod(payment.reviewedAt)
     await activatePayer(payment, paidThrough)
     await notifyPayer(payment, {
         type: 'payment',
@@ -198,6 +315,10 @@ async function recordRenewal(req, res, payerKey) {
     if ((plan.audience === 'trainer') !== (payerKey === 'trainer')) {
         throw ApiError.badRequest(`That plan isn't sold to ${payerKey}s`)
     }
+    const isFree = isFreePlan(plan)
+    if (isFree && await hasUsedFreePlan(payerKey, payer._id)) {
+        throw ApiError.badRequest(`This ${payerKey} has already used the free plan — pick a paid plan`)
+    }
 
     const submittedAt = renewalDate ? new Date(renewalDate) : new Date()
     if (Number.isNaN(submittedAt.getTime())) throw ApiError.badRequest('Invalid renewal date')
@@ -210,6 +331,7 @@ async function recordRenewal(req, res, payerKey) {
         currency: plan.currency,
         maxClients: plan.maxClients,
         maxTrainers: plan.maxTrainers,
+        isFree,
         source: 'admin_renewal',
         status: 'approved',
         submittedAt,
@@ -217,7 +339,7 @@ async function recordRenewal(req, res, payerKey) {
         reviewedBy: req.user._id,
     })
 
-    const paidThrough = addOneMonth(submittedAt)
+    const paidThrough = addPlanPeriod(submittedAt)
     await activatePayer(payment, paidThrough)
     await notifyPayer(payment, {
         type: 'payment',
@@ -247,12 +369,19 @@ export const rejectMemberPayment = asyncHandler(async (req, res) => {
     payment.rejectionReason = req.body.reason || ''
     await payment.save()
 
-    if (payment.trainer) await Trainer.updateOne({ _id: payment.trainer }, { onboardingStage: 'rejected' })
-    else await Member.updateOne({ _id: payment.member }, { onboardingStage: 'rejected' })
+    // A rejected plan change leaves an already-active payer exactly where they
+    // were; only a signup payment sends them back to resubmit.
+    const isPlanChange = payment.source === 'plan_change'
+    if (!isPlanChange) {
+        if (payment.trainer) await Trainer.updateOne({ _id: payment.trainer }, { onboardingStage: 'rejected' })
+        else await Member.updateOne({ _id: payment.member }, { onboardingStage: 'rejected' })
+    }
     await notifyPayer(payment, {
         type: 'payment',
-        title: 'Payment not approved',
-        description: payment.rejectionReason || 'Your payment proof could not be verified. Please submit a new one.',
+        title: isPlanChange ? 'Plan change not approved' : 'Payment not approved',
+        description: payment.rejectionReason || (isPlanChange
+            ? `Your switch to the ${payment.planName} plan was not approved — your current plan is unchanged.`
+            : 'Your payment proof could not be verified. Please submit a new one.'),
     })
 
     await payment.populate(PAYER_POPULATE)

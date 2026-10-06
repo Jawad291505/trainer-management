@@ -48,17 +48,20 @@ export default function PendingApproval() {
     if (loading) return <LoadingSkeleton />
 
     const rejected = payment?.status === 'rejected'
+    const isFree = !!payment?.isFree
 
     return (
         <div className="mx-auto max-w-lg p-6 sm:p-10">
             <Result
                 icon={<ClockCircleOutlined style={{ color: rejected ? 'var(--color-danger)' : 'var(--color-warning, #d97706)' }} />}
                 status={rejected ? 'error' : 'info'}
-                title={rejected ? 'Payment was not approved' : 'Your account is pending approval'}
+                title={rejected ? (isFree ? 'Your request was not approved' : 'Payment was not approved') : 'Your account is pending approval'}
                 subTitle={
                     rejected
-                        ? (payment?.rejectionReason || 'Your payment proof could not be verified. Please submit a new one.')
-                        : "We've received your payment proof — an admin will review it shortly. You'll get full access as soon as it's approved."
+                        ? (payment?.rejectionReason || (isFree ? 'Your free plan request was not approved. You can submit it again.' : 'Your payment proof could not be verified. Please submit a new one.'))
+                        : isFree
+                            ? "We've received your free plan request — an admin will review it shortly. You'll get full access as soon as it's approved."
+                            : "We've received your payment proof — an admin will review it shortly. You'll get full access as soon as it's approved."
                 }
             />
 
@@ -81,7 +84,7 @@ export default function PendingApproval() {
             <div className="mt-6 flex flex-col items-center gap-2">
                 {rejected ? (
                     <Button type="primary" size="large" block onClick={() => navigate('/submit-payment')}>
-                        Submit a new payment
+                        {isFree ? 'Request again' : 'Submit a new payment'}
                     </Button>
                 ) : (
                     <Button size="large" block icon={<ReloadOutlined />} loading={checking} onClick={checkStatus}>

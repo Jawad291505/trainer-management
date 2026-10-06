@@ -332,7 +332,7 @@ function SubscriptionsView({ kind }) {
                                     <div>
                                         <div className="font-semibold text-text-primary">{p.planName}</div>
                                         <div className="text-xs text-text-muted">
-                                            {fmtDate(p.submittedAt)} · {p.source === 'admin_renewal' ? 'Admin renewal' : 'Self-signup'}
+                                            {fmtDate(p.submittedAt)} · {p.source === 'admin_renewal' ? 'Admin renewal' : p.source === 'plan_change' ? 'Plan change' : 'Self-signup'}
                                         </div>
                                     </div>
                                     <div className="text-right">

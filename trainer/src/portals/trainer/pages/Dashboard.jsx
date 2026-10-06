@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Progress, Skeleton } from 'antd'
+import { Progress, Skeleton, Tag, Button } from 'antd'
+import dayjs from 'dayjs'
 import {
     TeamOutlined,
     CheckCircleOutlined,
@@ -17,8 +18,17 @@ import DonutChart from '../../../components/charts/DonutChart'
 import SectionError from '../../../components/feedback/SectionError'
 import { useAsyncData } from '../../../hooks/useAsyncData'
 import UserAvatar from '../../../components/common/UserAvatar'
+import ChangePlanModal from '../../../components/common/ChangePlanModal'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
+
+const fmtDate = (d) => (d ? dayjs(d).format('D MMM YYYY') : '—')
+const SUB_STATUS = {
+    active: { label: 'Active', color: 'green' },
+    expiring: { label: 'Expiring soon', color: 'gold' },
+    expired: { label: 'Expired', color: 'red' },
+    inactive: { label: 'Inactive', color: 'default' },
+}
 
 export default function Dashboard() {
     const navigate = useNavigate()
@@ -28,6 +38,9 @@ export default function Dashboard() {
     const statsRes = useAsyncData(() => api.get('/stats/trainer'), [])
     const clientsRes = useAsyncData(() => api.get('/clients'), [])
     const stats = statsRes.data
+    // Only trainers on a plan of their own (self-signup / independent) have one.
+    const sub = stats?.subscription
+    const [changingPlan, setChangingPlan] = useState(false)
     const clients = useMemo(() => clientsRes.data?.items || [], [clientsRes.data])
 
     const cards = stats ? [
@@ -67,6 +80,32 @@ export default function Dashboard() {
                 title={`Welcome back, ${(user?.name || 'Trainer').split(' ')[0]} 👋`}
                 subtitle="Here's what needs your attention today."
             />
+
+            {sub?.plan && (
+                <div className="app-card mb-4 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 p-4">
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Your subscription</div>
+                        <div className="mt-0.5 flex items-center gap-2 text-base font-bold text-text-primary">
+                            {sub.plan} plan
+                            <Tag color={(SUB_STATUS[sub.status] || SUB_STATUS.active).color} style={{ borderRadius: 999, margin: 0 }}>{(SUB_STATUS[sub.status] || SUB_STATUS.active).label}</Tag>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-x-8 gap-y-2">
+                        {[
+                            ['Started', fmtDate(sub.startDate)],
+                            ['Ends', sub.endDate ? fmtDate(sub.endDate) : 'No expiry'],
+                            ['Days remaining', sub.daysLeft == null ? '—' : Math.max(0, sub.daysLeft)],
+                        ].map(([label, value]) => (
+                            <div key={label}>
+                                <div className="text-xs text-text-muted">{label}</div>
+                                <div className="text-sm font-bold text-text-primary">{value}</div>
+                            </div>
+                        ))}
+                        {sub.status !== 'inactive' && <Button className="self-center" onClick={() => setChangingPlan(true)}>Change plan</Button>}
+                    </div>
+                </div>
+            )}
+            <ChangePlanModal open={changingPlan} onClose={() => setChangingPlan(false)} />
 
             {statsRes.error ? (
                 <SectionError title="Couldn't load your stats" error={statsRes.error} onRetry={statsRes.reload} />

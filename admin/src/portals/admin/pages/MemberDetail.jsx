@@ -238,12 +238,21 @@ export default function MemberDetail() {
                     )}
                     {latestPayment ? (
                         <div className="flex flex-col gap-4 sm:flex-row">
-                            <img
-                                src={latestPayment.screenshotUrl}
-                                alt="Payment proof"
-                                className="h-32 w-full rounded-lg object-cover sm:w-40"
-                                style={{ border: '1px solid var(--color-border)' }}
-                            />
+                            {latestPayment.screenshotUrl ? (
+                                <img
+                                    src={latestPayment.screenshotUrl}
+                                    alt="Payment proof"
+                                    className="h-32 w-full rounded-lg object-cover sm:w-40"
+                                    style={{ border: '1px solid var(--color-border)' }}
+                                />
+                            ) : (
+                                <div
+                                    className="flex h-32 w-full items-center justify-center rounded-lg p-3 text-center text-xs text-text-muted sm:w-40"
+                                    style={{ border: '1px solid var(--color-border)' }}
+                                >
+                                    {latestPayment.isFree ? 'Free plan — no receipt required' : 'No receipt attached'}
+                                </div>
+                            )}
                             <div className="flex-1 text-sm">
                                 <div className="grid grid-cols-2 gap-1.5 sm:max-w-xs">
                                     <div className="text-text-muted">Plan submitted</div>

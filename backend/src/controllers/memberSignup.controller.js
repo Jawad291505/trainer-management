@@ -2,6 +2,8 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { notifyAdmins, notifyMember } from '../services/notify.service.js'
 import { User, Member, Trainer, SubscriptionPlan } from '../models/index.js'
+import { isFreePlan } from '../models/SubscriptionPlan.js'
+import { hasUsedFreePlan, FREE_PLAN_USED_MESSAGE } from '../services/subscription.service.js'
 import { hashPassword } from '../utils/password.js'
 import { generateOtp, hashOtp, compareOtp, otpExpiryDate } from '../utils/otp.js'
 import { sendOtpEmail } from '../services/email.service.js'
@@ -125,6 +127,10 @@ export const selectPlan = asyncHandler(async (req, res) => {
     const audienceFilter = req.user.role === 'trainer' ? 'trainer' : { $ne: 'trainer' }
     const plan = planId && await SubscriptionPlan.findOne({ _id: planId, active: true, audience: audienceFilter })
     if (!plan) throw ApiError.badRequest('Select a valid plan')
+    // The free plan is one-time per payer.
+    if (isFreePlan(plan) && await hasUsedFreePlan(req.user.role, req[req.user.role]._id)) {
+        throw ApiError.badRequest(FREE_PLAN_USED_MESSAGE)
+    }
 
     await PROFILE_MODEL[req.user.role].updateOne(
         { user: req.user._id },

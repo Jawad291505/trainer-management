@@ -5,7 +5,7 @@ import { CheckCircleFilled } from '@ant-design/icons'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../services/api'
 import LoadingSkeleton from '../components/feedback/LoadingSkeleton'
-import { planDiscount, planFinalPrice } from '../utils/plans'
+import { planDiscount, planFinalPrice, isFreePlan } from '../utils/plans'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 
@@ -71,6 +71,9 @@ export default function SelectPlan() {
                                 <span className="text-3xl font-extrabold text-text-primary">{money(planFinalPrice(plan), plan.currency)}</span>
                                 <span className="text-sm text-text-muted">/ month</span>
                             </div>
+                            {isFreePlan(plan) && (
+                                <div className="mt-1 text-xs text-text-muted">Free plan — no payment needed. Can be used once.</div>
+                            )}
                             <div className="mt-3 flex items-center gap-2 text-sm text-text-secondary">
                                 <CheckCircleFilled style={{ color: 'var(--color-success)' }} />
                                 Up to {plan.maxClients} clients
@@ -81,10 +84,10 @@ export default function SelectPlan() {
                                 block
                                 className="mt-6"
                                 loading={selectingId === plan.id}
-                                disabled={!!selectingId && selectingId !== plan.id}
+                                disabled={plan.alreadyUsed || (!!selectingId && selectingId !== plan.id)}
                                 onClick={() => selectPlan(plan)}
                             >
-                                Select plan
+                                {plan.alreadyUsed ? 'Already used' : 'Select plan'}
                             </Button>
                         </div>
                     ))}

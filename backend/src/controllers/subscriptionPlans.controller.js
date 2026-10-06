@@ -1,7 +1,8 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { SubscriptionPlan } from '../models/index.js'
-import { planFinalPrice } from '../models/SubscriptionPlan.js'
+import { planFinalPrice, isFreePlan } from '../models/SubscriptionPlan.js'
+import { hasUsedFreePlan } from '../services/subscription.service.js'
 import { PLAN_AUDIENCES } from '../config/constants.js'
 
 // Body value -> a 0-100 percentage (blank / missing = no discount).
@@ -19,6 +20,7 @@ function flatten(plan) {
         priceMonthly: plan.priceMonthly,
         discountPercent: plan.discountPercent || 0,
         finalPrice: planFinalPrice(plan),
+        isFree: isFreePlan(plan),
         currency: plan.currency,
         maxClients: plan.maxClients,
         maxTrainers: plan.maxTrainers,
@@ -32,7 +34,8 @@ function flatten(plan) {
 // (management page, optionally narrowed by ?audience=); everyone else sees only
 // the active plans sold to their own role (Members mid-signup -> member plans,
 // self-signup Trainers -> trainer plans). Plans saved before the
-// `audience` field existed count as member plans.
+// `audience` field existed count as member plans. For a Member/Trainer who has
+// already used their one-time free plan, free plans come back `alreadyUsed`.
 export const listPlans = asyncHandler(async (req, res) => {
     const filter = {}
     const audience = req.user.role === 'admin' ? req.query.audience : (req.user.role === 'trainer' ? 'trainer' : 'member')
@@ -40,7 +43,12 @@ export const listPlans = asyncHandler(async (req, res) => {
     else if (audience === 'member') filter.audience = { $ne: 'trainer' }
     if (req.user.role !== 'admin') filter.active = true
     const plans = await SubscriptionPlan.find(filter).sort({ sortOrder: 1, priceMonthly: 1 })
-    res.json({ count: plans.length, items: plans.map(flatten) })
+    const items = plans.map(flatten)
+    const payer = ['member', 'trainer'].includes(req.user.role) ? req[req.user.role] : null
+    if (payer && items.some((p) => p.isFree) && await hasUsedFreePlan(req.user.role, payer._id)) {
+        for (const p of items) if (p.isFree) p.alreadyUsed = true
+    }
+    res.json({ count: items.length, items })
 })
 
 // POST /api/subscription-plans   (admin only)

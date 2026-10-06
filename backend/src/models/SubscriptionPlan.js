@@ -48,4 +48,8 @@ export function planFinalPrice(plan) {
     return Math.round(((Number(plan?.priceMonthly) || 0) * (100 - discount)) / 100)
 }
 
+// A plan whose final price is 0 is a free plan: no payment receipt is asked for
+// and each payer may take a free plan only once (see subscription.service.js).
+export const isFreePlan = (plan) => planFinalPrice(plan) === 0
+
 export const SubscriptionPlan =mongoose.model('SubscriptionPlan', subscriptionPlanSchema)

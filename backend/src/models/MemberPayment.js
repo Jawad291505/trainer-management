@@ -19,6 +19,14 @@ const memberPaymentSchema = new mongoose.Schema(
         currency: { type: String, default: 'PKR' },
         maxClients: { type: Number, required: true },
         maxTrainers: { type: Number, required: true },
+        // The plan was free (final price 0) when taken — no screenshot, and it
+        // uses up the payer's one-time free plan (hasUsedFreePlan).
+        isFree: { type: Boolean, default: false },
+        // Plan changes only: the new plan's full price and the credit taken off it
+        // for the unused part of the previous period (amount = planPrice - creditAmount,
+        // never below 0). planPrice is null on every other kind of payment.
+        planPrice: { type: Number, default: null },
+        creditAmount: { type: Number, default: 0 },
 
         // Cloudinary — never the raw image (see services/cloudinary.service.js).
         // Only present for self-signup submissions; an admin-entered renewal has
@@ -28,8 +36,10 @@ const memberPaymentSchema = new mongoose.Schema(
 
         // 'self_signup' = member submitted proof-of-payment for review;
         // 'admin_renewal' = admin manually recorded a renewal (auto-approved,
-        // no screenshot). Distinguishes the two creation paths in history.
-        source: { type: String, enum: ['self_signup', 'admin_renewal'], default: 'self_signup' },
+        // no screenshot); 'plan_change' = an active payer asked to switch plan
+        // mid-period (screenshot unless credit covers it). Distinguishes the
+        // creation paths in history.
+        source: { type: String, enum: ['self_signup', 'admin_renewal', 'plan_change'], default: 'self_signup' },
 
         status: { type: String, enum: MEMBER_PAYMENT_STATUS, default: 'pending', index: true },
         submittedAt: { type: Date, default: Date.now },

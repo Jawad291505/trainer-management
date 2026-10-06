@@ -12,7 +12,7 @@ import {
 } from '../models/index.js'
 import { bucketFor } from './followUp.service.js'
 import { pktStartOfDay } from '../utils/pktTime.js'
-import { subscriptionStatus, DAY_MS } from './subscription.service.js'
+import { subscriptionStatus, subscriptionSummary, DAY_MS } from './subscription.service.js'
 import { planFinalPrice } from '../models/SubscriptionPlan.js'
 
 // ---- Admin dashboard + payments stats ----
@@ -396,12 +396,7 @@ export async function getMemberDashboard(memberId) {
     const totalClients = sum('clients')
 
     return {
-        subscription: member && {
-            plan: member.plan?.name || null,
-            planExpiryDate: member.planExpiryDate,
-            daysLeft: member.planExpiryDate ? Math.ceil((new Date(member.planExpiryDate) - now) / DAY_MS) : null,
-            status: subscriptionStatus(member, now),
-        },
+        subscription: await subscriptionSummary('member', member, now),
 
         totalTrainers: rows.length,
         trainerLimit: member?.trainerLimit ?? 0,
