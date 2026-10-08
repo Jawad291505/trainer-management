@@ -462,12 +462,42 @@ export const glucoseHistory = asyncHandler(async (req, res) => {
     res.json({ items, days, from: since, ranges: GLUCOSE_RANGES, summary: summarizeGlucose(items) })
 })
 
-// Ids of the meals the published plan schedules on `date` (null = no plan/day).
-function planMealIdsFor(planDoc, date) {
+// The plan day the published plan schedules on `date` (null = no plan/day).
+// Same day-matching rule that seeds the DailyLog (seedTasksForClient).
+function planDayFor(planDoc, date) {
     if (!planDoc) return null
     const isToday = date.getTime() === startOfDay().getTime()
-    const day = resolveTodayDay(planDoc.days, isToday ? planDoc.todayDayId : null, date)
-    return day ? new Set(day.meals.map((m) => String(m._id))) : null
+    return resolveTodayDay(planDoc.days, isToday ? planDoc.todayDayId : null, date)
+}
+
+const mealTaskName = (task) => task.label.split(' — ')[0]
+const ticked = (task) => [...flagsOf(task.itemsDone), ...flagsOf(task.supplementsDone)].filter(Boolean).length
+
+// Pair each meal of the plan day with the DailyLog task that recorded it
+// (plan meal id -> task; null = no plan/day). Tasks are matched by meal id.
+// Plan edits used to mint new meal ids on every save, leaving what the client
+// had already logged attached to ids the plan no longer has — so a meal with no
+// task of its own falls back to a leftover task of the same name (same time
+// preferred, then the one with the most progress) rather than reading "missed".
+function matchMealTasks(log, dayDoc) {
+    if (!dayDoc) return null
+    const matched = new Map()
+    const mealTasks = (log?.tasks || []).filter((t) => t.type === 'meal')
+    const planIds = new Set(dayDoc.meals.map((m) => String(m._id)))
+    for (const t of mealTasks) if (planIds.has(String(t.mealId))) matched.set(String(t.mealId), t)
+
+    const leftovers = new Set(mealTasks.filter((t) => !planIds.has(String(t.mealId))))
+    for (const m of dayDoc.meals) {
+        if (matched.has(String(m._id))) continue
+        const sameName = [...leftovers].filter((t) => mealTaskName(t) === m.name)
+        const sameTime = sameName.filter((t) => (t.time || '') === (m.time || ''))
+        const pool = sameTime.length ? sameTime : sameName
+        if (!pool.length) continue
+        const best = pool.reduce((a, b) => (Number(b.done) - Number(a.done) || ticked(b) - ticked(a)) >= 0 ? b : a)
+        matched.set(String(m._id), best)
+        leftovers.delete(best)
+    }
+    return matched
 }
 
 // A DailyLog keeps a task for every meal it was ever seeded/merged with, so
@@ -477,12 +507,12 @@ function planMealIdsFor(planDoc, date) {
 // where *none* of the recorded meals are in the current plan (plan fully
 // replaced since): there the recorded tasks are the only record of what was
 // submitted, so they are kept as-is.
-function currentTasks(log, mealIds, isPast) {
+function currentTasks(log, matched, isPast) {
     const tasks = log?.tasks || []
-    if (!mealIds) return tasks
-    const mealTasks = tasks.filter((t) => t.type === 'meal')
-    if (isPast && mealTasks.length && !mealTasks.some((t) => mealIds.has(String(t.mealId)))) return tasks
-    return tasks.filter((t) => t.type !== 'meal' || mealIds.has(String(t.mealId)))
+    if (!matched) return tasks
+    const kept = new Set(matched.values())
+    if (isPast && !kept.size && tasks.some((t) => t.type === 'meal')) return tasks
+    return tasks.filter((t) => t.type !== 'meal' || kept.has(t))
 }
 
 const completionOf = (tasks) => (tasks.length ? Math.round((tasks.filter((t) => t.done).length / tasks.length) * 100) : 0)
@@ -537,7 +567,7 @@ export const dailyHistory = asyncHandler(async (req, res) => {
 
     const todayMs = startOfDay().getTime()
     const history = logs.map((log) => {
-        const tasks = currentTasks(log, planMealIdsFor(planDoc, log.date), log.date.getTime() < todayMs)
+        const tasks = currentTasks(log, matchMealTasks(log, planDayFor(planDoc, log.date)), log.date.getTime() < todayMs)
         const diet = summarizeDietLog(log, tasks)
         const glucose = flattenGlucose(log)
         return {
@@ -580,15 +610,17 @@ export const getDietDay = asyncHandler(async (req, res) => {
         DailyLog.findOne({ client: clientId, date }),
     ])
     const plan = planDoc ? await serializeDietPlan(planDoc) : null
-    // Same day-matching rule that seeds the DailyLog (seedTasksForClient).
-    const dayDoc = planDoc ? resolveTodayDay(planDoc.days, isToday ? planDoc.todayDayId : null, date) : null
+    const dayDoc = planDayFor(planDoc, date)
     const planDay = dayDoc ? plan.days.find((d) => d.id === String(dayDoc._id)) : null
 
-    const tasks = currentTasks(log, planMealIdsFor(planDoc, date), !isToday && !isFuture)
-    const counted = new Set(tasks.map((t) => t.mealId && String(t.mealId)))
+    const taskByMeal = matchMealTasks(log, dayDoc) || new Map()
+    const tasks = currentTasks(log, dayDoc && taskByMeal, !isToday && !isFuture)
     const cheatByMeal = new Map((log?.cheats || []).map((c) => [String(c.mealId), c]))
-    const taskByMeal = new Map((log?.tasks || []).filter((t) => t.type === 'meal').map((t) => [String(t.mealId), t]))
     const glucose = log ? flattenGlucose(log).sort((a, b) => a.takenAt - b.takenAt) : []
+    const glucoseFor = (mealId) => ({
+        before: glucose.find((g) => String(g.mealId) === mealId && g.phase === 'before') || null,
+        after: glucose.find((g) => String(g.mealId) === mealId && g.phase === 'after') || null,
+    })
 
     const statusFor = (cheat, done, eaten) => {
         if (cheat) return 'cheat'
@@ -603,7 +635,10 @@ export const getDietDay = asyncHandler(async (req, res) => {
 
     const meals = (planDay?.meals || []).map((m) => {
         const task = taskByMeal.get(m.id)
-        const cheat = cheatByMeal.get(m.id) || null
+        // Cheats and glucose were logged against the task's own meal id, which
+        // differs from the plan's when the task was matched by name.
+        const loggedId = task ? String(task.mealId) : m.id
+        const cheat = cheatByMeal.get(loggedId) || null
         const flags = task?.itemsDone || []
         const items = m.items.map((it, i) => ({
             name: it.name,
@@ -640,23 +675,20 @@ export const getDietDay = asyncHandler(async (req, res) => {
             status: statusFor(cheat, task?.done, itemsEaten + supplementsTaken),
             itemsEaten,
             cheat: cheat ? { note: cheat.note, items: cheat.items } : null,
-            glucose: {
-                before: glucose.find((g) => String(g.mealId) === m.id && g.phase === 'before') || null,
-                after: glucose.find((g) => String(g.mealId) === m.id && g.phase === 'after') || null,
-            },
+            glucose: glucoseFor(loggedId),
         }
     })
 
     // Meals the client logged against that day but the trainer has since
     // removed from the plan — still real submitted data, so still shown.
-    const planMealIds = new Set(meals.map((m) => m.id))
-    for (const [mealId, task] of taskByMeal) {
-        if (planMealIds.has(mealId)) continue
+    const shown = new Set(taskByMeal.values())
+    for (const task of (log?.tasks || []).filter((t) => t.type === 'meal' && !shown.has(t))) {
+        const mealId = String(task.mealId)
         const cheat = cheatByMeal.get(mealId) || null
         const eaten = (task.itemsDone || []).filter(Boolean).length
         meals.push({
             id: mealId,
-            name: task.label.split(' — ')[0],
+            name: mealTaskName(task),
             time: task.time,
             notes: '',
             optionLabel: null,
@@ -666,15 +698,12 @@ export const getDietDay = asyncHandler(async (req, res) => {
             removed: true,
             // false = a leftover from an earlier version of the plan; shown for
             // reference but excluded from the day's totals.
-            counted: counted.has(mealId),
+            counted: tasks.includes(task),
             status: statusFor(cheat, task.done, eaten),
             itemsEaten: eaten,
             itemsTotal: (task.itemsDone || []).length,
             cheat: cheat ? { note: cheat.note, items: cheat.items } : null,
-            glucose: {
-                before: glucose.find((g) => String(g.mealId) === mealId && g.phase === 'before') || null,
-                after: glucose.find((g) => String(g.mealId) === mealId && g.phase === 'after') || null,
-            },
+            glucose: glucoseFor(mealId),
         })
     }
 

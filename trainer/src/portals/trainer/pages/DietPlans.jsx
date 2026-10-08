@@ -488,16 +488,19 @@ export default function DietPlans() {
         )
     }
 
-    // Build the days payload for the API
+    // Build the days payload for the API. Meal/option ids go back with it so the
+    // server keeps them — the client's logged progress is tied to the meal id.
     const buildDaysPayload = () =>
         days.map((d) => ({
             day: d.day,
             meals: d.meals.map((m) => ({
+                id: m.id,
                 name: m.name,
                 time: m.time,
                 notes: m.notes || '',
                 supplements: (m.supplements || []).map(({ name, dosage, url, preview }) => ({ name, dosage, url, preview })),
                 options: m.options.map((o) => ({
+                    id: o.id,
                     label: o.label,
                     items: o.items.map((it) => ({
                         foodCode: it.foodCode,

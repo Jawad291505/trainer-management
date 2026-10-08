@@ -10,16 +10,41 @@ import { assertClientAccess } from '../utils/clientAccess.js'
 // each day's meals through the shared normalizeMeals() food-linking logic.
 // In 'same' mode, collapse to a single "Everyday" day regardless of what was
 // sent — the one place duplication across the 7 weekdays is avoided.
-async function normalizeDays(days = [], dayMode = 'same') {
-    if (dayMode === 'custom') {
-        return Promise.all(
-            days.map(async (d) => ({
-                day: d.day,
-                meals: await normalizeMeals(d.meals || []),
-            })),
-        )
+async function normalizeDays(days = [], dayMode = 'same', existing = null) {
+    const source = dayMode === 'custom' ? days : [{ day: 'Everyday', meals: days[0]?.meals || [] }]
+    const normalized = await Promise.all(
+        source.map(async (d) => ({
+            day: d.day,
+            meals: await normalizeMeals(d.meals || []),
+        })),
+    )
+    keepMealIdentity(normalized, existing)
+    return normalized
+}
+
+// A client's DailyLog tracks progress by meal id, so a meal that survives an
+// edit must keep its id — otherwise everything already ticked that day turns
+// into "missed". Ids are only honoured when they belong to `existing` (the plan
+// being edited) and only once: splitting one plan into 7 weekdays copies each
+// meal 7 times, and those copies need ids of their own. The client's chosen
+// option is carried over the same way.
+function keepMealIdentity(days, existing) {
+    const known = new Map((existing?.days || []).flatMap((d) => d.meals).map((m) => [String(m._id), m]))
+    const used = new Set()
+    for (const meal of days.flatMap((d) => d.meals)) {
+        const id = String(meal._id)
+        const prev = known.get(id)
+        if (!prev || used.has(id)) {
+            delete meal._id
+            for (const o of meal.options) delete o._id
+            continue
+        }
+        used.add(id)
+        const optionIds = new Set(prev.options.map((o) => String(o._id)))
+        for (const o of meal.options) if (!optionIds.has(String(o._id))) delete o._id
+        const selected = String(prev.selectedOptionId || '')
+        if (meal.options.some((o) => String(o._id) === selected)) meal.selectedOptionId = prev.selectedOptionId
     }
-    return [{ day: 'Everyday', meals: await normalizeMeals(days[0]?.meals || []) }]
 }
 
 // Ensure the caller may act on `plan`. Trainers are scoped to their own plans;
@@ -156,7 +181,7 @@ export const updateDietPlan = asyncHandler(async (req, res) => {
 
     if (req.body.title !== undefined) plan.title = req.body.title
     if (req.body.dayMode !== undefined) plan.dayMode = req.body.dayMode === 'custom' ? 'custom' : 'same'
-    if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days, plan.dayMode)
+    if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days, plan.dayMode, plan)
     if (req.body.todayDayId !== undefined) plan.todayDayId = req.body.todayDayId || null
     await plan.save()
     res.json(await serializeDietPlan(plan))

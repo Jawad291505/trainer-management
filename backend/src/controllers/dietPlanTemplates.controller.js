@@ -49,6 +49,13 @@ function normalizeSupplements(supplements) {
         })
 }
 
+// An edited meal/option arrives with the id it was loaded with; keeping it
+// stops a re-save from minting new ids. Builder-local ids ("M3") are dropped.
+const keepId = (doc) => {
+    const id = String(doc.id || doc._id || '')
+    return /^[a-f\d]{24}$/i.test(id) ? { _id: id } : {}
+}
+
 // Turn incoming meal payloads into stored meals, linking each option item's
 // foodCode to a Food _id. Shared by templates and client diet plans.
 export async function normalizeMeals(meals = []) {
@@ -75,12 +82,14 @@ export async function normalizeMeals(meals = []) {
 
     // Stored chronologically, whatever order the meals were created/sent in.
     return sortMealsByTime(meals).map((m) => ({
+        ...keepId(m),
         name: m.name,
         time: m.time || '',
         notes: m.notes || '',
         taskKey: m.taskKey ?? null,
         supplements: normalizeSupplements(m.supplements),
         options: mealOptionsInput(m).map((o) => ({
+            ...keepId(o),
             label: o.label || 'Option 1',
             items: resolveItems(o.items),
         })),
