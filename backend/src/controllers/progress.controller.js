@@ -633,7 +633,18 @@ export const getDietDay = asyncHandler(async (req, res) => {
     const planned = { cal: 0, protein: 0, carbs: 0, fat: 0 }
     const eatenTotals = { cal: 0, protein: 0, carbs: 0, fat: 0 }
 
-    const meals = (planDay?.meals || []).map((m) => {
+    // A meal the trainer added to the plan after this day was over was never
+    // asked of the client that day — leave it out rather than call it "missed".
+    // (A meal's id carries its creation time.) Only applies once the client has
+    // a log for the day; with no log the whole day already reads as "no data".
+    const dayEnd = date.getTime() + DAY_MS
+    const addedLater = new Set(
+        (log && dayDoc ? dayDoc.meals : [])
+            .filter((m) => !taskByMeal.has(String(m._id)) && m._id.getTimestamp().getTime() >= dayEnd)
+            .map((m) => String(m._id)),
+    )
+
+    const meals = (planDay?.meals || []).filter((m) => !addedLater.has(m.id)).map((m) => {
         const task = taskByMeal.get(m.id)
         // Cheats and glucose were logged against the task's own meal id, which
         // differs from the plan's when the task was matched by name.
