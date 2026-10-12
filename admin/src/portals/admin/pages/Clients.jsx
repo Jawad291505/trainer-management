@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Select, Dropdown, Button, Progress, App, Modal, Form, Input, InputNumber, DatePicker, Tooltip } from 'antd'
 import dayjs from 'dayjs'
+import { GENDER_OPTIONS, computeBMR, bmrLabel } from '../../../utils/bodyMetrics'
 import {
     MoreOutlined,
     EyeOutlined,
@@ -49,6 +50,10 @@ export default function Clients() {
     const wWeight = Form.useWatch('weight', addForm)
     const wHeight = Form.useWatch('height', addForm)
     const wGoal = Form.useWatch('goal', addForm)
+    const wAge = Form.useWatch('age', addForm)
+    const wGender = Form.useWatch('gender', addForm)
+    const bmrInputs = { weight: wWeight, height: wHeight, age: wAge, gender: wGender }
+    const bmr = computeBMR(bmrInputs)
     const bmi = wWeight && wHeight ? Number((wWeight / Math.pow(wHeight / 100, 2)).toFixed(1)) : null
     const bmiCategory = bmi == null ? '' : bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese'
     const bmiColor = bmi == null ? 'var(--color-text-muted)' : bmi < 18.5 || bmi >= 30 ? 'var(--color-danger)' : bmi < 25 ? 'var(--color-success)' : 'var(--color-warning)'
@@ -79,6 +84,7 @@ export default function Clients() {
                 phone: v.phone,
                 age: v.age,
                 height: v.height,
+                gender: v.gender,
                 medicalNotes: v.medicalNotes,
                 goal,
                 plan: v.plan,
@@ -238,13 +244,18 @@ export default function Clients() {
                     <div className="mb-1 mt-2 text-xs font-bold uppercase tracking-wide text-text-muted">Body metrics</div>
                     <div className="grid grid-cols-2 gap-x-4">
                         <Form.Item name="age" label="Age"><InputNumber min={1} max={120} precision={0} style={{ width: '100%' }} placeholder="32" /></Form.Item>
+                        <Form.Item name="gender" label="Gender" tooltip="Used to calculate BMR"><Select allowClear placeholder="Select" options={GENDER_OPTIONS} /></Form.Item>
                         <Form.Item name="height" label="Height (cm)"><InputNumber min={50} max={300} style={{ width: '100%' }} placeholder="178" /></Form.Item>
                         <Form.Item name="weight" label="Weight (kg)" rules={[{ required: true, message: 'Required' }]}><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="82" /></Form.Item>
                         <Form.Item name="targetWeight" label="Target (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="75" /></Form.Item>
                     </div>
-                    <div className="mb-4 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
+                    <div className="mb-2 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
                         <span className="font-semibold text-text-secondary">BMI</span>
                         <span className="font-bold" style={{ color: bmiColor }}>{bmi == null ? 'Enter weight & height' : `${bmi} · ${bmiCategory}`}</span>
+                    </div>
+                    <div className="mb-4 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <span className="font-semibold text-text-secondary">BMR</span>
+                        <span className="font-bold" style={{ color: bmr == null ? 'var(--color-text-muted)' : 'var(--color-text-primary)' }}>{bmrLabel(bmr, bmrInputs)}</span>
                     </div>
                     <Form.Item name="medicalNotes" label="Medical notes">
                         <Input.TextArea rows={2} maxLength={2000} placeholder="Conditions, injuries, allergies, medication… (optional)" />

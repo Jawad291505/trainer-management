@@ -23,6 +23,7 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import ClientCard from '../components/ClientCard'
 import { api } from '../../../services/api'
+import { GENDER_OPTIONS, computeBMR, bmrLabel } from '../../../utils/bodyMetrics'
 import { useAuth } from '../../../context/AuthContext'
 
 const CLIENT_GOALS = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
@@ -61,6 +62,7 @@ export default function Clients() {
                 phone: v.phone,
                 age: v.age,
                 height: v.height,
+                gender: v.gender,
                 medicalNotes: v.medicalNotes,
                 goal: v.goal,
                 plan: v.plan,
@@ -184,12 +186,25 @@ export default function Clients() {
                     <Form.Item name="phone" label="Phone" rules={[{ pattern: /^\+?[\d\s().-]{6,20}$/, message: 'Enter a valid phone number' }]}><Input placeholder="+1 (555) 000-0000" /></Form.Item>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                         <Form.Item name="age" label="Age"><InputNumber min={1} max={120} precision={0} style={{ width: '100%' }} placeholder="32" /></Form.Item>
+                        <Form.Item name="gender" label="Gender" tooltip="Used to calculate BMR"><Select allowClear placeholder="Select" options={GENDER_OPTIONS} /></Form.Item>
                         <Form.Item name="height" label="Height (cm)"><InputNumber min={50} max={300} style={{ width: '100%' }} placeholder="178" /></Form.Item>
                         <Form.Item name="weight" label="Weight (kg)" rules={[{ required: true, message: 'Required' }]}><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="82" /></Form.Item>
                         <Form.Item name="targetWeight" label="Target (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="75" /></Form.Item>
                         <Form.Item name="goal" label="Goal" rules={[{ required: true }]}><Select options={CLIENT_GOALS.map((g) => ({ value: g, label: g }))} /></Form.Item>
                         <Form.Item name="plan" label="Programme" rules={[{ required: true }]}><Select options={PROGRAMME_PLANS.map((p) => ({ value: p, label: p }))} /></Form.Item>
                     </div>
+                    <Form.Item noStyle shouldUpdate>
+                        {({ getFieldsValue }) => {
+                            const inputs = getFieldsValue(['weight', 'height', 'age', 'gender'])
+                            const bmr = computeBMR(inputs)
+                            return (
+                                <div className="mb-4 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm" style={{ background: 'var(--color-surface-secondary)' }}>
+                                    <span className="font-semibold text-text-secondary">BMR</span>
+                                    <span className="font-bold" style={{ color: bmr == null ? 'var(--color-text-muted)' : 'var(--color-text-primary)' }}>{bmrLabel(bmr, inputs)}</span>
+                                </div>
+                            )
+                        }}
+                    </Form.Item>
                     <Form.Item name="medicalNotes" label="Medical notes">
                         <Input.TextArea rows={2} maxLength={2000} placeholder="Conditions, injuries, allergies, medication… (optional)" />
                     </Form.Item>

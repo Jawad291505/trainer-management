@@ -30,6 +30,27 @@ const uid = (p) => `${p}${Date.now()}${mealSeq++}`
 // meal, so it just reads/writes that first option transparently.
 const mealItems = (m) => m.options?.[0]?.items || m.items || []
 
+// A stored/resolved item -> the editor's row shape (`food` is the display name).
+const toEditorItem = (it) => ({ ...it, food: it.name || it.food_name || it.foodCode })
+
+// What the API stores for an item: just the library code and the quantity.
+const itemRefs = (items = []) => items.map((it) => ({ foodCode: it.foodCode, qty: it.qty }))
+
+// An editor meal -> the API's meal shape. The edited `items` are written to the
+// first option; any further options the meal already had are sent back untouched.
+const toMealPayload = (m) => ({
+    id: m.id || m._id,
+    name: m.name,
+    time: m.time,
+    notes: m.notes || '',
+    taskKey: m.taskKey ?? null,
+    supplements: m.supplements || [],
+    options: [
+        { id: m.options?.[0]?.id || m.options?.[0]?._id, label: m.options?.[0]?.label || 'Option 1', items: itemRefs(m.items) },
+        ...(m.options || []).slice(1).map((o) => ({ id: o.id || o._id, label: o.label, items: itemRefs(o.items) })),
+    ],
+})
+
 const planTotals = (meals) =>
     meals.reduce(
         (acc, m) => {
@@ -82,7 +103,7 @@ export default function DietPlans() {
     if (editing) {
         return (
             <PlanEditor
-                key={editing.id}
+                key={editing._id || editing.id}
                 plan={editing}
                 onSave={async (patch) => {
                     try {
@@ -189,7 +210,7 @@ function PlanEditor({ plan, onSave, onBack }) {
     const [name, setName] = useState(plan.name)
     const [goal, setGoal] = useState(plan.goal)
     const [description, setDescription] = useState(plan.description || '')
-    const [meals, setMeals] = useState(() => plan.meals.map((m) => ({ ...m, items: mealItems(m).map((it) => ({ ...it })) })))
+    const [meals, setMeals] = useState(() => plan.meals.map((m) => ({ ...m, items: mealItems(m).map(toEditorItem) })))
 
     const [mealModal, setMealModal] = useState(false)
     const [foodModal, setFoodModal] = useState(null) // mealId
@@ -225,7 +246,7 @@ function PlanEditor({ plan, onSave, onBack }) {
                 <Button
                     type="primary"
                     icon={<SaveOutlined />}
-                    onClick={() => onSave({ name: name.trim() || 'Untitled', goal, description: description.trim(), meals })}
+                    onClick={() => onSave({ name: name.trim() || 'Untitled', goal, description: description.trim(), meals: meals.map(toMealPayload) })}
                 >
                     Save template
                 </Button>
@@ -431,7 +452,7 @@ function FoodPickerModal({ open, onCancel, onAdd }) {
             onCancel={onCancel}
             onOk={() => {
                 if (!food) return
-                onAdd({ foodId: food.id, food: food.name, qty, unit: food.unit, ...nutrition })
+                onAdd({ foodId: food.id, foodCode: food.code, food: food.name, qty, unit: food.unit, ...nutrition })
             }}
             okText="Add food"
             okButtonProps={{ icon: <PlusOutlined />, disabled: !food }}

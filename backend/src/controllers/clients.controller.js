@@ -4,6 +4,8 @@ import { notifyTrainer, notifyClient } from '../services/notify.service.js'
 import { User, Member, Trainer, Client, DailyLog } from '../models/index.js'
 import { createInvitedUser } from '../services/invite.service.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
+import { computeBMI, computeBMR } from '../services/bodyMetrics.service.js'
+import { CLIENT_GENDERS } from '../config/constants.js'
 
 function flatten(client) {
     const u = client.user
@@ -18,6 +20,10 @@ function flatten(client) {
         role: 'Client',
         age: client.age ?? null,
         height: client.height ?? null,
+        gender: client.gender ?? null,
+        // Derived, never stored — null while an input is missing.
+        bmi: computeBMI(client.weight, client.height),
+        bmr: computeBMR(client),
         medicalNotes: client.medicalNotes || '',
         goal: client.goal,
         plan: client.plan,
@@ -54,6 +60,11 @@ function parseDetails(body) {
     }
     number('age', 'Age', 1, 120, true)
     number('height', 'Height (cm)', 50, 300, false)
+    if (body.gender !== undefined) {
+        const gender = blank(body.gender) ? null : String(body.gender).trim().toLowerCase()
+        if (gender && !CLIENT_GENDERS.includes(gender)) throw ApiError.badRequest('Gender must be male or female')
+        out.gender = gender
+    }
     if (body.phone !== undefined) {
         const phone = blank(body.phone) ? '' : String(body.phone).trim()
         if (phone && !PHONE_RE.test(phone)) throw ApiError.badRequest('Enter a valid phone number')
@@ -210,6 +221,7 @@ export const createClient = asyncHandler(async (req, res) => {
         trainer: trainerId || null,
         age: details.age,
         height: details.height,
+        gender: details.gender,
         medicalNotes: details.medicalNotes,
         goal,
         plan,
@@ -261,7 +273,7 @@ export const updateClient = asyncHandler(async (req, res) => {
     // member, or the assigned trainer) — not by the client themselves here.
     const canEditDetails = ['admin', 'member'].includes(req.user.role) || isTrainer
     const details = canEditDetails ? parseDetails(req.body) : {}
-    for (const k of ['age', 'height', 'medicalNotes']) if (details[k] !== undefined) client[k] = details[k]
+    for (const k of ['age', 'height', 'gender', 'medicalNotes']) if (details[k] !== undefined) client[k] = details[k]
 
     if (canEditDetails && client.user) {
         const isManager = ['admin', 'member'].includes(req.user.role)

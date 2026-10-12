@@ -69,7 +69,9 @@ export function LibraryProvider({ children }) {
         setExercises((e.items || []).map(normalizeEx))
     }, []))
     const dietPlansRes = useLazyResource(useCallback(async () => {
-        const d = await api.get('/diet-plan-templates', { ttl: LIBRARY_TTL })
+        // withNutrition: items come back with their food name + macros, which the
+        // template cards and editor display.
+        const d = await api.get('/diet-plan-templates?withNutrition=1', { ttl: LIBRARY_TTL })
         setDietPlans(d.items || [])
     }, []))
 

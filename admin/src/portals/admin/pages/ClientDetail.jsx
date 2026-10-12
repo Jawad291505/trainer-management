@@ -17,6 +17,7 @@ import {
     MedicineBoxOutlined,
     EditOutlined,
 } from '@ant-design/icons'
+import { bmrLabel } from '../../../utils/bodyMetrics'
 import {
     ResponsiveContainer,
     LineChart,
@@ -84,7 +85,8 @@ export default function ClientDetail() {
                 <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-3"><MailOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.email}</span></div>
                     <div className="flex items-center gap-3"><PhoneOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.phone || '—'}</span></div>
-                    <div className="flex items-center gap-3"><IdcardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Age: {client.age ?? '—'} · Height: {client.height ? `${client.height} cm` : '—'}</span></div>
+                    <div className="flex items-center gap-3"><IdcardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Age: {client.age ?? '—'} · Height: {client.height ? `${client.height} cm` : '—'}{client.gender ? ` · ${client.gender === 'male' ? 'Male' : 'Female'}` : ''}</span></div>
+                    <div className="flex items-center gap-3"><DashboardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">BMI: {client.bmi ?? '—'} · BMR: {bmrLabel(client.bmr, client)}</span></div>
                     <div className="flex items-start gap-3"><MedicineBoxOutlined className="mt-1" style={{ color: 'var(--color-text-muted)' }} /><span className="whitespace-pre-wrap text-text-secondary">Medical notes: {client.medicalNotes || '—'}</span></div>
                     <div className="flex items-center gap-3"><AimOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Goal: {client.goal}</span></div>
                     <div className="flex items-center gap-3"><CreditCardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.plan} plan</span></div>

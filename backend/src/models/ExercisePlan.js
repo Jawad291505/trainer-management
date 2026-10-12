@@ -1,5 +1,33 @@
 import mongoose from 'mongoose'
-import { EXERCISE_PLAN_STATUS, EXERCISE_TECHNIQUES, TRACKING_TYPES } from '../config/constants.js'
+import { EXERCISE_LINK_TYPES, EXERCISE_PLAN_STATUS, EXERCISE_TECHNIQUES, TRACKING_TYPES } from '../config/constants.js'
+
+// A Techniques Library entry as it was when the trainer attached it. Stored as a
+// copy (not a live reference) so later edits or deletion of the library row never
+// change or break a plan that is already assigned; `technique` only records where
+// the copy came from.
+export const techniqueSnapshotSchema = new mongoose.Schema(
+    {
+        technique: { type: mongoose.Schema.Types.ObjectId, ref: 'Technique', default: null },
+        title: { type: String, required: true, trim: true },
+        instructions: { type: String, default: '' },
+        youtube: { type: String, default: '' },
+    },
+    { _id: true },
+)
+
+// A group of two or more exercises of one training day performed together
+// (superset, paired movements, a multi-step sequence). Exercises join a group by
+// carrying its `key` in `linkKey`; their order within the group is their order in
+// the day's `exercises` array. Linking never copies an exercise.
+export const exerciseLinkSchema = new mongoose.Schema(
+    {
+        key: { type: String, required: true, trim: true },
+        type: { type: String, enum: EXERCISE_LINK_TYPES, default: 'superset' },
+        note: { type: String, default: '', trim: true },
+        techniques: { type: [techniqueSnapshotSchema], default: [] }, // apply to the whole group
+    },
+    { _id: false },
+)
 
 // A client-specific exercise plan organised by training day
 // (trainer ExercisePlans.jsx builder -> user MyExercises.jsx).
@@ -25,6 +53,11 @@ const planExerciseSchema = new mongoose.Schema(
         youtube: { type: String, default: '' },
         instructions: { type: String, default: '' },
 
+        // Techniques Library entries attached to this exercise (copies — see above).
+        techniques: { type: [techniqueSnapshotSchema], default: [] },
+        // `key` of the day's link group this exercise belongs to, if any.
+        linkKey: { type: String, default: null },
+
         // Whether a set is logged by reps or a held/timed duration, and optional
         // weight/duration targets carried into each WorkoutSession's set log.
         trackingType: { type: String, enum: TRACKING_TYPES, default: 'reps' },
@@ -48,6 +81,7 @@ const trainingDaySchema = new mongoose.Schema(
         // trainer, shown to the client above the day's exercises.
         note: { type: String, default: '' },
         exercises: { type: [planExerciseSchema], default: [] },
+        links: { type: [exerciseLinkSchema], default: [] },
     },
     { _id: true },
 )

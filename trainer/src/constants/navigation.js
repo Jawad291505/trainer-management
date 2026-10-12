@@ -10,6 +10,7 @@ import {
     SettingOutlined,
     EditOutlined,
     StarOutlined,
+    BulbOutlined,
 } from '@ant-design/icons'
 
 // Trainer sidebar navigation, split into labelled sections. Each group has a
@@ -28,6 +29,7 @@ export const trainerNavGroups = [
             { key: '/schedule', label: 'Schedule', icon: CalendarOutlined },
             { key: '/diet-plans', label: 'Diet Plans', icon: AppleOutlined },
             { key: '/exercise-plans', label: 'Exercise Plans', icon: ThunderboltOutlined },
+            { key: '/techniques', label: 'Techniques', icon: BulbOutlined },
             { key: '/follow-ups', label: 'Follow-ups', icon: CheckSquareOutlined },
             { key: '/requests', label: 'Requests', icon: EditOutlined, badge: 'corrections' },
             { key: '/reviews', label: 'Reviews', icon: StarOutlined },

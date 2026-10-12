@@ -16,6 +16,7 @@ import {
     FileDoneOutlined,
     SolutionOutlined,
     StarOutlined,
+    BulbOutlined,
 } from '@ant-design/icons'
 
 // Super Admin sidebar navigation, split into labelled sections. Each group has
@@ -51,6 +52,7 @@ export const adminNavGroups = [
             { key: '/libraries', label: 'Libraries', icon: ReadOutlined },
             { key: '/foods', label: 'Foods', icon: AppleOutlined },
             { key: '/exercises', label: 'Exercises', icon: ThunderboltOutlined },
+            { key: '/techniques', label: 'Techniques', icon: BulbOutlined },
             { key: '/diet-plans', label: 'Diet Plans', icon: ProfileOutlined },
             { key: '/subscription-plans', label: 'Subscription Plans', icon: CrownOutlined },
             { key: '/payment-approvals', label: 'Payment Approvals', icon: FileDoneOutlined },
@@ -95,6 +97,7 @@ export const memberNavGroups = [
             { key: '/libraries', label: 'Libraries', icon: ReadOutlined },
             { key: '/foods', label: 'Foods', icon: AppleOutlined },
             { key: '/exercises', label: 'Exercises', icon: ThunderboltOutlined },
+            { key: '/techniques', label: 'Techniques', icon: BulbOutlined },
             { key: '/diet-plans', label: 'Diet Plans', icon: ProfileOutlined },
         ],
     },

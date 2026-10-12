@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import { EXERCISE_TECHNIQUES, TRACKING_TYPES, WORKOUT_SESSION_STATUS } from '../config/constants.js'
+import { exerciseLinkSchema, techniqueSnapshotSchema } from './ExercisePlan.js'
 
 // A single logged set within a performed workout: the target copied from the
 // plan at start time, plus whatever the client actually did.
@@ -37,6 +38,8 @@ const sessionExerciseSchema = new mongoose.Schema(
         targetRest: { type: String, default: '60s' },
         youtube: { type: String, default: '' },
         instructions: { type: String, default: '' },
+        techniques: { type: [techniqueSnapshotSchema], default: [] },
+        linkKey: { type: String, default: null },
 
         sets: { type: [setLogSchema], default: [] },
         notes: { type: String, default: '' },
@@ -69,6 +72,8 @@ const workoutSessionSchema = new mongoose.Schema(
         completedAt: { type: Date, default: null },
 
         exercises: { type: [sessionExerciseSchema], default: [] },
+        // The day's link groups at start time (supersets etc.) — see ExercisePlan.
+        links: { type: [exerciseLinkSchema], default: [] },
         notes: { type: String, default: '' }, // overall workout notes, set on finish
     },
     { timestamps: true },

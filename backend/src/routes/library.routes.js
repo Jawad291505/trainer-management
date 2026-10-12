@@ -9,6 +9,9 @@ import {
     createExercise, updateExercise, deleteExercise,
 } from '../controllers/exercises.controller.js'
 import {
+    listLibraryTechniques, getLibraryTechnique, createTechnique, updateTechnique, deleteTechnique,
+} from '../controllers/techniques.controller.js'
+import {
     getConfig, updateConfig, compute, mealGl,
 } from '../controllers/nutrition.controller.js'
 import { getLinkPreview } from '../controllers/linkPreview.controller.js'
@@ -34,6 +37,13 @@ router.get('/exercises/:id', getExercise)
 router.post('/exercises', authorize('admin', 'member', 'trainer'), createExercise)
 router.patch('/exercises/:id', authorize('admin', 'member', 'trainer'), updateExercise)
 router.delete('/exercises/:id', authorize('admin', 'member', 'trainer'), deleteExercise)
+
+// ---- Techniques Library (shared + trainer-own; clients only ever see the copies on their plan) ----
+router.get('/techniques', authorize('admin', 'member', 'trainer'), listLibraryTechniques)
+router.get('/techniques/:id', authorize('admin', 'member', 'trainer'), getLibraryTechnique)
+router.post('/techniques', authorize('admin', 'member', 'trainer'), createTechnique)
+router.patch('/techniques/:id', authorize('admin', 'member', 'trainer'), updateTechnique)
+router.delete('/techniques/:id', authorize('admin', 'member', 'trainer'), deleteTechnique)
 
 // ---- Nutrition config + ad-hoc calculators ----
 router.get('/nutrition/config', getConfig)

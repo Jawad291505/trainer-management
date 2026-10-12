@@ -1,11 +1,12 @@
 import { Form, Select } from 'antd'
 import { exerciseTechniques, getTechnique } from '../../../services/exerciseLibrary'
 
-// Technique picker (Standard / TUT / Super Set) — a shared, data-driven exercise
-// property. Shows the selected technique's description below the control,
+// Training-method picker (Standard / TUT / Super Set) — a shared, data-driven exercise
+// property. Shows the selected method's description below the control,
 // mirroring the reference workout sheet. Drop it into any antd Form; pass that
 // form instance so the description can react to the current selection.
-export default function TechniqueField({ form, name = 'technique', label = 'Technique' }) {
+// (Library techniques — title, instructions, video — are a separate field: TechniquePicker.)
+export default function TechniqueField({ form, name = 'technique', label = 'Training method' }) {
     const key = Form.useWatch(name, form) || 'standard'
     return (
         <Form.Item

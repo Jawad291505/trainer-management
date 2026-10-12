@@ -4,14 +4,18 @@ import { useLazyResource, useEnsureLoaded, combineStatus } from '../hooks/useLaz
 
 const LibraryContext = createContext(null)
 
-// Foods and exercises load independently and only when a page/modal that needs
+// Foods, exercises and techniques load independently and only when a page/modal that needs
 // them mounts (see useLibrary's `need` argument) — the reference lists are
 // cached briefly by the api client, so re-opening a page doesn't refetch them.
 const LIBRARY_TTL = 60_000
 
+const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+
 export function LibraryProvider({ children }) {
     const [foods, setFoods] = useState([])
     const [exercises, setExercises] = useState([])
+    // Techniques Library: the shared (admin) techniques + this trainer's own.
+    const [techniques, setTechniques] = useState([])
 
     const foodsRes = useLazyResource(useCallback(async () => {
         const f = await api.get('/foods', { ttl: LIBRARY_TTL })
@@ -20,6 +24,11 @@ export function LibraryProvider({ children }) {
     const exercisesRes = useLazyResource(useCallback(async () => {
         const e = await api.get('/exercises', { ttl: LIBRARY_TTL })
         setExercises(e.items || [])
+    }, []))
+
+    const techniquesRes = useLazyResource(useCallback(async () => {
+        const t = await api.get('/techniques', { ttl: LIBRARY_TTL })
+        setTechniques(t.items || [])
     }, []))
 
     const addFood = useCallback(async (food) => {
@@ -50,17 +59,39 @@ export function LibraryProvider({ children }) {
         setExercises((prev) => prev.filter((x) => (x._id || x.id) !== id))
     }, [])
 
+    const addTechnique = useCallback(async (technique) => {
+        const created = await api.post('/techniques', technique)
+        setTechniques((prev) => [...prev, created].sort(byTitle))
+        return created
+    }, [])
+    const updateTechnique = useCallback(async (id, patch) => {
+        const updated = await api.patch(`/techniques/${id}`, patch)
+        setTechniques((prev) => prev.map((t) => ((t._id || t.id) === id ? updated : t)).sort(byTitle))
+        return updated
+    }, [])
+    const removeTechnique = useCallback(async (id) => {
+        await api.delete(`/techniques/${id}`)
+        setTechniques((prev) => prev.filter((t) => (t._id || t.id) !== id))
+    }, [])
+
     const value = useMemo(() => ({
         foods, addFood, updateFood, removeFood,
         exercises, addExercise, updateExercise, removeExercise,
-        resources: { foods: foodsRes, exercises: exercisesRes },
-    }), [foods, addFood, updateFood, removeFood, exercises, addExercise, updateExercise, removeExercise, foodsRes, exercisesRes])
+        techniques, addTechnique, updateTechnique, removeTechnique,
+        resources: { foods: foodsRes, exercises: exercisesRes, techniques: techniquesRes },
+    }), [
+        foods, addFood, updateFood, removeFood,
+        exercises, addExercise, updateExercise, removeExercise,
+        techniques, addTechnique, updateTechnique, removeTechnique,
+        foodsRes, exercisesRes, techniquesRes,
+    ])
 
     return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>
 }
 
 // useLibrary(['foods']) — declare which lists this component needs so only those
 // are fetched. Returns the library plus `loading` / `error` / `reload` for them.
+// ('foods' | 'exercises' | 'techniques')
 export function useLibrary(need = ['foods', 'exercises']) {
     const ctx = useContext(LibraryContext)
     if (!ctx) throw new Error('useLibrary must be used within LibraryProvider')

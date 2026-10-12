@@ -1,7 +1,67 @@
-import { PlayCircleOutlined, CheckCircleFilled, StarFilled } from '@ant-design/icons'
+import { PlayCircleOutlined, CheckCircleFilled, StarFilled, LinkOutlined } from '@ant-design/icons'
 import TechniqueTag from './TechniqueTag'
+import TechniqueChips from './TechniqueChips'
+import { groupLinked, getLinkType } from '../../../utils/exerciseLinks'
 
-// Displays a single training day and its exercises.
+function ExerciseRow({ ex, step }) {
+    return (
+        <div
+            className="rounded-xl p-3"
+            style={{
+                background: step ? 'var(--color-surface)' : 'var(--color-surface-secondary)',
+                borderLeft: `3px solid ${ex.done ? 'var(--color-success)' : 'var(--color-border)'}`,
+            }}
+        >
+            {ex.category && (
+                <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
+            )}
+            <div className="flex items-center justify-between">
+                <span className="flex min-w-0 items-center gap-2">
+                    {step && (
+                        <span
+                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                            style={{ background: 'var(--color-primary)', color: '#fff' }}
+                        >
+                            {step}
+                        </span>
+                    )}
+                    {ex.done && <CheckCircleFilled style={{ color: 'var(--color-success)', fontSize: 14 }} />}
+                    <span className={`truncate text-sm font-semibold ${ex.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{ex.name}</span>
+                    {ex.important && (
+                        <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                            style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                        >
+                            <StarFilled /> Important
+                        </span>
+                    )}
+                    <TechniqueTag technique={ex.technique} />
+                </span>
+                {ex.youtube && (
+                    <a
+                        href={ex.youtube}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs font-semibold"
+                        style={{ color: 'var(--color-danger)' }}
+                    >
+                        <PlayCircleOutlined /> Video
+                    </a>
+                )}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+                <span>{ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps}</span>
+                <span>· Rest {ex.rest}</span>
+                {ex.targetWeight ? <span>· {ex.targetWeight}kg</span> : null}
+            </div>
+            {(ex.notes || ex.instructions) && <div className="mt-1 text-xs italic text-text-secondary">{ex.notes || ex.instructions}</div>}
+            <TechniqueChips techniques={ex.techniques} className="mt-1.5" />
+        </div>
+    )
+}
+
+// Displays a single training day and its exercises; linked exercises (supersets
+// etc.) are boxed together in their performing order.
 export default function ExerciseDayCard({ day }) {
     const completed = day.exercises.filter((e) => e.done).length
     const total = day.exercises.length
@@ -26,52 +86,24 @@ export default function ExerciseDayCard({ day }) {
             )}
 
             <div className="flex flex-col gap-2">
-                {day.exercises.map((ex, i) => (
+                {groupLinked(day.exercises, day.links).map((block, bi) => (block.link ? (
                     <div
-                        key={i}
-                        className="rounded-xl p-3"
-                        style={{
-                            background: 'var(--color-surface-secondary)',
-                            borderLeft: `3px solid ${ex.done ? 'var(--color-success)' : 'var(--color-border)'}`,
-                        }}
+                        key={block.link.key}
+                        className="rounded-xl p-2"
+                        style={{ border: '1px solid var(--color-primary)', background: 'var(--color-primary-soft)' }}
                     >
-                        {ex.category && (
-                            <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
-                        )}
-                        <div className="flex items-center justify-between">
-                            <span className="flex min-w-0 items-center gap-2">
-                                {ex.done && <CheckCircleFilled style={{ color: 'var(--color-success)', fontSize: 14 }} />}
-                                <span className={`truncate text-sm font-semibold ${ex.done ? 'text-text-muted line-through' : 'text-text-primary'}`}>{ex.name}</span>
-                                {ex.important && (
-                                    <span
-                                        className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
-                                        style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
-                                    >
-                                        <StarFilled /> Important
-                                    </span>
-                                )}
-                                <TechniqueTag technique={ex.technique} />
-                            </span>
-                            {ex.youtube && (
-                                <a
-                                    href={ex.youtube}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-xs font-semibold"
-                                    style={{ color: 'var(--color-danger)' }}
-                                >
-                                    <PlayCircleOutlined /> Video
-                                </a>
-                            )}
+                        <div className="flex items-center gap-1.5 px-1 text-xs font-bold" style={{ color: 'var(--color-primary)' }}>
+                            <LinkOutlined /> {getLinkType(block.link.type).label} · {block.exercises.length} exercises
                         </div>
-                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
-                            <span>{ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps}</span>
-                            <span>· Rest {ex.rest}</span>
-                            {ex.targetWeight ? <span>· {ex.targetWeight}kg</span> : null}
+                        {block.link.note && <div className="px-1 text-xs text-text-secondary">{block.link.note}</div>}
+                        <TechniqueChips techniques={block.link.techniques} className="mt-1 px-1" />
+                        <div className="mt-2 flex flex-col gap-2">
+                            {block.exercises.map((ex, i) => <ExerciseRow key={ex._id || i} ex={ex} step={i + 1} />)}
                         </div>
-                        {(ex.notes || ex.instructions) && <div className="mt-1 text-xs italic text-text-secondary">{ex.notes || ex.instructions}</div>}
                     </div>
-                ))}
+                ) : (
+                    <ExerciseRow key={block.exercises[0]._id || bi} ex={block.exercises[0]} />
+                )))}
             </div>
         </div>
     )

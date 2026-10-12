@@ -130,7 +130,7 @@ export const createTemplate = asyncHandler(async (req, res) => {
         code: req.body.code,
         meals: await normalizeMeals(meals),
     })
-    res.status(201).json(t)
+    res.status(201).json({ ...t.toObject(), ...(await resolvePlanNutrition(t)) })
 })
 
 // PATCH /api/diet-plan-templates/:id   (admin)
@@ -144,7 +144,8 @@ export const updateTemplate = asyncHandler(async (req, res) => {
     if (req.body.meals !== undefined) t.meals = await normalizeMeals(req.body.meals)
 
     await t.save()
-    res.json(t)
+    // Same resolved shape as GET /:id, so the editor can show names + macros straight away.
+    res.json({ ...t.toObject(), ...(await resolvePlanNutrition(t)) })
 })
 
 // DELETE /api/diet-plan-templates/:id   (admin)

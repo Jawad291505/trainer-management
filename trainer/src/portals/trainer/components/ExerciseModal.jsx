@@ -6,6 +6,7 @@ import { exerciseCategories } from '../../../services/exerciseLibrary'
 import { libraryCategories } from '../../../utils/categories'
 import ModalTitle from '../../../components/common/ModalTitle'
 import TechniqueField from './TechniqueField'
+import TechniquePicker from './TechniquePicker'
 
 // Add an exercise to a day: pick a category → an exercise (defaults prefill), or
 // create a brand-new one that can be saved to the trainer's own library.
@@ -67,6 +68,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                 reps: v.reps,
                 rest: v.rest || '60s',
                 technique: v.technique || exercise.technique || 'standard',
+                techniques: v.techniques || [],
                 youtube: exercise.youtube || '',
                 notes: v.notes || '',
                 trackingType: v.trackingType || 'reps',
@@ -102,6 +104,7 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
             reps: v.reps,
             rest: v.rest || '60s',
             technique: v.technique || 'standard',
+            techniques: v.techniques || [],
             youtube: v.youtube || '',
             notes: v.notes || '',
             trackingType: v.trackingType || 'reps',
@@ -228,6 +231,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                     </Form.Item>
                                 </div>
                                 <TechniqueField form={pickForm} />
+                                <Form.Item name="techniques" label="Techniques from the library" tooltip="Shown to the client with instructions and a video">
+                                    <TechniquePicker />
+                                </Form.Item>
                                 <Form.Item name="notes" label="Instructions" className="mb-0">
                                     <Input.TextArea rows={2} placeholder="Form cues, tempo, etc." />
                                 </Form.Item>
@@ -279,6 +285,9 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                             </Form.Item>
                         </div>
                         <TechniqueField form={newForm} />
+                        <Form.Item name="techniques" label="Techniques from the library" tooltip="Shown to the client with instructions and a video">
+                            <TechniquePicker />
+                        </Form.Item>
                         <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                             <Input placeholder="https://youtube.com/watch?v=…" />
                         </Form.Item>

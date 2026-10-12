@@ -1,5 +1,5 @@
 import mongoose from 'mongoose'
-import { CLIENT_GOALS, MEMBERSHIP_PLANS, ACCOUNT_STATUS } from '../config/constants.js'
+import { CLIENT_GOALS, CLIENT_GENDERS, MEMBERSHIP_PLANS, ACCOUNT_STATUS } from '../config/constants.js'
 
 // Client profile. One-to-one with a User (role: 'client').
 // Fields mirror admin/trainer/user mockData.js client objects + currentClient.
@@ -20,6 +20,9 @@ const clientSchema = new mongoose.Schema(
         // lives on the User doc). Age in years, height in centimetres.
         age: { type: Number, default: null, min: 1, max: 120 },
         height: { type: Number, default: null, min: 50, max: 300 },
+        // 'male' | 'female' | null. Optional — clients added before this existed
+        // simply have none (and so no BMR until it is filled in).
+        gender: { type: String, enum: [...CLIENT_GENDERS, null], default: null },
         medicalNotes: { type: String, default: '', trim: true, maxlength: 2000 },
 
         // Weight tracking (user MyProgress: weightLost = startWeight - weight,

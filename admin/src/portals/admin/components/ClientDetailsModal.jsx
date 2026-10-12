@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Modal, Form, Input, InputNumber, App } from 'antd'
+import { Modal, Form, Input, InputNumber, Select, App } from 'antd'
 import { api } from '../../../services/api'
+import { GENDER_OPTIONS } from '../../../utils/bodyMetrics'
 
 // Edit a client's personal details. Only the name is required — age, height,
-// phone and medical notes are optional, and clearing one removes it.
+// gender, phone and medical notes are optional, and clearing one removes it.
 export default function ClientDetailsModal({ client, open, onClose, onSaved, canEditName = true }) {
     const { message } = App.useApp()
     const [form] = Form.useForm()
@@ -16,6 +17,7 @@ export default function ClientDetailsModal({ client, open, onClose, onSaved, can
             phone: client.phone || '',
             age: client.age ?? null,
             height: client.height ?? null,
+            gender: client.gender ?? null,
             medicalNotes: client.medicalNotes || '',
         })
     }, [open, client, form])
@@ -29,6 +31,7 @@ export default function ClientDetailsModal({ client, open, onClose, onSaved, can
                 phone: v.phone || '',
                 age: v.age ?? null,
                 height: v.height ?? null,
+                gender: v.gender ?? null,
                 medicalNotes: v.medicalNotes || '',
             })
             onSaved(updated)
@@ -63,6 +66,7 @@ export default function ClientDetailsModal({ client, open, onClose, onSaved, can
                     <Form.Item name="age" label="Age"><InputNumber min={1} max={120} precision={0} style={{ width: '100%' }} /></Form.Item>
                     <Form.Item name="height" label="Height (cm)"><InputNumber min={50} max={300} style={{ width: '100%' }} /></Form.Item>
                 </div>
+                <Form.Item name="gender" label="Gender" tooltip="Used to calculate BMR"><Select allowClear placeholder="Select" options={GENDER_OPTIONS} /></Form.Item>
                 <Form.Item name="medicalNotes" label="Medical notes">
                     <Input.TextArea rows={3} maxLength={2000} placeholder="Conditions, injuries, allergies, medication…" />
                 </Form.Item>

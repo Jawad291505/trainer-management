@@ -2,13 +2,13 @@
  * Reset the database to a clean state, preserving:
  *   - The 3 named portal accounts (admin@fit360.com, trainer@fit360.com, client@fit360.com)
  *     and their Trainer/Client profile docs.
- *   - All master data: Food/Exercise where isMaster:true, ExerciseTechnique,
+ *   - All master data: Food/Exercise/Technique where isMaster:true, ExerciseTechnique,
  *     LibraryCategory, LibraryResource, DietPlanTemplate, SubscriptionPlan, NutritionConfig.
  *
  * Deletes everything else:
  *   - Every other User (and its Trainer/Client/Member profile).
  *   - All Member docs (none of the 3 kept accounts is a member).
- *   - Trainer-custom Food/Exercise rows (isMaster:false).
+ *   - Trainer-custom Food/Exercise/Technique rows (isMaster:false).
  *   - All transactional collections in full: DietPlan, ExercisePlan, WorkoutSession,
  *     GroceryList, DailyLog, WeightEntry, ProgressPhoto, FollowUp, ScheduleActivity,
  *     CorrectionRequest, Conversation, Message, Notification, Payment, MemberPayment,
@@ -24,7 +24,7 @@
 import { connectDb, disconnectDb } from '../config/db.js'
 import {
     User, Trainer, Client, Member,
-    Food, Exercise,
+    Food, Exercise, Technique,
     DietPlan, ExercisePlan, WorkoutSession, GroceryList, DailyLog, WeightEntry,
     ProgressPhoto, FollowUp, ScheduleActivity, CorrectionRequest, Conversation, Message,
     Notification, Payment, MemberPayment, Referral, Review,
@@ -59,6 +59,7 @@ async function main() {
         ['Member (all)', Member, {}],
         ['Food (trainer-custom, isMaster:false)', Food, { isMaster: false }],
         ['Exercise (trainer-custom, isMaster:false)', Exercise, { isMaster: false }],
+        ['Technique (trainer-custom, isMaster:false)', Technique, { isMaster: false }],
         ['DietPlan (all)', DietPlan, {}],
         ['ExercisePlan (all)', ExercisePlan, {}],
         ['WorkoutSession (all)', WorkoutSession, {}],
@@ -94,6 +95,7 @@ async function main() {
     const untouched = [
         ['Food (isMaster:true)', Food, { isMaster: true }],
         ['Exercise (isMaster:true)', Exercise, { isMaster: true }],
+        ['Technique (isMaster:true)', Technique, { isMaster: true }],
     ]
     for (const [label, Model, filter] of untouched) {
         console.log(`  kept (master data) ${String(await Model.countDocuments(filter)).padStart(6)}  ${label}`)

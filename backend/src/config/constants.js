@@ -20,6 +20,10 @@ export const PLAN_PRICES = { Starter: 49, Standard: 89, Premium: 149, Elite: 249
 export const ROLES = { ADMIN: 'admin', MEMBER: 'member', TRAINER: 'trainer', CLIENT: 'client' }
 export const ROLE_VALUES = Object.values(ROLES)
 
+// Client.gender — optional; only used to pick the BMR formula's constant
+// (services/bodyMetrics.service.js).
+export const CLIENT_GENDERS = ['male', 'female']
+
 // Shared account status (admin Users / Trainers / Clients pages).
 export const ACCOUNT_STATUS = ['active', 'inactive', 'pending']
 
@@ -89,6 +93,14 @@ export const FOOD_UNITS = ['g', 'ml', 'count']
 
 // data/exerciseTechniques.json -> item.key
 export const EXERCISE_TECHNIQUES = ['standard', 'tut', 'superset']
+
+// Techniques Library (models/Technique.js) — field length caps, and how many
+// library techniques one plan exercise (or one link group) may carry.
+export const TECHNIQUE_LIMITS = { title: 120, instructions: 5000, youtube: 300 }
+export const MAX_TECHNIQUES_PER_EXERCISE = 6
+
+// How the exercises of a link group relate (ExercisePlan day `links[].type`).
+export const EXERCISE_LINK_TYPES = ['superset', 'paired', 'sequence']
 
 // Where a library row originated. 'pdf'/'admin' => master data; 'trainer' => custom.
 export const LIBRARY_SOURCES = ['pdf', 'admin', 'trainer']

@@ -3,10 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { Button, InputNumber, Input, Progress } from 'antd'
 import {
     LeftOutlined, RightOutlined, CheckOutlined, PlayCircleOutlined,
-    TrophyOutlined, ClockCircleOutlined,
+    TrophyOutlined, ClockCircleOutlined, LinkOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import PageSpin from '../../../components/common/PageSpin'
+import TechniqueDetails from '../components/TechniqueDetails'
+import { getLinkType } from '../../../utils/exerciseLinks'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 
@@ -94,6 +96,10 @@ export default function WorkoutRunner() {
     const exercise = exercises[exIdx]
     const isLast = exIdx === exercises.length - 1
 
+    // The link group (superset etc.) the current exercise belongs to, if any.
+    const link = exercise?.linkKey ? (session.links || []).find((l) => l.key === exercise.linkKey) : null
+    const linked = link ? exercises.filter((e) => e.linkKey === link.key) : []
+
     const setDraft = (setIdx, patch) => {
         const key = `${exIdx}-${setIdx}`
         draftsRef.current[key] = { ...draftsRef.current[key], ...patch }
@@ -168,6 +174,32 @@ export default function WorkoutRunner() {
                 <div className="mt-1 text-xs text-text-muted">{totalSetsDone}/{totalSets} sets logged</div>
             </div>
 
+            {link && linked.length > 1 && (
+                <div className="mb-4 rounded-xl px-4 py-3" style={{ border: '1px solid var(--color-primary)', background: 'var(--color-primary-soft)' }}>
+                    <div className="flex flex-wrap items-center gap-x-2 text-sm font-bold" style={{ color: 'var(--color-primary)' }}>
+                        <LinkOutlined /> {getLinkType(link.type).label}
+                        <span className="text-xs font-semibold">· step {linked.indexOf(exercise) + 1} of {linked.length}</span>
+                    </div>
+                    <div className="mt-0.5 text-xs text-text-secondary">{link.note || getLinkType(link.type).hint}</div>
+                    <ol className="mb-0 mt-2 flex flex-col gap-1 pl-0" style={{ listStyle: 'none' }}>
+                        {linked.map((e, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm">
+                                <span
+                                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                                    style={e === exercise
+                                        ? { background: 'var(--color-primary)', color: '#fff' }
+                                        : { background: 'var(--color-surface)', color: 'var(--color-primary)' }}
+                                >
+                                    {i + 1}
+                                </span>
+                                <span className={e === exercise ? 'font-bold text-text-primary' : 'text-text-secondary'}>{e.name}</span>
+                            </li>
+                        ))}
+                    </ol>
+                    <TechniqueDetails techniques={link.techniques} className="mt-3" />
+                </div>
+            )}
+
             {exercise && (
                 <div className="app-card p-5">
                     <div className="flex items-start justify-between gap-3">
@@ -181,6 +213,8 @@ export default function WorkoutRunner() {
                             </a>
                         )}
                     </div>
+
+                    <TechniqueDetails techniques={exercise.techniques} method={exercise.technique} className="mt-3" />
 
                     {resting && (
                         <RestTimer

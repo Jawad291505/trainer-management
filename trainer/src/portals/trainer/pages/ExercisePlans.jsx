@@ -13,6 +13,8 @@ import {
     StarFilled,
     StarOutlined,
     MoreOutlined,
+    LinkOutlined,
+    DisconnectOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
@@ -29,9 +31,46 @@ import { weekdayIndex, sortByWeekday } from '../../../utils/weekdays'
 import ExerciseModal from '../components/ExerciseModal'
 import TechniqueField from '../components/TechniqueField'
 import TechniqueTag from '../components/TechniqueTag'
+import TechniquePicker from '../components/TechniquePicker'
+import TechniqueChips from '../components/TechniqueChips'
+import LinkExercisesModal from '../components/LinkExercisesModal'
+import { groupLinked, getLinkType, tidyLinks, applyLink, removeFromLink, unlinkGroup } from '../../../utils/exerciseLinks'
 
 let daySeq = 100
 let exSeq = 100
+
+// A saved plan (API shape) -> the builder's day/exercise state.
+const toBuilderDays = (plan) =>
+    (plan.days || []).map((d, di) => ({
+        id: d._id || d.id || `D${di}`,
+        day: d.day,
+        focus: d.focus || '',
+        note: d.note || '',
+        links: d.links || [],
+        exercises: (d.exercises || []).map((ex) => ({
+            id: ex._id || ex.id,
+            exerciseId: ex.exercise,
+            exerciseCode: ex.exerciseCode,
+            name: ex.name,
+            category: ex.category || '',
+            important: !!ex.important,
+            sets: ex.sets,
+            reps: ex.reps,
+            rest: ex.rest || '60s',
+            technique: ex.technique || 'standard',
+            techniques: ex.techniques || [],
+            linkKey: ex.linkKey || null,
+            youtube: ex.youtube || '',
+            notes: ex.instructions || '',
+            trackingType: ex.trackingType || 'reps',
+            targetWeight: ex.targetWeight ?? null,
+            targetDuration: ex.targetDuration ?? null,
+        })),
+    }))
+
+// Techniques go back as references: a copy already saved on the plan by its
+// `_id` (kept as-is), a newly picked one by its library id (copied on save).
+const techniqueRefs = (list = []) => list.map((t) => ({ _id: t._id, technique: t.technique }))
 
 export default function ExercisePlans() {
     const { message } = App.useApp()
@@ -68,30 +107,7 @@ export default function ExercisePlans() {
             if (!plan) return
             const full = await api.get(`/exercise-plans/${plan._id || plan.id}`)
             setPlanId(full._id || full.id)
-            const loaded = (full.days || []).map((d, di) => ({
-                id: d._id || `D${di}`,
-                day: d.day,
-                focus: d.focus || '',
-                note: d.note || '',
-                exercises: (d.exercises || []).map((ex) => ({
-                    id: ex._id || ex.id,
-                    exerciseId: ex.exercise,
-                    exerciseCode: ex.exerciseCode,
-                    name: ex.name,
-                    category: ex.category || '',
-                    important: !!ex.important,
-                    sets: ex.sets,
-                    reps: ex.reps,
-                    rest: ex.rest || '60s',
-                    technique: ex.technique || 'standard',
-                    youtube: ex.youtube || '',
-                    notes: ex.instructions || '',
-                    trackingType: ex.trackingType || 'reps',
-                    targetWeight: ex.targetWeight ?? null,
-                    targetDuration: ex.targetDuration ?? null,
-                })),
-            }))
-            setDays(loaded)
+            setDays(toBuilderDays(full))
         }).catch((err) => setPlanError(err)).finally(() => setLoading(false))
     }, [clientId, planTick])
     const [dayModal, setDayModal] = useState(false)
@@ -102,10 +118,11 @@ export default function ExercisePlans() {
     const [editForm] = Form.useForm()
     const [planExEditing, setPlanExEditing] = useState(null) // { dayId, ex } — plan exercise being edited
     const [planExForm] = Form.useForm()
+    const [linkTarget, setLinkTarget] = useState(null) // { day, link?, startWith? } — link modal
 
     const addDay = async () => {
         const v = await dayForm.validateFields()
-        setDays((prev) => [...prev, { id: `D${daySeq++}`, day: v.day, focus: v.focus, note: v.note || '', exercises: [] }])
+        setDays((prev) => [...prev, { id: `D${daySeq++}`, day: v.day, focus: v.focus, note: v.note || '', links: [], exercises: [] }])
         dayForm.resetFields()
         setDayModal(false)
         message.success('Day added')
@@ -152,8 +169,29 @@ export default function ExercisePlans() {
     }
 
     const removeExerciseFromDay = (dayId, exId) => {
-        setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, exercises: d.exercises.filter((e) => e.id !== exId) } : d)))
+        // tidyLinks: removing a member can leave a link group with a single exercise.
+        setDays((prev) => prev.map((d) => (d.id === dayId ? tidyLinks({ ...d, exercises: d.exercises.filter((e) => e.id !== exId) }) : d)))
     }
+
+    // ---- Linked exercises (supersets, paired movements, sequences) ----
+    const updateDay = (dayId, fn) => setDays((prev) => prev.map((d) => (d.id === dayId ? fn(d) : d)))
+
+    const saveLink = (link, memberIds) => {
+        updateDay(linkTarget.day.id, (d) => applyLink(d, link, memberIds))
+        setLinkTarget(null)
+        message.success('Exercises linked — save or publish to apply')
+    }
+
+    const linkMenu = (d, link) => ({
+        items: [
+            { key: 'edit', icon: <EditOutlined />, label: 'Edit link' },
+            { key: 'unlink', icon: <DisconnectOutlined />, label: 'Unlink all' },
+        ],
+        onClick: ({ key }) => {
+            if (key === 'edit') setLinkTarget({ day: d, link })
+            else if (key === 'unlink') updateDay(d.id, (day) => unlinkGroup(day, link.key))
+        },
+    })
 
     const patchExercise = (dayId, exId, patch) => {
         setDays((prev) => prev.map((d) => (d.id === dayId
@@ -172,6 +210,7 @@ export default function ExercisePlans() {
             targetWeight: ex.targetWeight ?? undefined,
             targetDuration: ex.targetDuration ?? undefined,
             technique: ex.technique || 'standard',
+            techniques: ex.techniques || [],
             youtube: ex.youtube || '',
             notes: ex.notes || '',
             important: !!ex.important,
@@ -188,6 +227,7 @@ export default function ExercisePlans() {
             targetWeight: v.targetWeight ?? null,
             targetDuration: v.targetDuration ?? null,
             technique: v.technique || 'standard',
+            techniques: v.techniques || [],
             youtube: v.youtube || '',
             notes: v.notes || '',
             important: !!v.important,
@@ -210,25 +250,34 @@ export default function ExercisePlans() {
         },
     })
 
-    const exerciseMenu = (d, ex) => ({
-        items: [
-            { key: 'edit', icon: <EditOutlined />, label: 'Edit exercise' },
-            {
-                key: 'important',
-                icon: ex.important ? <StarOutlined /> : <StarFilled />,
-                label: ex.important ? 'Remove important' : 'Mark as important',
+    const exerciseMenu = (d, ex) => {
+        const link = ex.linkKey ? (d.links || []).find((l) => l.key === ex.linkKey) : null
+        return {
+            items: [
+                { key: 'edit', icon: <EditOutlined />, label: 'Edit exercise' },
+                link
+                    ? { key: 'link', icon: <LinkOutlined />, label: 'Edit link' }
+                    : { key: 'link', icon: <LinkOutlined />, label: 'Link with…', disabled: d.exercises.length < 2 },
+                ...(link ? [{ key: 'unlink', icon: <DisconnectOutlined />, label: 'Remove from link' }] : []),
+                {
+                    key: 'important',
+                    icon: ex.important ? <StarOutlined /> : <StarFilled />,
+                    label: ex.important ? 'Remove important' : 'Mark as important',
+                },
+                ...(ex.youtube ? [{ key: 'video', icon: <PlayCircleOutlined />, label: 'Watch video' }] : []),
+                { type: 'divider' },
+                { key: 'remove', icon: <DeleteOutlined />, label: 'Remove', danger: true },
+            ],
+            onClick: ({ key }) => {
+                if (key === 'edit') openPlanExEdit(d.id, ex)
+                else if (key === 'link') setLinkTarget(link ? { day: d, link } : { day: d, startWith: ex.id })
+                else if (key === 'unlink') updateDay(d.id, (day) => removeFromLink(day, ex.id))
+                else if (key === 'important') patchExercise(d.id, ex.id, { important: !ex.important })
+                else if (key === 'video') window.open(ex.youtube, '_blank', 'noopener,noreferrer')
+                else if (key === 'remove') removeExerciseFromDay(d.id, ex.id)
             },
-            ...(ex.youtube ? [{ key: 'video', icon: <PlayCircleOutlined />, label: 'Watch video' }] : []),
-            { type: 'divider' },
-            { key: 'remove', icon: <DeleteOutlined />, label: 'Remove', danger: true },
-        ],
-        onClick: ({ key }) => {
-            if (key === 'edit') openPlanExEdit(d.id, ex)
-            else if (key === 'important') patchExercise(d.id, ex.id, { important: !ex.important })
-            else if (key === 'video') window.open(ex.youtube, '_blank', 'noopener,noreferrer')
-            else if (key === 'remove') removeExerciseFromDay(d.id, ex.id)
-        },
-    })
+        }
+    }
 
     // ---- My Exercises manager ----
     const openEdit = (ex) => {
@@ -267,6 +316,7 @@ export default function ExercisePlans() {
             day: d.day,
             focus: d.focus,
             note: d.note || '',
+            links: (d.links || []).map((l) => ({ key: l.key, type: l.type, note: l.note || '', techniques: techniqueRefs(l.techniques) })),
             exercises: d.exercises.map((ex) => ({
                 exerciseCode: ex.exerciseCode || undefined,
                 name: ex.name,
@@ -276,6 +326,8 @@ export default function ExercisePlans() {
                 reps: ex.reps,
                 rest: ex.rest || '60s',
                 technique: ex.technique || 'standard',
+                techniques: techniqueRefs(ex.techniques),
+                linkKey: ex.linkKey || null,
                 youtube: ex.youtube || '',
                 instructions: ex.notes || '',
                 trackingType: ex.trackingType || 'reps',
@@ -289,16 +341,12 @@ export default function ExercisePlans() {
         if (days.length === 0) { message.warning('Add at least one training day'); return }
         setSaving(true)
         try {
-            if (planId) {
-                await api.patch(`/exercise-plans/${planId}`, { days: buildDaysPayload() })
-            } else {
-                const plan = await api.post('/exercise-plans', {
-                    clientId,
-                    title: 'Exercise Plan',
-                    days: buildDaysPayload(),
-                })
-                setPlanId(plan._id || plan.id)
-            }
+            const plan = planId
+                ? await api.patch(`/exercise-plans/${planId}`, { days: buildDaysPayload() })
+                : await api.post('/exercise-plans', { clientId, title: 'Exercise Plan', days: buildDaysPayload() })
+            setPlanId(plan._id || plan.id)
+            // Adopt the saved copy so attached techniques carry their plan ids from here on.
+            setDays(toBuilderDays(plan))
             message.success('Draft saved')
         } catch (err) {
             message.error(err.message || 'Failed to save draft')
@@ -324,7 +372,8 @@ export default function ExercisePlans() {
             } else {
                 await api.patch(`/exercise-plans/${id}`, { days: buildDaysPayload() })
             }
-            await api.post(`/exercise-plans/${id}/publish`)
+            const published = await api.post(`/exercise-plans/${id}/publish`)
+            setDays(toBuilderDays(published))
             message.success('Plan published to client')
         } catch (err) {
             message.error(err.message || 'Failed to publish plan')
@@ -332,6 +381,46 @@ export default function ExercisePlans() {
             setPublishing(false)
         }
     }
+
+    // One exercise row of a day card; `step` is its position inside a link group.
+    const renderExercise = (d, ex, step) => (
+        <div key={ex.id} className="rounded-xl p-3" style={{ background: step ? 'var(--color-surface)' : 'var(--color-surface-secondary)' }}>
+            {ex.category && (
+                <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
+            )}
+            <div className="flex items-center justify-between">
+                <span className="flex min-w-0 items-center gap-2">
+                    {step && (
+                        <span
+                            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                            style={{ background: 'var(--color-primary)', color: '#fff' }}
+                        >
+                            {step}
+                        </span>
+                    )}
+                    <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
+                    {ex.important && (
+                        <span
+                            className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                            style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                        >
+                            <StarFilled /> Important
+                        </span>
+                    )}
+                    <TechniqueTag technique={ex.technique} />
+                </span>
+                <Dropdown trigger={['click']} menu={exerciseMenu(d, ex)}>
+                    <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Exercise actions" />
+                </Dropdown>
+            </div>
+            <div className="mt-1 text-xs text-text-muted">
+                {ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps} · Rest {ex.rest}
+                {ex.targetWeight ? ` · ${ex.targetWeight}kg` : ''}
+            </div>
+            {ex.notes && <div className="mt-1 text-xs italic text-text-secondary">{ex.notes}</div>}
+            <TechniqueChips techniques={ex.techniques} className="mt-1.5" />
+        </div>
+    )
 
     return (
         <div>
@@ -408,35 +497,28 @@ export default function ExercisePlans() {
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-2">
-                                    {d.exercises.map((ex) => (
-                                        <div key={ex.id} className="rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
-                                            {ex.category && (
-                                                <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
-                                            )}
-                                            <div className="flex items-center justify-between">
-                                                <span className="flex min-w-0 items-center gap-2">
-                                                    <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
-                                                    {ex.important && (
-                                                        <span
-                                                            className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
-                                                            style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
-                                                        >
-                                                            <StarFilled /> Important
-                                                        </span>
-                                                    )}
-                                                    <TechniqueTag technique={ex.technique} />
+                                    {groupLinked(d.exercises, d.links).map((block) => (block.link ? (
+                                        <div
+                                            key={block.link.key}
+                                            className="rounded-xl p-2"
+                                            style={{ border: '1px solid var(--color-primary)', background: 'var(--color-primary-soft)' }}
+                                        >
+                                            <div className="flex items-center justify-between gap-2 px-1">
+                                                <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--color-primary)' }}>
+                                                    <LinkOutlined />
+                                                    <span className="truncate">{getLinkType(block.link.type).label} · {block.exercises.length} exercises</span>
                                                 </span>
-                                                <Dropdown trigger={['click']} menu={exerciseMenu(d, ex)}>
-                                                    <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Exercise actions" />
+                                                <Dropdown trigger={['click']} menu={linkMenu(d, block.link)}>
+                                                    <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Link actions" />
                                                 </Dropdown>
                                             </div>
-                                            <div className="mt-1 text-xs text-text-muted">
-                                                {ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps} · Rest {ex.rest}
-                                                {ex.targetWeight ? ` · ${ex.targetWeight}kg` : ''}
+                                            {block.link.note && <div className="px-1 text-xs text-text-secondary">{block.link.note}</div>}
+                                            <TechniqueChips techniques={block.link.techniques} className="mt-1 px-1" />
+                                            <div className="mt-2 flex flex-col gap-2">
+                                                {block.exercises.map((ex, i) => renderExercise(d, ex, i + 1))}
                                             </div>
-                                            {ex.notes && <div className="mt-1 text-xs italic text-text-secondary">{ex.notes}</div>}
                                         </div>
-                                    ))}
+                                    ) : renderExercise(d, block.exercises[0])))}
                                 </div>
                             )}
 
@@ -570,6 +652,9 @@ export default function ExercisePlans() {
                         <Form.Item name="targetDuration" label="Target duration (sec)"><InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 30" /></Form.Item>
                     </div>
                     <TechniqueField form={planExForm} />
+                    <Form.Item name="techniques" label="Techniques from the library" tooltip="Shown to the client with instructions and a video">
+                        <TechniquePicker />
+                    </Form.Item>
                     <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                         <Input placeholder="https://youtube.com/watch?v=…" />
                     </Form.Item>
@@ -581,6 +666,8 @@ export default function ExercisePlans() {
                     </Form.Item>
                 </Form>
             </Modal>
+
+            <LinkExercisesModal target={linkTarget} onCancel={() => setLinkTarget(null)} onSave={saveLink} />
 
             {/* Per-day note for the client */}
             <Modal

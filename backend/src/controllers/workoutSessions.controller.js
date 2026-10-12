@@ -31,6 +31,9 @@ async function resolveClientId(req) {
     return id
 }
 
+const copyTechniques = (list = []) =>
+    list.map((t) => ({ technique: t.technique || null, title: t.title, instructions: t.instructions || '', youtube: t.youtube || '' }))
+
 function snapshotExercises(dayExercises = []) {
     return dayExercises.map((ex) => {
         const totalSets = ex.sets || 3
@@ -45,6 +48,8 @@ function snapshotExercises(dayExercises = []) {
             targetRest: ex.rest || '60s',
             youtube: ex.youtube || '',
             instructions: ex.instructions || '',
+            techniques: copyTechniques(ex.techniques),
+            linkKey: ex.linkKey || null,
             notes: '',
             sets: Array.from({ length: totalSets }, (_, i) => ({
                 setNumber: i + 1,
@@ -92,6 +97,7 @@ export const startWorkoutSession = asyncHandler(async (req, res) => {
         dayNote: day.note || '',
         date,
         exercises: snapshotExercises(day.exercises),
+        links: (day.links || []).map((l) => ({ key: l.key, type: l.type, note: l.note || '', techniques: copyTechniques(l.techniques) })),
     })
     res.status(201).json({ ...session.toObject(), ...summarizeWorkoutSession(session) })
 })

@@ -1,8 +1,10 @@
+import mongoose from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { notifyClient } from '../services/notify.service.js'
-import { ExercisePlan, Exercise, Client, DailyLog } from '../models/index.js'
-import { summarizeExercisePlan } from '../services/exercisePlan.service.js'
+import { ExercisePlan, Exercise, Technique, Client, DailyLog } from '../models/index.js'
+import { summarizeExercisePlan, createTechniqueResolver, normalizeLinks } from '../services/exercisePlan.service.js'
+import { EXERCISE_LINK_TYPES, MAX_TECHNIQUES_PER_EXERCISE } from '../config/constants.js'
 import { masterExercises } from '../services/libraryCache.js'
 
 function assertCanAccess(req, plan) {
@@ -28,16 +30,22 @@ async function assertTrainerOwnsClient(req, clientId) {
 
 // Resolve each incoming exercise entry, pulling library defaults when only a
 // code/id is supplied (mirrors trainer ExerciseModal prefill behaviour).
-async function normalizeDays(days = []) {
+// Attached techniques become snapshots and link groups are settled — see
+// services/exercisePlan.service.js. `plan` is the document being updated, if any.
+async function normalizeDays(days = [], { plan = null, trainerId } = {}) {
+    if (!Array.isArray(days)) throw ApiError.badRequest('days must be a list')
+    const resolveTechniques = await createTechniqueResolver(
+        days,
+        { plan, trainerId, max: MAX_TECHNIQUES_PER_EXERCISE },
+        { Technique, isValidId: mongoose.isValidObjectId, badRequest: (msg) => ApiError.badRequest(msg) },
+    )
+
     const codes = [...new Set(days.flatMap((d) => (d.exercises || []).map((e) => e.exerciseCode).filter(Boolean)))]
     const lib = codes.length ? await Exercise.find({ code: { $in: codes } }) : []
     const byCode = new Map(lib.map((x) => [x.code, x]))
 
-    return days.map((d) => ({
-        day: d.day,
-        focus: d.focus || '',
-        note: d.note || '',
-        exercises: (d.exercises || []).map((e) => {
+    return days.map((d) => {
+        const exercises = (d.exercises || []).map((e) => {
             const ref = e.exerciseCode ? byCode.get(e.exerciseCode) : null
             return {
                 exercise: ref?._id || null,
@@ -50,14 +58,22 @@ async function normalizeDays(days = []) {
                 technique: e.technique ?? ref?.technique ?? 'standard',
                 youtube: e.youtube ?? ref?.youtube ?? '',
                 instructions: e.instructions ?? ref?.notes ?? '',
+                techniques: resolveTechniques(e.techniques),
+                linkKey: e.linkKey ? String(e.linkKey).trim() : null,
                 trackingType: e.trackingType ?? ref?.trackingType ?? 'reps',
                 targetWeight: e.targetWeight ?? ref?.defaultWeight ?? null,
                 targetDuration: e.targetDuration ?? ref?.defaultDuration ?? null,
                 important: !!e.important,
                 done: !!e.done,
             }
-        }),
-    }))
+        })
+        return {
+            day: d.day,
+            focus: d.focus || '',
+            note: d.note || '',
+            ...normalizeLinks(exercises, d.links, { types: EXERCISE_LINK_TYPES, resolveTechniques }),
+        }
+    })
 }
 
 // The plan as sent to every app: the document + completion summary, with each
@@ -84,7 +100,7 @@ async function planBody(plan) {
     return {
         ...plain,
         ...summary,
-        days: summary.days.map((d, i) => ({ ...d, exercises: plain.days[i].exercises.map(withCategory) })),
+        days: summary.days.map((d, i) => ({ ...d, exercises: plain.days[i].exercises.map(withCategory), links: plain.days[i].links || [] })),
     }
 }
 
@@ -135,7 +151,7 @@ export const createExercisePlan = asyncHandler(async (req, res) => {
         trainer: req.trainer._id,
         title,
         status: 'draft',
-        days: await normalizeDays(days || []),
+        days: await normalizeDays(days || [], { trainerId: req.trainer._id }),
     })
     res.status(201).json(await planBody(plan))
 })
@@ -147,7 +163,7 @@ export const updateExercisePlan = asyncHandler(async (req, res) => {
     if (req.user.role !== 'trainer') throw ApiError.forbidden('Only the trainer can edit a plan')
 
     if (req.body.title !== undefined) plan.title = req.body.title
-    if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days)
+    if (req.body.days !== undefined) plan.days = await normalizeDays(req.body.days, { plan, trainerId: req.trainer._id })
     if (req.body.todayDayId !== undefined) plan.todayDayId = req.body.todayDayId
     await plan.save()
     res.json(await planBody(plan))

@@ -20,6 +20,7 @@ const PAGE_TARGETS = [
     { label: 'Schedule', sub: 'Sessions & activities', path: '/schedule' },
     { label: 'Diet Plans', sub: 'Meal plan builder', path: '/diet-plans' },
     { label: 'Exercise Plans', sub: 'Workout builder', path: '/exercise-plans' },
+    { label: 'Techniques', sub: 'Shared & personal library', path: '/techniques' },
     { label: 'Follow-ups', sub: 'Client check-ins', path: '/follow-ups' },
     { label: 'Messages', sub: 'Client conversations', path: '/messages' },
 ]

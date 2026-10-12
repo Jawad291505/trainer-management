@@ -9,6 +9,7 @@ export { Client } from './Client.js'
 export { Food } from './Food.js'
 export { Exercise } from './Exercise.js'
 export { ExerciseTechnique } from './ExerciseTechnique.js'
+export { Technique } from './Technique.js'
 export { NutritionConfig } from './NutritionConfig.js'
 export { LibraryCategory } from './LibraryCategory.js'
 

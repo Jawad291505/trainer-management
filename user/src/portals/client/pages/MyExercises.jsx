@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Progress, Tabs } from 'antd'
-import { PlayCircleOutlined, CheckCircleFilled, CalendarOutlined, ThunderboltOutlined, RightOutlined, StarFilled } from '@ant-design/icons'
+import { PlayCircleOutlined, CheckCircleFilled, CalendarOutlined, ThunderboltOutlined, RightOutlined, StarFilled, LinkOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
+import TechniqueDetails from '../components/TechniqueDetails'
 import PageSpin from '../../../components/common/PageSpin'
 import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
@@ -11,6 +12,7 @@ import { api } from '../../../services/api'
 import { getTechnique } from '../../../services/exerciseLibrary'
 import { pktWeekday } from '../../../utils/pkt'
 import { sortByWeekday, dayForWeekday } from '../../../utils/weekdays'
+import { groupLinked, getLinkType } from '../../../utils/exerciseLinks'
 
 export default function MyExercises() {
     const navigate = useNavigate()
@@ -96,6 +98,72 @@ export default function MyExercises() {
 
     const session = daySession?.session
 
+    // One exercise card; `step` is its position inside a group of linked exercises.
+    const renderExercise = (ex, step) => {
+        const exId = ex._id || ex.id
+        const isDone = ex.done
+        return (
+            <div key={exId} className="app-card p-5" style={isDone ? { borderColor: 'var(--color-success)' } : undefined}>
+                <div className="flex items-start gap-3">
+                    {step && (
+                        <span
+                            className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                            style={{ background: 'var(--color-primary)', color: '#fff' }}
+                            aria-label={`Step ${step}`}
+                        >
+                            {step}
+                        </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                        {ex.category && (
+                            <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-text-primary">{ex.name}</span>
+                            {isDone && <CheckCircleFilled style={{ color: 'var(--color-success)' }} />}
+                            {ex.important && (
+                                <span
+                                    className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                    style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                                >
+                                    <StarFilled /> Important
+                                </span>
+                            )}
+                            {ex.technique && ex.technique !== 'standard' && (
+                                <span
+                                    className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                                    style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
+                                >
+                                    {getTechnique(ex.technique).label}
+                                </span>
+                            )}
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+                            <span className="rounded px-1.5 py-0.5 font-semibold" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
+                                {ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps}
+                            </span>
+                            <span>Rest {ex.rest}</span>
+                            {ex.targetWeight ? <span>{ex.targetWeight}kg</span> : null}
+                        </div>
+                        {ex.instructions && <div className="mt-2 text-sm text-text-secondary">{ex.instructions}</div>}
+                        {ex.youtube && (
+                            <a
+                                href={ex.youtube}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold"
+                                style={{ color: 'var(--color-danger)' }}
+                            >
+                                <PlayCircleOutlined /> Watch demo
+                            </a>
+                        )}
+                        <TechniqueDetails techniques={ex.techniques} method={ex.technique} className="mt-3" />
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div>
             <PageHeader title="My Exercise Plan" subtitle={exercisePlan?.title || 'No plan assigned'}>
@@ -172,61 +240,34 @@ export default function MyExercises() {
             )}
 
             <div className="flex flex-col gap-3">
-                {exercises.map((ex) => {
-                    const exId = ex._id || ex.id
-                    const isDone = ex.done
-                    return (
-                        <div key={exId} className="app-card p-5" style={isDone ? { borderColor: 'var(--color-success)' } : undefined}>
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                    {ex.category && (
-                                        <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
-                                    )}
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <span className="font-bold text-text-primary">{ex.name}</span>
-                                        {isDone && <CheckCircleFilled style={{ color: 'var(--color-success)' }} />}
-                                        {ex.important && (
-                                            <span
-                                                className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
-                                                style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
-                                            >
-                                                <StarFilled /> Important
-                                            </span>
-                                        )}
-                                        {ex.technique && ex.technique !== 'standard' && (
-                                            <span
-                                                className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"
-                                                style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
-                                                title={getTechnique(ex.technique).description}
-                                            >
-                                                {getTechnique(ex.technique).label}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
-                                        <span className="rounded px-1.5 py-0.5 font-semibold" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
-                                            {ex.sets} sets × {ex.trackingType === 'duration' ? `${ex.targetDuration || ex.reps}s` : ex.reps}
-                                        </span>
-                                        <span>Rest {ex.rest}</span>
-                                        {ex.targetWeight ? <span>{ex.targetWeight}kg</span> : null}
-                                    </div>
-                                    {ex.instructions && <div className="mt-2 text-sm text-text-secondary">{ex.instructions}</div>}
-                                    {ex.youtube && (
-                                        <a
-                                            href={ex.youtube}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold"
-                                            style={{ color: 'var(--color-danger)' }}
-                                        >
-                                            <PlayCircleOutlined /> Watch demo
-                                        </a>
-                                    )}
-                                </div>
+                {groupLinked(exercises, day?.links).map((block) => (block.link ? (
+                    <section
+                        key={block.link.key}
+                        className="rounded-2xl p-2 sm:p-3"
+                        style={{ border: '2px solid var(--color-primary)', background: 'var(--color-primary-soft)' }}
+                        aria-label={`${getLinkType(block.link.type).label}: ${block.exercises.map((e) => e.name).join(', ')}`}
+                    >
+                        <div className="px-2 pb-2 pt-1">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-bold" style={{ color: 'var(--color-primary)' }}>
+                                <LinkOutlined />
+                                <span>{getLinkType(block.link.type).label}</span>
+                                <span className="text-xs font-semibold">· {block.exercises.length} linked exercises</span>
                             </div>
+                            <div className="mt-0.5 text-xs text-text-secondary">{block.link.note || getLinkType(block.link.type).hint}</div>
                         </div>
-                    )
-                })}
+                        <TechniqueDetails techniques={block.link.techniques} className="mb-3" />
+                        <div className="flex flex-col">
+                            {block.exercises.map((ex, i) => (
+                                <div key={ex._id || ex.id}>
+                                    {i > 0 && (
+                                        <div className="ml-7 h-4 w-0.5" style={{ background: 'var(--color-primary)' }} aria-hidden="true" />
+                                    )}
+                                    {renderExercise(ex, i + 1)}
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                ) : renderExercise(block.exercises[0])))}
             </div>
         </div>
     )

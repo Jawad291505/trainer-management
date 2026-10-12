@@ -29,6 +29,7 @@ source of truth.
 | `Food` | **Food master data** + trainer‑custom foods | `data/foodLibrary.json` (200 rows) + `LibraryContext`. Fields kept verbatim (`base`, `unit`, `gi`, `gl`, `cal/protein/carbs/fat/fiber`) so the calculations stay identical. `isMaster`/`owner` separate the shared library from a trainer's own foods. |
 | `Exercise` | **Exercise master data** + trainer‑custom exercises | `data/exerciseLibrary.json` (240 rows). Descriptive only — `sets`, `reps`, `rest`, `technique`, `target`, `equipment`, `youtube`. **No MET/calorie fields exist in the source and none are invented.** |
 | `ExerciseTechnique` | `standard` / `tut` / `superset` enum | `data/exerciseTechniques.json`; every `Exercise` references it via `technique`. |
+| `Technique` | **Techniques Library** — reusable coaching techniques (`title`, `instructions`, `youtube`) | Created in the Admin portal (shared, `isMaster`) or by a trainer (own, `owner`). Attaching one to a plan exercise or link group stores a *copy* on the `ExercisePlan`, so library edits/deletes never change an assigned workout. |
 | `NutritionConfig` | GI/GL classification thresholds (singleton) | `data/foodLibrary.json -> thresholds` (`glycemicThresholds` in the apps). Drives `low/medium/high` bands. |
 | `LibraryCategory` | Food & exercise category lists | `categories` arrays in the two library JSON files. |
 | `DietPlanTemplate` | Reusable "General Diet Plans" (max 4) | `data/dietPlans.json` + admin `LibraryContext`. Trainers **copy** a template into a client plan; the template is never mutated. |
@@ -189,6 +190,8 @@ All routes are under `/api`. All except `/auth/register`, `/auth/login` and
 | POST | `/foods/:id/compute` | any | `{ qty }` → scaled macros + GI/GL + level. |
 | GET | `/exercises` (+ `/categories`, `/techniques`, `/:id`) | any | mirrors foods. |
 | POST/PATCH/DELETE | `/exercises` · `/exercises/:id` | admin / trainer (own) | |
+| GET | `/techniques` (`?search=&scope=shared\|mine&page=&limit=`) · `/techniques/:id` | admin / member / trainer | Techniques Library. Trainers get shared + their own; each row carries `editable`. Clients have no access — they see the copies on their plan. |
+| POST/PATCH/DELETE | `/techniques` · `/techniques/:id` | admin / member (shared) · trainer (own) | `{ title, instructions, youtube? }` — `youtube` is optional but, when given, must be a YouTube video link. |
 | GET | `/nutrition/config` | any | thresholds. |
 | PUT | `/nutrition/config` | admin | tune bands. |
 | POST | `/nutrition/compute` · `/nutrition/meal-gl` | any | ad-hoc calculators (custom-food path). |
@@ -203,7 +206,7 @@ All routes are under `/api`. All except `/auth/register`, `/auth/login` and
 | GET | `/diet-plans/:id` | scoped | **returns computed macros / GL / levels**. |
 | PATCH · POST `/publish` · DELETE | `/diet-plans/:id` | trainer | |
 | GET | `/clients/:clientId/diet-plan` | scoped | current **published** plan (`:clientId` may be `me`). |
-| GET/POST/PATCH/DELETE | `/exercise-plans` … | trainer builds | `GET /:id` returns completion %. |
+| GET/POST/PATCH/DELETE | `/exercise-plans` … | trainer builds | `GET /:id` returns completion %. Exercises may carry `techniques` (library copies) and a `linkKey`; each day carries `links: [{ key, type: superset\|paired\|sequence, note, techniques }]` grouping two or more of its exercises. |
 | PATCH | `/exercise-plans/:id/exercises/:exId` | client or trainer | toggle `done`. |
 | GET | `/clients/:clientId/exercise-plan` | scoped | current published plan. |
 

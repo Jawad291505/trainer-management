@@ -21,6 +21,7 @@ const ClientProfile = lazy(() => import('../portals/trainer/pages/ClientProfile'
 const Schedule = lazy(() => import('../portals/trainer/pages/Schedule'))
 const DietPlans = lazy(() => import('../portals/trainer/pages/DietPlans'))
 const ExercisePlans = lazy(() => import('../portals/trainer/pages/ExercisePlans'))
+const Techniques = lazy(() => import('../portals/trainer/pages/Techniques'))
 const FollowUps = lazy(() => import('../portals/trainer/pages/FollowUps'))
 const Requests = lazy(() => import('../portals/trainer/pages/Requests'))
 const Reviews = lazy(() => import('../portals/trainer/pages/Reviews'))
@@ -91,6 +92,7 @@ export default function AppRoutes() {
                     <Route path="/schedule" element={<Schedule />} />
                     <Route path="/diet-plans" element={<DietPlans />} />
                     <Route path="/exercise-plans" element={<ExercisePlans />} />
+                    <Route path="/techniques" element={<Techniques />} />
                     <Route path="/follow-ups" element={<FollowUps />} />
                     <Route path="/requests" element={<Requests />} />
                     <Route path="/reviews" element={<Reviews />} />
