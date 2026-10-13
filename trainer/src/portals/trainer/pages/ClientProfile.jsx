@@ -52,6 +52,9 @@ import { api } from '../../../services/api'
 import { FOLLOWUP_TYPE_LABELS } from '../../../constants/followUp'
 import { formatTime } from '../../../utils/time'
 
+import { ProgrammeCard, ProgrammeModal } from '../../../components/common/Programme'
+import { programmeName, programmeDay, programmeHint } from '../../../utils/programme'
+
 const correctionAreaLabels = { diet: 'Diet plan', exercise: 'Exercise plan', progress: 'Progress / weigh-in', general: 'General' }
 const correctionTypeLabels = { swap: 'Swap / substitute', 'too-hard': 'Too difficult', injury: 'Injury / pain', 'wrong-data': 'Wrong data', other: 'Other' }
 const progressPhotoAngleLabels = { front: 'Front', side: 'Side', back: 'Back', other: 'Other' }
@@ -226,6 +229,7 @@ export default function ClientProfile() {
     const [goalModal, setGoalModal] = useState(null) // { type: 'water' | 'sleep', value }
     const [goalSaving, setGoalSaving] = useState(false)
     const [detailsOpen, setDetailsOpen] = useState(false)
+    const [programmeOpen, setProgrammeOpen] = useState(false)
     // Only independent (outsourced) trainers own their clients' accounts, so only they may rename one.
     const { trainer } = useAuth()
     const [expandedSession, setExpandedSession] = useState(null) // sessionId
@@ -640,7 +644,7 @@ export default function ClientProfile() {
                                 <h1 className="m-0 text-xl font-extrabold text-text-primary md:text-2xl">{client.name}</h1>
                                 <StatusBadge status={client.status} />
                             </div>
-                            <div className="mt-1 text-sm text-text-muted">{client.goal} · {client.plan} plan</div>
+                            <div className="mt-1 text-sm text-text-muted">{client.goal} · {programmeName(client.programme)}</div>
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -653,9 +657,11 @@ export default function ClientProfile() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard icon={<LineChartOutlined />} label="Progress" value={`${client.progress}%`} accent="var(--color-success)" />
                 <StatCard icon={<DashboardOutlined />} label="Current Weight" value={`${client.weight}kg`} hint={`Target ${client.target}kg`} />
-                <StatCard icon={<CrownOutlined />} label="Plan" value={client.plan} />
+                <StatCard icon={<CrownOutlined />} label="Programme" value={programmeDay(client.programme)} hint={client.programme ? programmeHint(client.programme) : 'No programme set'} />
                 <StatCard icon={<CalendarOutlined />} label="Next Follow-up" value={nextFollowUpLabel} />
             </div>
+
+            <ProgrammeCard className="mt-4" programme={client.programme} onManage={() => setProgrammeOpen(true)} />
 
             <div className="mt-6">
                 <Tabs
@@ -688,6 +694,8 @@ export default function ClientProfile() {
                 onSaved={setClientData}
                 canEditName={trainer?.affiliation === 'outsourced'}
             />
+
+            <ProgrammeModal client={client} open={programmeOpen} onClose={() => setProgrammeOpen(false)} onSaved={setClientData} />
 
             <Modal
                 title={goalModal?.type === 'water' ? 'Set daily water goal' : 'Set daily sleep goal'}

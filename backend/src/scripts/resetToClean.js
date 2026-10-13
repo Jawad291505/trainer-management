@@ -3,7 +3,7 @@
  *   - The 3 named portal accounts (admin@fit360.com, trainer@fit360.com, client@fit360.com)
  *     and their Trainer/Client profile docs.
  *   - All master data: Food/Exercise/Technique where isMaster:true, ExerciseTechnique,
- *     LibraryCategory, LibraryResource, DietPlanTemplate, SubscriptionPlan, NutritionConfig.
+ *     LibraryCategory, LibraryResource, DietPlanTemplate, ExercisePlanTemplate, SubscriptionPlan, NutritionConfig.
  *
  * Deletes everything else:
  *   - Every other User (and its Trainer/Client/Member profile).

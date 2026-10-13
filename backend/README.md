@@ -25,7 +25,7 @@ source of truth.
 | --- | --- | --- |
 | `User` | Identity + auth for every person | The admin **Users** page unifies admins, trainers and clients into one list. Holds `role`, `status`, `email`, `passwordHash`, `avatarColor`. |
 | `Trainer` | Trainer profile (1‑to‑1 `User`) | admin **Trainers** table + `mockData.trainers[]`: `specialization`, `capacity`, `clientCount`, `rating`, `revenue`, `referralCode` (issued once), `referredBy`. |
-| `Client` | Client profile (1‑to‑1 `User`) | admin/trainer/user `mockData` clients + `currentClient`: `trainer` (assignment), `goal`, `plan`, `startWeight`/`weight`/`target`, `progress`, follow‑up dates. |
+| `Client` | Client profile (1‑to‑1 `User`) | admin/trainer/user `mockData` clients + `currentClient`: `trainer` (assignment), `goal`, `programDays` + `programStart` (the programme: a length in days from a start date; end date / current day / days left / status are derived by `services/programme.service.js` and returned as `programme`, `null` when none is set — the old `plan` tier is legacy and unused), `startWeight`/`weight`/`target`, `progress`, follow‑up dates. |
 | `Food` | **Food master data** + trainer‑custom foods | `data/foodLibrary.json` (200 rows) + `LibraryContext`. Fields kept verbatim (`base`, `unit`, `gi`, `gl`, `cal/protein/carbs/fat/fiber`) so the calculations stay identical. `isMaster`/`owner` separate the shared library from a trainer's own foods. |
 | `Exercise` | **Exercise master data** + trainer‑custom exercises | `data/exerciseLibrary.json` (240 rows). Descriptive only — `sets`, `reps`, `rest`, `technique`, `target`, `equipment`, `youtube`. **No MET/calorie fields exist in the source and none are invented.** |
 | `ExerciseTechnique` | `standard` / `tut` / `superset` enum | `data/exerciseTechniques.json`; every `Exercise` references it via `technique`. |
@@ -34,6 +34,7 @@ source of truth.
 | `LibraryCategory` | Food & exercise category lists | `categories` arrays in the two library JSON files. |
 | `DietPlanTemplate` | Reusable "General Diet Plans" (max 4) | `data/dietPlans.json` + admin `LibraryContext`. Trainers **copy** a template into a client plan; the template is never mutated. |
 | `DietPlan` | A client's diet plan built by a trainer | trainer **DietPlans** builder → client **MyDiet**. Meal items store only `{ food, foodCode, qty }` — macros are always derived. |
+| `ExercisePlanTemplate` | Reusable exercise-plan templates | admin **Exercise Plans** + `LibraryContext`. Trainers **copy** a template's training days into a client plan; the template is never mutated. |
 | `ExercisePlan` | A client's exercise plan by training day | trainer **ExercisePlans** → client **MyExercises**. `done` per exercise drives completion %. |
 | `Payment` | Billing record | admin **Payments** + `mockData.payments[]`. `PLAN_PRICES` = Starter 49 / Standard 89 / Premium 149 / Elite 249. |
 | `LibraryResource` | External link catalog (Drive/YouTube) | admin **Library Management**. Unrelated to the food/exercise libraries. |
@@ -206,6 +207,8 @@ All routes are under `/api`. All except `/auth/register`, `/auth/login` and
 | GET | `/diet-plans/:id` | scoped | **returns computed macros / GL / levels**. |
 | PATCH · POST `/publish` · DELETE | `/diet-plans/:id` | trainer | |
 | GET | `/clients/:clientId/diet-plan` | scoped | current **published** plan (`:clientId` may be `me`). |
+| GET/POST/PATCH/DELETE | `/exercise-plan-templates` | read: any · write: admin | `{ name, goal, description, days:[{day,focus,note,exercises:[{exerciseCode,sets,reps,rest,…}]}] }`. |
+| POST | `/exercise-plans/from-template` | trainer | `{ clientId, templateId, title? }` — copies the training days into a new draft. |
 | GET/POST/PATCH/DELETE | `/exercise-plans` … | trainer builds | `GET /:id` returns completion %. Exercises may carry `techniques` (library copies) and a `linkKey`; each day carries `links: [{ key, type: superset\|paired\|sequence, note, techniques }]` grouping two or more of its exercises. |
 | PATCH | `/exercise-plans/:id/exercises/:exId` | client or trainer | toggle `done`. |
 | GET | `/clients/:clientId/exercise-plan` | scoped | current published plan. |

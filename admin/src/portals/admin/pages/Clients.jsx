@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Select, Dropdown, Button, Progress, App, Modal, Form, Input, InputNumber, DatePicker, Tooltip } from 'antd'
-import dayjs from 'dayjs'
+import { Select, Dropdown, Button, Progress, App, Modal, Form, Input, InputNumber, Tooltip } from 'antd'
 import { GENDER_OPTIONS, computeBMR, bmrLabel } from '../../../utils/bodyMetrics'
 import {
     MoreOutlined,
@@ -25,6 +24,7 @@ import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { api } from '../../../services/api'
 import { useAuth } from '../../../context/AuthContext'
+import { ProgrammeCell, ProgrammeFields, programmeFormDefaults, programmePayload } from '../../../components/common/Programme'
 
 const CLIENT_GOALS = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
 const OTHER_GOAL = '__other__'
@@ -39,7 +39,8 @@ export default function Clients() {
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
     const [trainerId, setTrainerId] = useState('all')
-    const list = usePagedList('/clients', { params: { status, trainer: trainerId }, search, pageSize: 10 })
+    const [programme, setProgramme] = useState('all')
+    const list = usePagedList('/clients', { params: { status, trainer: trainerId, programme }, search, pageSize: 10 })
     const { items: data, total, loading, fetching, error: loadError, setItems: setData, reload: loadClients } = list
     const [addOpen, setAddOpen] = useState(false)
     const [addSaving, setAddSaving] = useState(false)
@@ -69,7 +70,7 @@ export default function Clients() {
 
     const openAdd = () => {
         addForm.resetFields()
-        addForm.setFieldsValue({ plan: 'Standard', goal: 'Fat Loss', planMonths: 3, startDate: dayjs() })
+        addForm.setFieldsValue({ goal: 'Fat Loss', ...programmeFormDefaults() })
         setAddOpen(true)
     }
 
@@ -87,7 +88,7 @@ export default function Clients() {
                 gender: v.gender,
                 medicalNotes: v.medicalNotes,
                 goal,
-                plan: v.plan,
+                ...programmePayload(v),
                 startWeight: v.weight,
                 weight: v.weight,
                 target: v.targetWeight,
@@ -145,7 +146,7 @@ export default function Clients() {
             ),
         },
         { title: 'Goal', dataIndex: 'goal', width: 140, render: (g) => <span className="text-text-secondary">{g}</span> },
-        { title: 'Plan', dataIndex: 'plan', width: 110, render: (p) => <span className="font-medium text-text-primary">{p}</span> },
+        { title: 'Programme', dataIndex: 'programme', width: 190, render: (p) => <ProgrammeCell programme={p} /> },
         { title: 'Trainer', dataIndex: 'trainerName', width: 160, render: (t) => <span className="text-text-secondary">{t || '—'}</span> },
         {
             title: 'Progress',
@@ -228,13 +229,25 @@ export default function Clients() {
                 <SearchInput value={search} onChange={setSearch} placeholder="Search clients…" />
                 <Select value={trainerId} onChange={setTrainerId} style={{ width: 190 }} options={[{ value: 'all', label: 'All trainers' }, ...trainerList.map((t) => ({ value: t.id, label: t.name }))]} />
                 <Select value={status} onChange={setStatus} style={{ width: 150 }} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'pending', label: 'Pending' }]} />
+                <Select
+                    value={programme}
+                    onChange={setProgramme}
+                    style={{ width: 190 }}
+                    options={[
+                        { value: 'all', label: 'All programmes' },
+                        { value: 'active', label: 'Programme active' },
+                        { value: 'ending', label: 'Ending soon' },
+                        { value: 'ended', label: 'Programme ended' },
+                        { value: 'none', label: 'No programme set' },
+                    ]}
+                />
             </FilterBar>
 
-            <DataTable columns={columns} dataSource={data} loading={fetching} pagination={false} scrollX={1050} />
+            <DataTable columns={columns} dataSource={data} loading={fetching} pagination={false} scrollX={1130} />
             <Pager list={list} pageSizeOptions={[10, 20, 50]} />
 
             <Modal title="Add client" open={addOpen} onCancel={() => setAddOpen(false)} onOk={createClient} okText="Add client" confirmLoading={addSaving} width={640} centered>
-                <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ plan: 'Standard', goal: 'Fat Loss', planMonths: 3 }}>
+                <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ goal: 'Fat Loss' }}>
                     <div className="mb-1 text-xs font-bold uppercase tracking-wide text-text-muted">Contact</div>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                         <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}><Input placeholder="e.g. Jordan Blake" /></Form.Item>
@@ -265,11 +278,9 @@ export default function Clients() {
                         <Form.Item name="goal" label="Goal" rules={[{ required: true }]}>
                             <Select options={[...CLIENT_GOALS.map((g) => ({ value: g, label: g })), { value: OTHER_GOAL, label: 'Other…' }]} />
                         </Form.Item>
-                        <Form.Item name="plan" label="Plan" rules={[{ required: true }]}>
-                            <Select options={['Starter', 'Standard', 'Premium', 'Elite'].map((p) => ({ value: p, label: p }))} />
-                        </Form.Item>
                         {wGoal === OTHER_GOAL && <Form.Item name="customGoal" label="Custom goal" rules={[{ required: true, message: 'Enter a goal name' }]}><Input placeholder="e.g. Marathon Prep" /></Form.Item>}
                     </div>
+                    <ProgrammeFields form={addForm} />
                     <Form.Item
                         name="trainerId"
                         label="Assign trainer"

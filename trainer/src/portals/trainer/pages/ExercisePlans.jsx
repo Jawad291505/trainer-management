@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin, Dropdown, Segmented, Checkbox } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin, Dropdown, Segmented, Checkbox, Tag } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -86,6 +86,15 @@ export default function ExercisePlans() {
     const [loading, setLoading] = useState(true)
     const [planError, setPlanError] = useState(null)
     const [planTick, setPlanTick] = useState(0)
+    const [templates, setTemplates] = useState([])
+    const [templateId, setTemplateId] = useState(undefined) // admin template the loaded plan was built from
+    const template = templates.find((t) => (t._id || t.id) === templateId) || null
+
+    useEffect(() => {
+        api.get('/exercise-plan-templates', { ttl: 60_000 }).then((res) => {
+            setTemplates(res.items || [])
+        }).catch(() => { })
+    }, [])
 
     // Default to the first client once the roster arrives (or if the ?client= one isn't theirs).
     useEffect(() => {
@@ -101,6 +110,7 @@ export default function ExercisePlans() {
         setPlanError(null)
         setPlanId(null)
         setDays([])
+        setTemplateId(undefined)
         api.get(`/exercise-plans?client=${clientId}&summary=1`).then(async (res) => {
             const plans = res.items || []
             const plan = plans.find((p) => p.status === 'draft') || plans[0]
@@ -108,6 +118,7 @@ export default function ExercisePlans() {
             const full = await api.get(`/exercise-plans/${plan._id || plan.id}`)
             setPlanId(full._id || full.id)
             setDays(toBuilderDays(full))
+            setTemplateId(full.sourceTemplate || undefined)
         }).catch((err) => setPlanError(err)).finally(() => setLoading(false))
     }, [clientId, planTick])
     const [dayModal, setDayModal] = useState(false)
@@ -119,6 +130,23 @@ export default function ExercisePlans() {
     const [planExEditing, setPlanExEditing] = useState(null) // { dayId, ex } — plan exercise being edited
     const [planExForm] = Form.useForm()
     const [linkTarget, setLinkTarget] = useState(null) // { day, link?, startWith? } — link modal
+
+    // Apply an admin exercise-plan template via API — starts a fresh draft with
+    // the template's training days and exercises; the trainer customises it
+    // (targets, techniques, links) before publishing.
+    const applyTemplate = async (id) => {
+        if (!clientId) { message.warning('Select a client first'); return }
+        const tpl = templates.find((t) => (t._id || t.id) === id)
+        try {
+            const plan = await api.post('/exercise-plans/from-template', { clientId, templateId: id })
+            setPlanId(plan._id || plan.id)
+            setDays(toBuilderDays(plan))
+            setTemplateId(id)
+            message.success(`Loaded "${tpl?.name || 'template'}" — review and customise before publishing`)
+        } catch (err) {
+            message.error(err.message || 'Failed to load template')
+        }
+    }
 
     const addDay = async () => {
         const v = await dayForm.validateFields()
@@ -441,6 +469,34 @@ export default function ExercisePlans() {
                 <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} disabled={allWeekdaysUsed} onClick={() => setDayModal(true)}>
                     Add day
                 </Button>
+            </div>
+
+            {/* Start from an admin template */}
+            <div className="app-card mb-4 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="min-w-0">
+                        <div className="text-sm font-semibold text-text-primary">Start from a template</div>
+                        <div className="text-xs text-text-muted">
+                            Copies the template's training days and exercises. Customise before publishing.
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 sm:ml-auto">
+                        <Select
+                            value={template ? templateId : undefined}
+                            onChange={applyTemplate}
+                            placeholder="Select a template…"
+                            style={{ width: 240 }}
+                            options={templates.map((p) => ({ value: p._id || p.id, label: `${p.name}${p.goal ? ` · ${p.goal}` : ''}` }))}
+                        />
+                    </div>
+                </div>
+                {template && (
+                    <div className="mt-3">
+                        <Tag bordered={false} color="blue" style={{ borderRadius: 999 }}>
+                            Populated from “{template.name}” — customise freely
+                        </Tag>
+                    </div>
+                )}
             </div>
 
             {loading ? (

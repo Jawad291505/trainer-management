@@ -2,7 +2,7 @@ import mongoose from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { notifyClient } from '../services/notify.service.js'
-import { ExercisePlan, Exercise, Technique, Client, DailyLog } from '../models/index.js'
+import { ExercisePlan, ExercisePlanTemplate, Exercise, Technique, Client, DailyLog } from '../models/index.js'
 import { summarizeExercisePlan, createTechniqueResolver, normalizeLinks } from '../services/exercisePlan.service.js'
 import { EXERCISE_LINK_TYPES, MAX_TECHNIQUES_PER_EXERCISE } from '../config/constants.js'
 import { masterExercises } from '../services/libraryCache.js'
@@ -152,6 +152,47 @@ export const createExercisePlan = asyncHandler(async (req, res) => {
         title,
         status: 'draft',
         days: await normalizeDays(days || [], { trainerId: req.trainer._id }),
+    })
+    res.status(201).json(await planBody(plan))
+})
+
+// POST /api/exercise-plans/from-template  (trainer)  Body: { clientId, templateId, title? }
+// Copies an admin template's training days into a fresh draft for the client.
+export const createFromTemplate = asyncHandler(async (req, res) => {
+    const { clientId, templateId, title } = req.body
+    if (!clientId || !templateId) throw ApiError.badRequest('clientId and templateId are required')
+    await assertTrainerOwnsClient(req, clientId)
+
+    const tpl = mongoose.isValidObjectId(templateId) ? await ExercisePlanTemplate.findById(templateId) : null
+    if (!tpl) throw ApiError.notFound('Template not found')
+
+    const plan = await ExercisePlan.create({
+        client: clientId,
+        trainer: req.trainer._id,
+        title: title || tpl.name,
+        sourceTemplate: tpl._id,
+        status: 'draft',
+        days: tpl.days.map((d) => ({
+            day: d.day,
+            focus: d.focus,
+            note: d.note,
+            exercises: d.exercises.map((e) => ({
+                exercise: e.exercise,
+                exerciseCode: e.exerciseCode,
+                name: e.name,
+                category: e.category,
+                sets: e.sets,
+                reps: e.reps,
+                rest: e.rest,
+                technique: e.technique,
+                youtube: e.youtube,
+                instructions: e.instructions,
+                trackingType: e.trackingType,
+                targetWeight: e.targetWeight,
+                targetDuration: e.targetDuration,
+                important: e.important,
+            })),
+        })),
     })
     res.status(201).json(await planBody(plan))
 })

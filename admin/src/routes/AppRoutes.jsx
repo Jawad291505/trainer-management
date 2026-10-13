@@ -31,6 +31,7 @@ const Foods = lazy(() => import('../portals/admin/pages/Foods'))
 const Exercises = lazy(() => import('../portals/admin/pages/Exercises'))
 const Techniques = lazy(() => import('../portals/admin/pages/Techniques'))
 const DietPlans = lazy(() => import('../portals/admin/pages/DietPlans'))
+const ExercisePlans = lazy(() => import('../portals/admin/pages/ExercisePlans'))
 const SubscriptionPlans = lazy(() => import('../portals/admin/pages/SubscriptionPlans'))
 const PaymentApprovals = lazy(() => import('../portals/admin/pages/PaymentApprovals'))
 const Payments = lazy(() => import('../portals/admin/pages/Payments'))
@@ -124,6 +125,7 @@ export default function AppRoutes() {
                     <Route path="/exercises" element={<Exercises />} />
                     <Route path="/techniques" element={<Techniques />} />
                     <Route path="/diet-plans" element={<DietPlans />} />
+                    <Route path="/exercise-plans" element={<ExercisePlans />} />
                     <Route path="/subscription-plans" element={isAdmin ? <SubscriptionPlans /> : <Navigate to="/" replace />} />
                     <Route path="/payment-approvals" element={isAdmin ? <PaymentApprovals /> : <Navigate to="/" replace />} />
                     <Route path="/payments" element={isAdmin ? <Payments /> : <Navigate to="/" replace />} />

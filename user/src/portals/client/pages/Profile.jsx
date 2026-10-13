@@ -5,6 +5,7 @@ import PageHeader from '../../../components/common/PageHeader'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatCard from '../../../components/common/StatCard'
 import { useAuth } from '../../../context/AuthContext'
+import { programmeName, programmeDay, programmeHint } from '../../../utils/programme'
 
 const clientGoals = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
 
@@ -18,7 +19,7 @@ export default function Profile() {
         email: user?.email || '',
         avatarColor: user?.avatarColor || '#047857',
         goal: client?.goal || 'Fat Loss',
-        plan: client?.plan || 'Standard',
+        programme: client?.programme || null,
         startWeight: client?.startWeight || 0,
         weight: client?.weight || 0,
         target: client?.target || 0,
@@ -40,7 +41,10 @@ export default function Profile() {
                     <div className="flex flex-col items-center text-center">
                         <UserAvatar name={currentClient.name} color={currentClient.avatarColor} size={88} />
                         <div className="mt-3 text-lg font-bold text-text-primary">{currentClient.name}</div>
-                        <div className="text-sm text-text-muted">{currentClient.goal} · {currentClient.plan} plan</div>
+                        <div className="text-sm text-text-muted">{currentClient.goal}{currentClient.programme ? ` · ${programmeName(currentClient.programme)}` : ''}</div>
+                        {currentClient.programme && (
+                            <div className="mt-1 text-xs font-semibold text-text-secondary">{programmeDay(currentClient.programme)} · {programmeHint(currentClient.programme)}</div>
+                        )}
                         <Button className="mt-4" block onClick={() => setPhotoOpen(true)}>Change photo</Button>
                     </div>
 

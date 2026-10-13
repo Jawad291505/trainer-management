@@ -21,6 +21,7 @@ import UserAvatar from '../../../components/common/UserAvatar'
 import ChangePlanModal from '../../../components/common/ChangePlanModal'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
+import { programmeStatus, programmeDay, programmeHint } from '../../../utils/programme'
 
 const fmtDate = (d) => (d ? dayjs(d).format('D MMM YYYY') : '—')
 const SUB_STATUS = {
@@ -52,16 +53,17 @@ export default function Dashboard() {
     ] : []
 
     // Build donut data from actual clients
-    const { clientGoalData, clientPlanData, attentionClients, progressClients } = useMemo(() => {
+    const { clientGoalData, programmeClients, attentionClients, progressClients } = useMemo(() => {
         const goalCounts = {}
-        const planCounts = {}
         clients.forEach((c) => {
             goalCounts[c.goal] = (goalCounts[c.goal] || 0) + 1
-            planCounts[c.plan] = (planCounts[c.plan] || 0) + 1
         })
         return {
             clientGoalData: Object.entries(goalCounts).map(([name, value]) => ({ name, value })),
-            clientPlanData: Object.entries(planCounts).map(([name, value]) => ({ name, value })),
+            // Programmes that have run out or are in their last days — ended first, then soonest to end.
+            programmeClients: clients
+                .filter((c) => c.status === 'active' && ['ending', 'ended'].includes(c.programme?.status))
+                .sort((a, b) => new Date(a.programme.endDate) - new Date(b.programme.endDate)),
             attentionClients: clients.filter((c) => c.progress < 45 && c.status === 'active'),
             progressClients: [...clients].sort((a, b) => (b.progress || 0) - (a.progress || 0)).slice(0, 5),
         }
@@ -123,8 +125,24 @@ export default function Dashboard() {
                 <ChartCard title="Clients by Goal" subtitle="What your roster is training for">
                     {clientsFallback || <DonutChart data={clientGoalData} centerLabel="clients" />}
                 </ChartCard>
-                <ChartCard title="Clients by Plan" subtitle="Membership tier split">
-                    {clientsFallback || <DonutChart data={clientPlanData} centerLabel="clients" />}
+                <ChartCard title="Programmes Ending" subtitle="Ended or in their last days — extend or renew">
+                    {clientsFallback || (programmeClients.length === 0 ? (
+                        <p className="text-sm text-text-muted">No programmes are ending soon.</p>
+                    ) : (
+                        <div className="flex max-h-[280px] flex-col gap-1 overflow-y-auto">
+                            {programmeClients.map((c) => (
+                                <button key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className="flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors hover:bg-surface-secondary">
+                                    <UserAvatar name={c.name} color={c.avatarColor} size={38} />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-semibold text-text-primary">{c.name}</div>
+                                        <div className="text-xs text-text-muted">{programmeDay(c.programme)}</div>
+                                    </div>
+                                    <span className="shrink-0 text-xs font-semibold" style={{ color: programmeStatus(c.programme).color }}>{programmeHint(c.programme)}</span>
+                                    <ArrowRightOutlined style={{ color: 'var(--color-text-muted)' }} />
+                                </button>
+                            ))}
+                        </div>
+                    ))}
                 </ChartCard>
             </div>
 

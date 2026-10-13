@@ -16,6 +16,7 @@ export { LibraryCategory } from './LibraryCategory.js'
 export { DietPlanTemplate } from './DietPlanTemplate.js'
 export { DietPlan } from './DietPlan.js'
 export { GroceryList } from './GroceryList.js'
+export { ExercisePlanTemplate } from './ExercisePlanTemplate.js'
 export { ExercisePlan } from './ExercisePlan.js'
 export { WorkoutSession } from './WorkoutSession.js'
 

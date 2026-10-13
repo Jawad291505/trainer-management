@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import UserAvatar from '../../../components/common/UserAvatar'
 import StatusBadge from '../../../components/common/StatusBadge'
+import { ProgrammeCell } from '../../../components/common/Programme'
 
 // Client summary card for the trainer "My Clients" mobile/grid view.
 export default function ClientCard({ client }) {
@@ -37,7 +38,7 @@ export default function ClientCard({ client }) {
                     <UserAvatar name={client.name} color={client.avatarColor} size={46} />
                     <div>
                         <div className="font-bold text-text-primary transition-colors hover:text-primary">{client.name}</div>
-                        <div className="text-xs text-text-muted">{client.goal} · {client.plan}</div>
+                        <div className="text-xs text-text-muted">{client.goal}</div>
                     </div>
                 </button>
                 <Dropdown trigger={['click']} menu={menu}>
@@ -60,6 +61,11 @@ export default function ClientCard({ client }) {
                     <span className="font-bold text-text-primary">{client.progress}%</span>
                 </div>
                 <Progress percent={client.progress} showInfo={false} strokeColor="var(--color-primary)" />
+            </div>
+
+            <div className="mt-3">
+                <div className="mb-1 text-xs font-semibold text-text-secondary">Programme</div>
+                <ProgrammeCell programme={client.programme} />
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2 border-t pt-3 text-xs" style={{ borderColor: 'var(--color-border)' }}>

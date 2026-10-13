@@ -25,9 +25,9 @@ import ClientCard from '../components/ClientCard'
 import { api } from '../../../services/api'
 import { GENDER_OPTIONS, computeBMR, bmrLabel } from '../../../utils/bodyMetrics'
 import { useAuth } from '../../../context/AuthContext'
+import { ProgrammeCell, ProgrammeFields, programmeFormDefaults, programmePayload } from '../../../components/common/Programme'
 
 const CLIENT_GOALS = ['Fat Loss', 'Muscle Gain', 'Body Recomposition', 'PCOS', 'Busy Moms', 'Diabetic Patients']
-const PROGRAMME_PLANS = ['Starter', 'Standard', 'Premium', 'Elite']
 
 export default function Clients() {
     const navigate = useNavigate()
@@ -43,6 +43,7 @@ export default function Clients() {
     const [loadError, setLoadError] = useState(null)
     const [search, setSearch] = useState('')
     const [status, setStatus] = useState('all')
+    const [programme, setProgramme] = useState('all')
     const [view, setView] = useState('table')
 
     const load = useCallback(() => {
@@ -65,7 +66,7 @@ export default function Clients() {
                 gender: v.gender,
                 medicalNotes: v.medicalNotes,
                 goal: v.goal,
-                plan: v.plan,
+                ...programmePayload(v),
                 startWeight: v.weight,
                 weight: v.weight,
                 target: v.targetWeight,
@@ -90,9 +91,12 @@ export default function Clients() {
         return data.filter((c) => {
             const matchQ = !q || c.name?.toLowerCase().includes(q) || c.goal?.toLowerCase().includes(q)
             const matchS = status === 'all' || c.status === status
-            return matchQ && matchS
+            // 'active' also covers a programme that hasn't started yet, as on the API.
+            const pStatus = !c.programme ? 'none' : c.programme.status === 'upcoming' ? 'active' : c.programme.status
+            const matchP = programme === 'all' || pStatus === programme
+            return matchQ && matchS && matchP
         })
-    }, [data, search, status])
+    }, [data, search, status, programme])
 
     const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA') : '—'
 
@@ -113,7 +117,7 @@ export default function Clients() {
             ),
         },
         { title: 'Goal', dataIndex: 'goal', width: 140, render: (g) => <span className="text-text-secondary">{g}</span> },
-        { title: 'Plan', dataIndex: 'plan', width: 110, render: (p) => <span className="font-medium text-text-primary">{p}</span> },
+        { title: 'Programme', dataIndex: 'programme', width: 190, render: (p) => <ProgrammeCell programme={p} /> },
         { title: 'Progress', dataIndex: 'progress', width: 160, sorter: (a, b) => (a.progress || 0) - (b.progress || 0), render: (p) => <Progress percent={p || 0} size="small" strokeColor="var(--color-primary)" /> },
         { title: 'Status', dataIndex: 'status', width: 120, render: (s) => <StatusBadge status={s} /> },
         { title: 'Joined', dataIndex: 'joinDate', width: 120, render: (d) => <span className="text-text-muted">{fmtDate(d)}</span> },
@@ -151,7 +155,7 @@ export default function Clients() {
                         type="primary"
                         icon={<PlusOutlined />}
                         disabled={trainer.clientCount >= trainer.capacity}
-                        onClick={() => { addForm.resetFields(); setAddOpen(true) }}
+                        onClick={() => { addForm.resetFields(); addForm.setFieldsValue(programmeFormDefaults()); setAddOpen(true) }}
                     >
                         Add client
                     </Button>
@@ -160,6 +164,18 @@ export default function Clients() {
             <FilterBar>
                 <SearchInput value={search} onChange={setSearch} placeholder="Search clients…" />
                 <Select value={status} onChange={setStatus} style={{ width: 150 }} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
+                <Select
+                    value={programme}
+                    onChange={setProgramme}
+                    style={{ width: 190 }}
+                    options={[
+                        { value: 'all', label: 'All programmes' },
+                        { value: 'active', label: 'Programme active' },
+                        { value: 'ending', label: 'Ending soon' },
+                        { value: 'ended', label: 'Programme ended' },
+                        { value: 'none', label: 'No programme set' },
+                    ]}
+                />
                 <div className="sm:ml-auto hidden sm:block">
                     <Segmented value={view} onChange={setView} options={[{ value: 'table', icon: <UnorderedListOutlined /> }, { value: 'grid', icon: <AppstoreOutlined /> }]} />
                 </div>
@@ -170,7 +186,7 @@ export default function Clients() {
                 <>
                     <div className="hidden sm:block">
                         {view === 'table' ? (
-                            <DataTable columns={columns} dataSource={filtered} pageSize={8} scrollX={900} />
+                            <DataTable columns={columns} dataSource={filtered} pageSize={8} scrollX={980} />
                         ) : (
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{filtered.map((c) => <ClientCard key={c.id} client={c} />)}</div>
                         )}
@@ -180,7 +196,7 @@ export default function Clients() {
             )}
 
             <Modal title="Add client" open={addOpen} onCancel={() => setAddOpen(false)} onOk={createClient} okText="Add client" confirmLoading={addSaving} width={560} centered>
-                <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ plan: 'Standard', goal: 'Fat Loss' }}>
+                <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ goal: 'Fat Loss' }}>
                     <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}><Input placeholder="e.g. Jordan Blake" /></Form.Item>
                     <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}><Input placeholder="jordan.blake@gmail.com" /></Form.Item>
                     <Form.Item name="phone" label="Phone" rules={[{ pattern: /^\+?[\d\s().-]{6,20}$/, message: 'Enter a valid phone number' }]}><Input placeholder="+1 (555) 000-0000" /></Form.Item>
@@ -191,8 +207,8 @@ export default function Clients() {
                         <Form.Item name="weight" label="Weight (kg)" rules={[{ required: true, message: 'Required' }]}><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="82" /></Form.Item>
                         <Form.Item name="targetWeight" label="Target (kg)"><InputNumber min={20} max={400} style={{ width: '100%' }} placeholder="75" /></Form.Item>
                         <Form.Item name="goal" label="Goal" rules={[{ required: true }]}><Select options={CLIENT_GOALS.map((g) => ({ value: g, label: g }))} /></Form.Item>
-                        <Form.Item name="plan" label="Programme" rules={[{ required: true }]}><Select options={PROGRAMME_PLANS.map((p) => ({ value: p, label: p }))} /></Form.Item>
                     </div>
+                    <ProgrammeFields form={addForm} />
                     <Form.Item noStyle shouldUpdate>
                         {({ getFieldsValue }) => {
                             const inputs = getFieldsValue(['weight', 'height', 'age', 'gender'])

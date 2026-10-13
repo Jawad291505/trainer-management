@@ -4,6 +4,7 @@ import { connectDb } from './config/db.js'
 import { env } from './config/env.js'
 import { initRealtime } from './realtime/index.js'
 import { startFollowUpReminderJob } from './services/followUpReminders.service.js'
+import { startProgrammeReminderJob } from './services/programmeReminders.service.js'
 import { warmLibraryCaches } from './services/libraryCache.js'
 
 async function main() {
@@ -17,6 +18,7 @@ async function main() {
 
     // Day-before / day-of client reminders and trainer overdue alerts.
     startFollowUpReminderJob()
+    startProgrammeReminderJob()
 
     server.listen(env.port, () => {
         console.log(`[server] FitTrack API + realtime on http://localhost:${env.port}  (${env.nodeEnv})`)

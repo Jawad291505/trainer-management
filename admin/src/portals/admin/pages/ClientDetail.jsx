@@ -42,6 +42,8 @@ import GlucoseChart from '../../../components/progress/GlucoseChart'
 import HabitHistory from '../../../components/progress/HabitHistory'
 import { api } from '../../../services/api'
 import ClientDetailsModal from '../components/ClientDetailsModal'
+import { ProgrammeCard, ProgrammeModal } from '../../../components/common/Programme'
+import { programmeName, programmeDay, programmeHint } from '../../../utils/programme'
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-CA') : '—'
 
@@ -55,6 +57,7 @@ export default function ClientDetail() {
     const weightRes = useAsyncData(() => api.get(`/progress/weight?client=${id}`), [id])
     const client = clientRes.data
     const [editOpen, setEditOpen] = useState(false)
+    const [programmeOpen, setProgrammeOpen] = useState(false)
     const loading = clientRes.loading
     const weightData = useMemo(
         () => (weightRes.data?.items || []).map((e) => ({ date: dayjs(e.date).format('D MMM'), weight: e.weightKg })),
@@ -89,7 +92,7 @@ export default function ClientDetail() {
                     <div className="flex items-center gap-3"><DashboardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">BMI: {client.bmi ?? '—'} · BMR: {bmrLabel(client.bmr, client)}</span></div>
                     <div className="flex items-start gap-3"><MedicineBoxOutlined className="mt-1" style={{ color: 'var(--color-text-muted)' }} /><span className="whitespace-pre-wrap text-text-secondary">Medical notes: {client.medicalNotes || '—'}</span></div>
                     <div className="flex items-center gap-3"><AimOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Goal: {client.goal}</span></div>
-                    <div className="flex items-center gap-3"><CreditCardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{client.plan} plan</span></div>
+                    <div className="flex items-center gap-3"><CreditCardOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">{programmeName(client.programme)}</span></div>
                     <div className="flex items-center gap-3"><UserOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Trainer: {client.trainerName || '—'}</span></div>
                     <div className="flex items-center gap-3"><CalendarOutlined style={{ color: 'var(--color-text-muted)' }} /><span className="text-text-secondary">Joined {fmtDate(client.joinDate)}</span></div>
                 </div>
@@ -108,7 +111,8 @@ export default function ClientDetail() {
                     <Progress percent={client.progress || 0} strokeColor="var(--color-primary)" showInfo={false} />
                 </div>
             </div>
-            <div className="lg:col-span-2">
+            <div className="flex flex-col gap-4 lg:col-span-2">
+                <ProgrammeCard programme={client.programme} onManage={() => setProgrammeOpen(true)} />
                 <ChartCard title="Weight Progress" subtitle={weightRes.loading ? 'Loading…' : `${weightData.length} weigh-ins (kg)`}>
                     {weightRes.loading ? (
                         <Skeleton active paragraph={{ rows: 7 }} title={false} />
@@ -144,7 +148,7 @@ export default function ClientDetail() {
                                 <h1 className="m-0 text-xl font-extrabold text-text-primary md:text-2xl">{client.name}</h1>
                                 <StatusBadge status={client.status} />
                             </div>
-                            <div className="mt-1 text-sm text-text-muted">{client.goal} · {client.plan} plan</div>
+                            <div className="mt-1 text-sm text-text-muted">{client.goal} · {programmeName(client.programme)}</div>
                         </div>
                     </div>
                     <Button type="primary" onClick={() => navigate('/assignments')}>Reassign trainer</Button>
@@ -153,7 +157,7 @@ export default function ClientDetail() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard icon={<LineChartOutlined />} label="Progress" value={`${client.progress || 0}%`} accent="var(--color-success)" />
                 <StatCard icon={<DashboardOutlined />} label="Current Weight" value={client.weight ? `${client.weight}kg` : '—'} hint={client.target ? `Target ${client.target}kg` : ''} />
-                <StatCard icon={<CrownOutlined />} label="Plan" value={client.plan} />
+                <StatCard icon={<CrownOutlined />} label="Programme" value={programmeDay(client.programme)} hint={client.programme ? programmeHint(client.programme) : 'No programme set'} />
                 <StatCard icon={<IdcardOutlined />} label="Trainer" value={client.trainerName || '—'} />
             </div>
             <div className="mt-6">
@@ -175,6 +179,7 @@ export default function ClientDetail() {
                 />
             </div>
             <ClientDetailsModal client={client} open={editOpen} onClose={() => setEditOpen(false)} onSaved={clientRes.setData} />
+            <ProgrammeModal client={client} open={programmeOpen} onClose={() => setProgrammeOpen(false)} onSaved={clientRes.setData} />
         </div>
     )
 }

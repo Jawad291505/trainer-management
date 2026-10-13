@@ -15,6 +15,15 @@ export const CLIENT_GOALS = [
 export const MEMBERSHIP_PLANS = ['Starter', 'Standard', 'Premium', 'Elite']
 export const PLAN_PRICES = { Starter: 49, Standard: 89, Premium: 149, Elite: 249 }
 
+// A client's programme: its length in days from a start date (Client.programDays
+// / programStart, services/programme.service.js). The presets are what the
+// add-client forms offer; any whole number of days up to the max is accepted.
+// The legacy MEMBERSHIP_PLANS tier above is kept only for old records.
+export const PROGRAMME_PRESET_DAYS = [30, 60, 90, 180]
+export const PROGRAMME_MAX_DAYS = 3650
+// A programme counts as "ending soon" once this many days or fewer remain.
+export const PROGRAMME_ENDING_SOON_DAYS = 7
+
 // User roles across the three portals. 'member' is an Admin-portal sub-role:
 // same UI as admin, scoped to the members's own Trainers/Clients, no Payments.
 export const ROLES = { ADMIN: 'admin', MEMBER: 'member', TRAINER: 'trainer', CLIENT: 'client' }

@@ -6,6 +6,7 @@ import { createInvitedUser } from '../services/invite.service.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 import { computeBMI, computeBMR } from '../services/bodyMetrics.service.js'
 import { CLIENT_GENDERS } from '../config/constants.js'
+import { programmeOf, parseProgramme, programmeFilter } from '../services/programme.service.js'
 
 function flatten(client) {
     const u = client.user
@@ -26,7 +27,11 @@ function flatten(client) {
         bmr: computeBMR(client),
         medicalNotes: client.medicalNotes || '',
         goal: client.goal,
-        plan: client.plan,
+        plan: client.plan, // legacy tier — superseded by the programme below
+        programDays: client.programDays ?? null,
+        programStart: client.programStart ?? null,
+        // Derived, never stored — null when no programme has been set.
+        programme: programmeOf(client),
         status: client.status,
         progress: client.progress,
         startWeight: client.startWeight,
@@ -91,7 +96,8 @@ async function memberTrainerIds(memberId) {
     return trainers.map((t) => t._id)
 }
 
-// GET /api/clients?status=&goal=&plan=&trainer=&search=&unassigned=1&page=&limit=
+// GET /api/clients?status=&goal=&plan=&programme=&trainer=&search=&unassigned=1&page=&limit=
+// programme: active | ending | ended | none
 // admin: all;  member: only clients of their own trainers (may narrow with `trainer`);
 // trainer: only their own (ignores `trainer` query)
 // Pagination is opt-in (see utils/pagination.js) — other screens load the full list.
@@ -107,6 +113,7 @@ export const listClients = asyncHandler(async (req, res) => {
     if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
     if (req.query.goal) filter.goal = req.query.goal
     if (req.query.plan) filter.plan = req.query.plan
+    if (req.query.programme && req.query.programme !== 'all') Object.assign(filter, programmeFilter(req.query.programme))
 
     const search = String(req.query.search || '').trim()
     if (search) {
@@ -188,6 +195,7 @@ export const createClient = asyncHandler(async (req, res) => {
     }
     if (!String(name || '').trim() || !email) throw ApiError.badRequest('name and email are required')
     const details = parseDetails(req.body)
+    const programme = parseProgramme(req.body)
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
     // A Member's client visibility is scoped to `trainer: { $in: their trainers }`
     // (listClients above) — a trainer-less client would be invisible to them
@@ -225,6 +233,7 @@ export const createClient = asyncHandler(async (req, res) => {
         medicalNotes: details.medicalNotes,
         goal,
         plan,
+        ...programme,
         startWeight: req.body.startWeight,
         weight: req.body.weight,
         target: req.body.target,
@@ -274,6 +283,16 @@ export const updateClient = asyncHandler(async (req, res) => {
     const canEditDetails = ['admin', 'member'].includes(req.user.role) || isTrainer
     const details = canEditDetails ? parseDetails(req.body) : {}
     for (const k of ['age', 'height', 'gender', 'medicalNotes']) if (details[k] !== undefined) client[k] = details[k]
+
+    // The programme (length + start date) is set, extended or renewed by
+    // whoever manages the client. Any change starts its reminders afresh.
+    if (canEditDetails) {
+        const programme = parseProgramme(req.body, client)
+        if (Object.keys(programme).length) {
+            Object.assign(client, programme)
+            client.programReminders = { endingSoon: false, ended: false }
+        }
+    }
 
     if (canEditDetails && client.user) {
         const isManager = ['admin', 'member'].includes(req.user.role)

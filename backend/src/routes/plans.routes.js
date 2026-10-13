@@ -9,8 +9,13 @@ import {
 } from '../controllers/dietPlans.controller.js'
 import { getGroceryList, refreshGroceryList } from '../controllers/groceryList.controller.js'
 import {
+    listTemplates as listExerciseTemplates, getTemplate as getExerciseTemplate,
+    createTemplate as createExerciseTemplate, updateTemplate as updateExerciseTemplate,
+    deleteTemplate as deleteExerciseTemplate,
+} from '../controllers/exercisePlanTemplates.controller.js'
+import {
     listExercisePlans, getExercisePlan, getClientExercisePlan, createExercisePlan,
-    updateExercisePlan, setExerciseDone, publishExercisePlan, deleteExercisePlan,
+    createFromTemplate as createExercisePlanFromTemplate, updateExercisePlan, setExerciseDone, publishExercisePlan, deleteExercisePlan,
 } from '../controllers/exercisePlans.controller.js'
 import {
     startWorkoutSession, getSessionForDay, updateSessionSet, updateSessionExerciseNotes,
@@ -36,9 +41,17 @@ router.patch('/diet-plans/:id', authorize('trainer'), updateDietPlan)
 router.post('/diet-plans/:id/publish', authorize('trainer'), publishDietPlan)
 router.delete('/diet-plans/:id', authorize('trainer'), deleteDietPlan)
 
+// ---- Exercise-plan templates (admin-managed, copied into a client's plan) ----
+router.get('/exercise-plan-templates', listExerciseTemplates)
+router.get('/exercise-plan-templates/:id', getExerciseTemplate)
+router.post('/exercise-plan-templates', authorize('admin', 'member'), createExerciseTemplate)
+router.patch('/exercise-plan-templates/:id', authorize('admin', 'member'), updateExerciseTemplate)
+router.delete('/exercise-plan-templates/:id', authorize('admin', 'member'), deleteExerciseTemplate)
+
 // ---- Client-specific exercise plans ----
 router.get('/exercise-plans', listExercisePlans)
 router.post('/exercise-plans', authorize('trainer'), createExercisePlan)
+router.post('/exercise-plans/from-template', authorize('trainer'), createExercisePlanFromTemplate)
 router.get('/exercise-plans/:id', getExercisePlan)
 router.patch('/exercise-plans/:id', authorize('trainer'), updateExercisePlan)
 router.patch('/exercise-plans/:id/exercises/:exId', setExerciseDone) // client or trainer

@@ -2,7 +2,7 @@ import { createContext, useContext, useCallback, useMemo, useState } from 'react
 import { api } from '../services/api'
 import { useLazyResource, useEnsureLoaded, combineStatus } from '../hooks/useLazyResource'
 
-// Admin-managed food & exercise libraries + diet-plan templates.
+// Admin-managed food & exercise libraries + diet- and exercise-plan templates.
 // All CRUD goes through the backend API.
 //
 // Each list loads independently and only when a page that needs it mounts (see
@@ -59,6 +59,7 @@ export function LibraryProvider({ children }) {
     const [foods, setFoods] = useState([])
     const [exercises, setExercises] = useState([])
     const [dietPlans, setDietPlans] = useState([])
+    const [exercisePlans, setExercisePlans] = useState([])
 
     const foodsRes = useLazyResource(useCallback(async () => {
         const f = await api.get('/foods', { ttl: LIBRARY_TTL })
@@ -73,6 +74,10 @@ export function LibraryProvider({ children }) {
         // template cards and editor display.
         const d = await api.get('/diet-plan-templates?withNutrition=1', { ttl: LIBRARY_TTL })
         setDietPlans(d.items || [])
+    }, []))
+    const exercisePlansRes = useLazyResource(useCallback(async () => {
+        const d = await api.get('/exercise-plan-templates', { ttl: LIBRARY_TTL })
+        setExercisePlans(d.items || [])
     }, []))
 
     // ---- Foods ----
@@ -124,6 +129,23 @@ export function LibraryProvider({ children }) {
         setDietPlans((prev) => prev.filter((p) => (p._id || p.id) !== id))
     }, [])
 
+    // ---- Exercise-plan templates ----
+    const addExercisePlan = useCallback(async (plan) => {
+        const created = await api.post('/exercise-plan-templates', plan)
+        setExercisePlans((prev) => [...prev, created])
+        return created._id || created.id
+    }, [])
+
+    const updateExercisePlan = useCallback(async (id, patch) => {
+        const updated = await api.patch(`/exercise-plan-templates/${id}`, patch)
+        setExercisePlans((prev) => prev.map((p) => ((p._id || p.id) === id ? updated : p)))
+    }, [])
+
+    const removeExercisePlan = useCallback(async (id) => {
+        await api.delete(`/exercise-plan-templates/${id}`)
+        setExercisePlans((prev) => prev.filter((p) => (p._id || p.id) !== id))
+    }, [])
+
     const value = useMemo(
         () => ({
             foods,
@@ -138,13 +160,18 @@ export function LibraryProvider({ children }) {
             addDietPlan,
             updateDietPlan,
             removeDietPlan,
-            resources: { foods: foodsRes, exercises: exercisesRes, dietPlans: dietPlansRes },
+            exercisePlans,
+            addExercisePlan,
+            updateExercisePlan,
+            removeExercisePlan,
+            resources: { foods: foodsRes, exercises: exercisesRes, dietPlans: dietPlansRes, exercisePlans: exercisePlansRes },
         }),
         [
             foods, addFood, updateFood, removeFood,
             exercises, addExercise, updateExercise, removeExercise,
             dietPlans, addDietPlan, updateDietPlan, removeDietPlan,
-            foodsRes, exercisesRes, dietPlansRes,
+            exercisePlans, addExercisePlan, updateExercisePlan, removeExercisePlan,
+            foodsRes, exercisesRes, dietPlansRes, exercisePlansRes,
         ],
     )
 
@@ -152,7 +179,7 @@ export function LibraryProvider({ children }) {
 }
 
 // useLibrary(['foods']) — declare which lists this page needs so only those are
-// fetched: 'foods' | 'exercises' | 'dietPlans'. Returns the library plus
+// fetched: 'foods' | 'exercises' | 'dietPlans' | 'exercisePlans'. Returns the library plus
 // `loading` / `error` / `reload` for the lists requested.
 export function useLibrary(need = ['foods', 'exercises', 'dietPlans']) {
     const ctx = useContext(LibraryContext)

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
-import { CLIENT_GOALS, CLIENT_GENDERS, MEMBERSHIP_PLANS, ACCOUNT_STATUS } from '../config/constants.js'
+import { CLIENT_GOALS, CLIENT_GENDERS, MEMBERSHIP_PLANS, ACCOUNT_STATUS, PROGRAMME_MAX_DAYS } from '../config/constants.js'
+import { programmeOf } from '../services/programme.service.js'
 
 // Client profile. One-to-one with a User (role: 'client').
 // Fields mirror admin/trainer/user mockData.js client objects + currentClient.
@@ -13,7 +14,22 @@ const clientSchema = new mongoose.Schema(
         // Consultation goal. Presets come from CLIENT_GOALS but "Other" lets a
         // trainer/admin type a custom one, so this is a free string, not an enum.
         goal: { type: String, default: CLIENT_GOALS[0], trim: true },
+        // Legacy membership tier — no longer shown or chosen anywhere; kept so
+        // old records (and Payment rows that reference it) stay valid.
         plan: { type: String, enum: MEMBERSHIP_PLANS, default: 'Starter' },
+
+        // Programme: a length in days counted from a start date. Both are null
+        // for clients added before programmes existed (no programme yet). End
+        // date, current day, days left and status are derived — see
+        // services/programme.service.js.
+        programDays: { type: Number, default: null, min: 1, max: PROGRAMME_MAX_DAYS },
+        programStart: { type: Date, default: null },
+        // Which "ending soon" / "ended" notices have gone out for the current
+        // programme; reset whenever its length or start date changes.
+        programReminders: {
+            endingSoon: { type: Boolean, default: false },
+            ended: { type: Boolean, default: false },
+        },
         status: { type: String, enum: ACCOUNT_STATUS, default: 'active', index: true },
 
         // Optional personal details captured when the client is added (phone
@@ -46,6 +62,12 @@ const clientSchema = new mongoose.Schema(
     },
     { timestamps: true },
 )
+
+// Derived programme summary, included wherever a Client is serialised whole
+// (e.g. GET /api/auth/me for the client app).
+clientSchema.virtual('programme').get(function () {
+    return programmeOf(this)
+})
 
 clientSchema.set('toJSON', { virtuals: true })
 

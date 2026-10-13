@@ -92,6 +92,7 @@ const exercisePlanSchema = new mongoose.Schema(
         trainer: { type: mongoose.Schema.Types.ObjectId, ref: 'Trainer', required: true, index: true },
 
         title: { type: String, required: true, trim: true }, // "Push / Pull / Legs"
+        sourceTemplate: { type: mongoose.Schema.Types.ObjectId, ref: 'ExercisePlanTemplate', default: null },
         status: { type: String, enum: EXERCISE_PLAN_STATUS, default: 'draft', index: true },
 
         // Which day the client should train now (user mockData exercisePlan.todayId).

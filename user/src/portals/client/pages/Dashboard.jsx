@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, App, Skeleton } from 'antd'
+import { Button, App, Skeleton, Progress } from 'antd'
 import dayjs from 'dayjs'
 import { MessageOutlined, RightOutlined, FireOutlined, CalendarOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
@@ -15,6 +15,8 @@ import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 import { listFollowUps } from '../../../services/followUps'
 import { formatTime } from '../../../utils/time'
+import { formatPkt } from '../../../utils/pkt'
+import { programmeStatus, programmeName, programmeDay, programmeHint, programmePercent } from '../../../utils/programme'
 
 export default function Dashboard() {
     const navigate = useNavigate()
@@ -37,6 +39,8 @@ export default function Dashboard() {
         [followUpsRes.data],
     )
     const trainerInfo = client?.trainer || null
+    // Set by the trainer/admin; null for a client who has no programme yet.
+    const programme = client?.programme || null
 
     const toggle = async (key) => {
         const task = tasks.find((t) => t.key === key)
@@ -109,6 +113,37 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
+
+            {programme && (
+                <div className="app-card animate-rise mt-4 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Your programme</div>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-base font-bold text-text-primary">
+                                {programmeName(programme)}
+                                <span
+                                    className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                                    style={{ background: programmeStatus(programme).soft, color: programmeStatus(programme).color }}
+                                >
+                                    {programmeStatus(programme).label}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-lg font-extrabold text-text-primary">{programmeDay(programme)}</div>
+                            <div className="text-xs font-semibold" style={{ color: programmeStatus(programme).color }}>{programmeHint(programme)}</div>
+                        </div>
+                    </div>
+                    <Progress className="mt-3" percent={programmePercent(programme)} showInfo={false} strokeColor={programmeStatus(programme).color} />
+                    <div className="mt-1 flex justify-between text-xs text-text-muted">
+                        <span>Started {formatPkt(programme.startDate, 'D MMM YYYY')}</span>
+                        <span>Ends {formatPkt(programme.endDate, 'D MMM YYYY')}</span>
+                    </div>
+                    {programme.status === 'ended' && (
+                        <div className="mt-3 text-sm text-text-secondary">Your programme is complete — message your trainer about what comes next.</div>
+                    )}
+                </div>
+            )}
 
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <button onClick={() => navigate('/diet')} className="app-card app-card-hover flex items-center justify-between p-5 text-left">
