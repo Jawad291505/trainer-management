@@ -31,6 +31,7 @@ function resolveItems(items, thresholds, byCode) {
             foodId: String(food._id),
             name: food.name,
             category: food.category,
+            image: food.image || '',
             qty: it.qty,
             qtyLabel: formatQty(food, it.qty),
             unit: food.unit,
@@ -79,6 +80,9 @@ async function resolveMeals(meals, thresholds, byCode) {
             name: meal.name,
             time: meal.time,
             notes: meal.notes,
+            recipe: meal.recipe || '',
+            youtubeUrl: meal.youtubeUrl || '',
+            image: meal.image || '',
             taskKey: meal.taskKey,
             // Separate from food items — never part of totals/GL (see DietPlan.js).
             supplements: (meal.supplements || []).map((s) => ({

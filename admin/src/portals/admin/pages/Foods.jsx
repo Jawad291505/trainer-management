@@ -21,6 +21,8 @@ import { useLibrary, normalize } from '../../../context/LibraryContext'
 import { foodCategories, foodUnits } from '../../../services/foodLibrary'
 import { useLibraryCategories } from '../../../hooks/useLibraryCategories'
 import CategorySelect from '../../../components/common/CategorySelect'
+import ImageUploadField from '../../../components/common/ImageUploadField'
+import { FoodThumb } from '../../../components/common/MealRecipe'
 
 // Admin food & nutrition management. Foods added/edited here feed the shared
 // library that trainers read when building diet plans.
@@ -105,9 +107,12 @@ export default function Foods() {
             title: 'Food',
             dataIndex: 'name',
             render: (_, f) => (
-                <div className="min-w-0">
-                    <div className="truncate font-semibold text-text-primary">{f.name}</div>
-                    <div className="text-xs text-text-muted">{f.category}</div>
+                <div className="flex min-w-0 items-center gap-3">
+                    <FoodThumb src={f.image} size={36} />
+                    <div className="min-w-0">
+                        <div className="truncate font-semibold text-text-primary">{f.name}</div>
+                        <div className="text-xs text-text-muted">{f.category}</div>
+                    </div>
                 </div>
             ),
         },
@@ -224,6 +229,10 @@ export default function Foods() {
                             <InputNumber min={1} style={{ width: '100%' }} />
                         </Form.Item>
                     </div>
+
+                    <Form.Item name="image" label="Image (optional)" tooltip="Shown next to this food on diet plans.">
+                        <ImageUploadField kind="food" />
+                    </Form.Item>
 
                     <Divider className="my-2" plain>
                         <span className="text-xs text-text-muted">Serving (for "add by unit" in diet plans)</span>

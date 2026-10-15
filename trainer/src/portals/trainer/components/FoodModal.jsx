@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Modal, Select, InputNumber, Segmented, Form, Input, Button } from 'antd'
+import { Modal, Select, InputNumber, Segmented, Form, Input, Button, App } from 'antd'
 import { AppleOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
 import { useLibrary } from '../../../context/LibraryContext'
 import { foodCategories } from '../../../services/foodLibrary'
@@ -15,6 +15,8 @@ import {
 
 const round2 = (n) => Math.round(n * 100) / 100
 import ModalTitle from '../../../components/common/ModalTitle'
+import ImageUploadField from '../../../components/common/ImageUploadField'
+import { FoodThumb } from '../../../components/common/MealRecipe'
 import GlycemicBadge from './GlycemicBadge'
 
 // Pick a category → a food and set its quantity (macros + GI/GL recalculate live
@@ -22,7 +24,8 @@ import GlycemicBadge from './GlycemicBadge'
 // Pass `editing` (an existing meal item) to reuse the modal for changing that
 // item's food / quantity instead of adding a new one.
 export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
-    const { foods, addFood } = useLibrary(['foods'])
+    const { message } = App.useApp()
+    const { foods, addFood, updateFood } = useLibrary(['foods'])
     const [mode, setMode] = useState('library') // 'library' | 'custom'
     const [cat, setCat] = useState(foodCategories[0])
     const [foodId, setFoodId] = useState(null)
@@ -73,13 +76,29 @@ export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
                 protein: v.protein || 0,
                 carbs: v.carbs || 0,
                 fat: v.fat || 0,
+                image: v.image || '',
             })
             const n = computeNutrition(created, v.qty)
-            onAdd({ foodId: created._id || created.id, foodCode: created.code, food: created.name, qty: v.qty, unit: created.unit, ...n })
+            onAdd({ foodId: created._id || created.id, foodCode: created.code, food: created.name, image: created.image, qty: v.qty, unit: created.unit, ...n })
             return
         }
         if (!food) return
-        onAdd({ foodId: food.id || food._id, foodCode: food.code, food: food.name, qty, unit: food.unit, ...nutrition })
+        onAdd({ foodId: food.id || food._id, foodCode: food.code, food: food.name, image: food.image, qty, unit: food.unit, ...nutrition })
+    }
+
+    // A trainer's own custom food can have its photo changed right here; master
+    // library foods are managed by the admin.
+    const [savingImage, setSavingImage] = useState(false)
+    const changeFoodImage = async (image) => {
+        setSavingImage(true)
+        try {
+            await updateFood(food.id || food._id, { image })
+            message.success(image ? 'Food image saved' : 'Food image removed')
+        } catch (err) {
+            message.error(err.message || 'Could not update the food image')
+        } finally {
+            setSavingImage(false)
+        }
     }
 
     const unitLabel = food ? (food.unit === 'count' ? '' : food.unit) : ''
@@ -152,7 +171,15 @@ export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
                             Pick a food to set the quantity and see its nutrition.
                         </div>
                     ) : (
-                        <FoodQuantityCard food={food} qty={qty} setQty={setQty} nutrition={nutrition} />
+                        <>
+                            <FoodQuantityCard food={food} qty={qty} setQty={setQty} nutrition={nutrition} />
+                            {food.source === 'trainer' && (
+                                <div className="mt-3">
+                                    <span className="field-label">Image (optional) — your custom food</span>
+                                    <ImageUploadField kind="food" value={food.image} onChange={changeFoodImage} disabled={savingImage} />
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             ) : (
@@ -179,6 +206,9 @@ export default function FoodModal({ open, onCancel, onAdd, editing = null }) {
                                 <InputNumber min={0.25} style={{ width: '100%' }} />
                             </Form.Item>
                         </div>
+                        <Form.Item name="image" label="Image (optional)" className="mb-0">
+                            <ImageUploadField kind="food" />
+                        </Form.Item>
                     </div>
 
                     <div className="modal-section">
@@ -218,6 +248,8 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
     return (
         <div className="mt-4 rounded-xl border p-4" style={{ borderColor: 'var(--color-border)' }}>
             <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                <FoodThumb src={food.image} size={48} className="rounded-lg" />
                 <div className="min-w-0">
                     <div className="font-bold text-text-primary">{food.name}</div>
                     <div className="mt-1 flex items-center gap-2">
@@ -228,6 +260,7 @@ function FoodQuantityCard({ food, qty, setQty, nutrition }) {
                             <span className="text-[11px] text-text-muted">{servingLabel} = {food.servingWeight}g</span>
                         )}
                     </div>
+                </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     <GlycemicBadge type="GI" value={nutrition.gi} level={giLevel(nutrition.gi)} />

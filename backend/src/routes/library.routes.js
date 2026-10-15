@@ -15,6 +15,8 @@ import {
     getConfig, updateConfig, compute, mealGl,
 } from '../controllers/nutrition.controller.js'
 import { getLinkPreview } from '../controllers/linkPreview.controller.js'
+import { uploadImage as uploadLibraryImage } from '../controllers/libraryImages.controller.js'
+import { uploadImage } from '../middlewares/upload.js'
 
 const router = Router()
 router.use(authenticate)
@@ -53,5 +55,8 @@ router.post('/nutrition/meal-gl', mealGl)
 
 // ---- Link metadata (supplement purchase/reference links) ----
 router.get('/link-preview', authorize('admin', 'member', 'trainer'), getLinkPreview)
+
+// ---- Food / meal photos (uploaded to Cloudinary; the URL is then saved on the food or meal) ----
+router.post('/library-images', authorize('admin', 'member', 'trainer'), uploadImage.single('image'), uploadLibraryImage)
 
 export default router

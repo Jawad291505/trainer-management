@@ -158,6 +158,9 @@ export const createFromTemplate = asyncHandler(async (req, res) => {
                 name: m.name,
                 time: m.time,
                 notes: m.notes,
+                recipe: m.recipe || '',
+                youtubeUrl: m.youtubeUrl || '',
+                image: m.image || '',
                 taskKey: null,
                 options: m.options.map((o) => ({
                     label: o.label,

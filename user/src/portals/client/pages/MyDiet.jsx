@@ -18,6 +18,7 @@ import PageHeader from '../../../components/common/PageHeader'
 import RequestCorrection from '../components/RequestCorrection'
 import GlycemicBadge from '../components/GlycemicBadge'
 import SupplementList from '../../../components/common/SupplementList'
+import MealRecipe, { FoodThumb } from '../../../components/common/MealRecipe'
 import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
@@ -30,7 +31,7 @@ import { formatMealTime } from '../../../utils/time'
 function resolveItem(it) {
   // If the API already pre-computed this item (from serializeDietPlan), use it
   if (it.name && it.qtyLabel && it.cal !== undefined) {
-    return { label: it.name, qtyLabel: it.qtyLabel, cal: it.cal, protein: it.protein, carbs: it.carbs, fat: it.fat, gi: it.gi, gl: it.gl }
+    return { label: it.name, image: it.image || '', qtyLabel: it.qtyLabel, cal: it.cal, protein: it.protein, carbs: it.carbs, fat: it.fat, gi: it.gi, gl: it.gl }
   }
   // Fallback: resolve locally
   const food = getFood(it.foodId || it.foodCode)
@@ -587,6 +588,7 @@ export default function MyDiet() {
                           on && <CheckOutlined style={{ fontSize: 11 }} />
                         )}
                       </span>
+                      <FoodThumb src={it.image} size={36} />
                       <div className="min-w-0 flex-1">
                         <div className={`font-medium ${on ? 'text-text-muted line-through' : 'text-text-primary'}`}>
                           {it.label}
@@ -610,6 +612,9 @@ export default function MyDiet() {
                 busyIndex={togglingKey?.startsWith(`${meal.id}:s`) ? Number(togglingKey.slice(`${meal.id}:s`.length)) : null}
                 disabled={cheat || isFuture || !!togglingKey}
               />
+
+              {/* Recipe — the meal's photo, preparation steps and video, when the trainer added them */}
+              {!cheat && <MealRecipe meal={meal} className="mt-3" />}
 
               {/* Cheat details */}
               {cheat && (

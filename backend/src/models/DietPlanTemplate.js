@@ -36,6 +36,10 @@ const templateMealSchema = new mongoose.Schema(
         name: { type: String, required: true, trim: true }, // Breakfast / Lunch / ...
         time: { type: String, default: '' }, // "08:00"
         notes: { type: String, default: '' },
+        // Optional recipe details, copied into client plans (see DietPlan.js mealSchema).
+        recipe: { type: String, default: '' },
+        youtubeUrl: { type: String, default: '', trim: true },
+        image: { type: String, default: '', trim: true },
         options: { type: [templateOptionSchema], default: [] },
     },
     { _id: true },

@@ -21,6 +21,8 @@ import { foodCategories } from '../../../services/foodLibrary'
 import { mergeCategories } from '../../../hooks/useLibraryCategories'
 import { MAX_DIET_PLANS, dietGoals } from '../../../services/dietPlans'
 import { computeNutrition, formatQty, mealGL, glMealLevel, glItemLevel, giLevel, glycemicMeta, qtyInputProps } from '../../../utils/nutrition'
+import MealRecipe, { FoodThumb } from '../../../components/common/MealRecipe'
+import RecipeFields from '../../../components/common/RecipeFields'
 
 let mealSeq = 1
 const uid = (p) => `${p}${Date.now()}${mealSeq++}`
@@ -43,6 +45,9 @@ const toMealPayload = (m) => ({
     name: m.name,
     time: m.time,
     notes: m.notes || '',
+    recipe: m.recipe || '',
+    youtubeUrl: m.youtubeUrl || '',
+    image: m.image || '',
     taskKey: m.taskKey ?? null,
     supplements: m.supplements || [],
     options: [
@@ -213,16 +218,48 @@ function PlanEditor({ plan, onSave, onBack }) {
     const [meals, setMeals] = useState(() => plan.meals.map((m) => ({ ...m, items: mealItems(m).map(toEditorItem) })))
 
     const [mealModal, setMealModal] = useState(false)
+    const [editingMealId, setEditingMealId] = useState(null) // null = adding a meal
     const [foodModal, setFoodModal] = useState(null) // mealId
     const [mealForm] = Form.useForm()
+    const youtubeUrl = Form.useWatch('youtubeUrl', mealForm)
 
     const totals = useMemo(() => planTotals(meals), [meals])
 
-    const addMeal = async () => {
+    const openAddMeal = () => {
+        mealForm.resetFields()
+        setEditingMealId(null)
+        setMealModal(true)
+    }
+    const openEditMeal = (m) => {
+        mealForm.resetFields()
+        mealForm.setFieldsValue({
+            name: m.name,
+            time: m.time,
+            notes: m.notes || '',
+            recipe: m.recipe || '',
+            youtubeUrl: m.youtubeUrl || '',
+            image: m.image || '',
+        })
+        setEditingMealId(m.id)
+        setMealModal(true)
+    }
+
+    // Adds a meal, or updates the one being edited in place (its foods are untouched).
+    const saveMeal = async () => {
         const v = await mealForm.validateFields()
-        setMeals((prev) => [...prev, { id: uid('M'), name: v.name, time: v.time, notes: v.notes || '', items: [] }])
+        const details = {
+            name: v.name,
+            time: v.time,
+            notes: v.notes || '',
+            recipe: (v.recipe || '').trim(),
+            youtubeUrl: (v.youtubeUrl || '').trim(),
+            image: v.image || '',
+        }
+        if (editingMealId) setMeals((prev) => prev.map((m) => (m.id === editingMealId ? { ...m, ...details } : m)))
+        else setMeals((prev) => [...prev, { id: uid('M'), ...details, items: [] }])
         mealForm.resetFields()
         setMealModal(false)
+        setEditingMealId(null)
     }
     const removeMeal = (id) => setMeals((prev) => prev.filter((m) => m.id !== id))
     const addItem = (mealId, item) =>
@@ -281,7 +318,7 @@ function PlanEditor({ plan, onSave, onBack }) {
                 >
                     {meals.length} {meals.length === 1 ? 'meal' : 'meals'}
                 </span>
-                <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} onClick={() => setMealModal(true)}>
+                <Button className="sm:ml-auto" type="dashed" icon={<PlusOutlined />} onClick={openAddMeal}>
                     Add meal
                 </Button>
             </div>
@@ -311,7 +348,7 @@ function PlanEditor({ plan, onSave, onBack }) {
                     <EmptyState
                         title="No meals yet"
                         description="Add a meal, then add foods to it from the library."
-                        action={<Button type="primary" icon={<PlusOutlined />} onClick={() => setMealModal(true)}>Add meal</Button>}
+                        action={<Button type="primary" icon={<PlusOutlined />} onClick={openAddMeal}>Add meal</Button>}
                     />
                 </div>
             ) : (
@@ -332,6 +369,7 @@ function PlanEditor({ plan, onSave, onBack }) {
                                             <GlycemicBadge type="Meal GL" value={gl} level={glMealLevel(gl)} />
                                         )}
                                         <Button size="small" icon={<PlusOutlined />} onClick={() => setFoodModal(m.id)}>Food</Button>
+                                        <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEditMeal(m)} aria-label="Edit meal" />
                                         <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => removeMeal(m.id)} />
                                     </div>
                                 </div>
@@ -352,7 +390,12 @@ function PlanEditor({ plan, onSave, onBack }) {
                                             <tbody>
                                                 {m.items.map((it, idx) => (
                                                     <tr key={idx} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
-                                                        <td className="px-3 py-2 font-medium text-text-primary">{it.food}</td>
+                                                        <td className="px-3 py-2 font-medium text-text-primary">
+                                                            <span className="flex items-center gap-2">
+                                                                <FoodThumb src={it.image} size={28} />
+                                                                {it.food}
+                                                            </span>
+                                                        </td>
                                                         <td className="px-3 py-2 text-text-secondary">
                                                             {it.qty}
                                                             {it.unit === 'count' ? '' : ` ${it.unit}`}
@@ -371,6 +414,7 @@ function PlanEditor({ plan, onSave, onBack }) {
                                         </table>
                                     </div>
                                 )}
+                                <MealRecipe meal={m} className="mt-3" />
                                 {m.notes && (
                                     <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
                                         {m.notes}
@@ -383,12 +427,14 @@ function PlanEditor({ plan, onSave, onBack }) {
             )}
 
             <Modal
-                title={<ModalTitle icon={<ScheduleOutlined />} title="Add meal" subtitle="A slot in the day — add foods to it next" />}
+                title={editingMealId
+                    ? <ModalTitle icon={<EditOutlined />} title="Edit meal" subtitle="Change its details — foods are edited on the meal card" />
+                    : <ModalTitle icon={<ScheduleOutlined />} title="Add meal" subtitle="A slot in the day — add foods to it next" />}
                 open={mealModal}
-                onCancel={() => setMealModal(false)}
-                onOk={addMeal}
-                okText="Add meal"
-                okButtonProps={{ icon: <PlusOutlined /> }}
+                onCancel={() => { setMealModal(false); setEditingMealId(null) }}
+                onOk={saveMeal}
+                okText={editingMealId ? 'Save changes' : 'Add meal'}
+                okButtonProps={{ icon: editingMealId ? <SaveOutlined /> : <PlusOutlined /> }}
                 centered
             >
                 <Form form={mealForm} layout="vertical" className="mt-1">
@@ -401,6 +447,7 @@ function PlanEditor({ plan, onSave, onBack }) {
                     <Form.Item name="notes" label="Notes">
                         <Input.TextArea rows={2} placeholder="Optional guidance" />
                     </Form.Item>
+                    <RecipeFields youtubeUrl={youtubeUrl} />
                 </Form>
             </Modal>
 
@@ -452,7 +499,7 @@ function FoodPickerModal({ open, onCancel, onAdd }) {
             onCancel={onCancel}
             onOk={() => {
                 if (!food) return
-                onAdd({ foodId: food.id, foodCode: food.code, food: food.name, qty, unit: food.unit, ...nutrition })
+                onAdd({ foodId: food.id, foodCode: food.code, food: food.name, image: food.image, qty, unit: food.unit, ...nutrition })
             }}
             okText="Add food"
             okButtonProps={{ icon: <PlusOutlined />, disabled: !food }}

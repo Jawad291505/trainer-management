@@ -43,6 +43,10 @@ const foodSchema = new mongoose.Schema(
         fat: { type: Number, default: 0, min: 0 },
         fiber: { type: Number, default: 0, min: 0 },
 
+        // Optional photo (Cloudinary URL — see controllers/libraryImages.controller.js).
+        // '' = no image; shown next to the food on diet plans.
+        image: { type: String, default: '', trim: true },
+
         source: { type: String, enum: LIBRARY_SOURCES, default: 'admin' },
         // Master library rows: isMaster: true, owner: null.
         // Trainer-custom rows:  isMaster: false, owner: <Trainer _id>.

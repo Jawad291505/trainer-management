@@ -61,6 +61,11 @@ const mealSchema = new mongoose.Schema(
         name: { type: String, required: true, trim: true },
         time: { type: String, default: '' },
         notes: { type: String, default: '' },
+        // Optional recipe details — preparation steps, a YouTube walkthrough and a
+        // photo (Cloudinary URL). '' = not provided; validated in normalizeMeals().
+        recipe: { type: String, default: '' },
+        youtubeUrl: { type: String, default: '', trim: true },
+        image: { type: String, default: '', trim: true },
         supplements: { type: [supplementSchema], default: [] },
         // Links a meal to a client daily-checklist task key (user mockData taskId).
         taskKey: { type: String, default: null },

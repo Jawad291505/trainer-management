@@ -33,6 +33,8 @@ import FoodModal from '../components/FoodModal'
 import GlycemicBadge from '../components/GlycemicBadge'
 import SupplementsEditor, { newSupplement, supplementsError, cleanSupplements } from '../components/SupplementsEditor'
 import SupplementList from '../../../components/common/SupplementList'
+import MealRecipe, { FoodThumb } from '../../../components/common/MealRecipe'
+import RecipeFields from '../../../components/common/RecipeFields'
 
 let daySeq = 100
 let mealSeq = 100
@@ -87,7 +89,12 @@ function OptionPane({ option, onAddFood, onEditFood, onChangeQty, onRemoveFood, 
                                 const { min, step } = qtyInputProps(it.unit, food?.step)
                                 return (
                                     <tr key={idx} className="border-t" style={{ borderColor: 'var(--color-border)' }}>
-                                        <td className="px-3 py-2 font-medium text-text-primary">{it.food}</td>
+                                        <td className="px-3 py-2 font-medium text-text-primary">
+                                            <span className="flex items-center gap-2">
+                                                <FoodThumb src={food?.image || it.image} size={28} />
+                                                {it.food}
+                                            </span>
+                                        </td>
                                         <td className="px-3 py-2">
                                             <div className="flex items-center gap-1.5">
                                                 <InputNumber
@@ -189,6 +196,7 @@ export default function DietPlans() {
                         foodId: it.foodId || it.food,
                         foodCode: it.foodCode,
                         food: it.name || it.food_name || '',
+                        image: it.image || '',
                         qty: it.qty,
                         unit: it.unit || 'g',
                         cal: it.cal || 0,
@@ -208,7 +216,17 @@ export default function DietPlans() {
                     url: s.url || '',
                     preview: s.url && s.preview ? { ...s.preview, url: s.url } : null,
                 }))
-                return { id: mealId, name: m.name, time: m.time || '', notes: m.notes || '', supplements, options }
+                return {
+                    id: mealId,
+                    name: m.name,
+                    time: m.time || '',
+                    notes: m.notes || '',
+                    recipe: m.recipe || '',
+                    youtubeUrl: m.youtubeUrl || '',
+                    image: m.image || '',
+                    supplements,
+                    options,
+                }
             }),
         }))
 
@@ -261,6 +279,7 @@ export default function DietPlans() {
     const [mealModal, setMealModal] = useState(false)
     const [foodModal, setFoodModal] = useState(null) // { mealId, optionId, index? } — index = item being edited
     const [mealForm] = Form.useForm()
+    const mealYoutubeUrl = Form.useWatch('youtubeUrl', mealForm)
     // Supplements for the meal being added/edited — their own list, never mixed into the foods.
     const [mealSupplements, setMealSupplements] = useState([])
     const [supplementErrors, setSupplementErrors] = useState(false)
@@ -282,6 +301,9 @@ export default function DietPlans() {
             name: meal.name,
             time: minutes == null ? null : dayjs().startOf('day').add(minutes, 'minute'),
             notes: meal.notes || '',
+            recipe: meal.recipe || '',
+            youtubeUrl: meal.youtubeUrl || '',
+            image: meal.image || '',
         })
         setMealSupplements((meal.supplements || []).map((s) => ({ ...s })))
         setSupplementErrors(false)
@@ -369,11 +391,17 @@ export default function DietPlans() {
             return
         }
         const supplements = cleanSupplements(mealSupplements)
+        // Optional recipe details — blank means "not provided".
+        const recipeDetails = {
+            recipe: (v.recipe || '').trim(),
+            youtubeUrl: (v.youtubeUrl || '').trim(),
+            image: v.image || '',
+        }
         if (editingMealId) {
             setMeals((prev) =>
                 prev.map((m) =>
                     m.id === editingMealId
-                        ? { ...m, name: v.name, time: v.time.format('HH:mm'), notes: v.notes || '', supplements }
+                        ? { ...m, name: v.name, time: v.time.format('HH:mm'), notes: v.notes || '', ...recipeDetails, supplements }
                         : m,
                 ),
             )
@@ -389,6 +417,7 @@ export default function DietPlans() {
                 name: v.name,
                 time: v.time ? v.time.format('HH:mm') : '',
                 notes: v.notes || '',
+                ...recipeDetails,
                 supplements,
                 options: [{ id: `O${optionSeq++}`, label: 'Option 1', items: [] }],
             },
@@ -498,6 +527,9 @@ export default function DietPlans() {
                 name: m.name,
                 time: m.time,
                 notes: m.notes || '',
+                recipe: m.recipe || '',
+                youtubeUrl: m.youtubeUrl || '',
+                image: m.image || '',
                 supplements: (m.supplements || []).map(({ name, dosage, url, preview }) => ({ name, dosage, url, preview })),
                 options: m.options.map((o) => ({
                     id: o.id,
@@ -783,6 +815,8 @@ export default function DietPlans() {
 
                                 <SupplementList supplements={m.supplements} className="mt-4" />
 
+                                <MealRecipe meal={m} className="mt-4" />
+
                                 {m.notes && (
                                     <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}>
                                         {m.notes}
@@ -817,8 +851,9 @@ export default function DietPlans() {
                     <Form.Item name="notes" label="Notes">
                         <Input.TextArea rows={2} placeholder="Optional guidance" />
                     </Form.Item>
+                    <RecipeFields youtubeUrl={mealYoutubeUrl} />
                 </Form>
-                <div className="border-t pt-4" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="mt-4 border-t pt-4" style={{ borderColor: 'var(--color-border)' }}>
                     <SupplementsEditor value={mealSupplements} onChange={setMealSupplements} showErrors={supplementErrors} />
                 </div>
             </Modal>

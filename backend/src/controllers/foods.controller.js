@@ -7,8 +7,17 @@ import { computeNutrition, giLevel, glItemLevel } from '../services/nutrition.se
 import { masterFoods } from '../services/libraryCache.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 import { ensureLibraryCategory, listLibraryCategories } from '../services/libraryCategory.service.js'
+import { deleteImage, libraryImagePublicId } from '../services/cloudinary.service.js'
+import { libraryImageOrEmpty } from './libraryImages.controller.js'
 
 // Master foods are served from memory (see services/libraryCache.js).
+
+// A food's photo belongs to that food alone, so a replaced/removed one is
+// deleted from Cloudinary (best-effort, never blocks the response).
+function removeLibraryImage(url) {
+    const publicId = libraryImagePublicId(url)
+    if (publicId) deleteImage(publicId).catch((err) => console.warn('[cloudinary] delete failed:', err.message))
+}
 
 async function findFoodOr404(idOrCode) {
     const query = mongoose.isValidObjectId(idOrCode) ? { _id: idOrCode } : { code: idOrCode }
@@ -81,6 +90,7 @@ export const createFood = asyncHandler(async (req, res) => {
         carbs: body.carbs || 0,
         fat: body.fat || 0,
         fiber: body.fiber || 0,
+        image: libraryImageOrEmpty(body.image, 'food image'),
         source: isTrainer ? 'trainer' : 'admin',
         isMaster: !isTrainer,
         owner: isTrainer ? req.trainer._id : null,
@@ -109,8 +119,11 @@ export const updateFood = asyncHandler(async (req, res) => {
     ]
     for (const key of editable) if (req.body[key] !== undefined) food[key] = req.body[key]
     if (food.isMaster && req.body.category) food.category = await ensureLibraryCategory('food', req.body.category)
+    const previousImage = food.image
+    if (req.body.image !== undefined) food.image = libraryImageOrEmpty(req.body.image, 'food image')
     await food.save()
     if (food.isMaster) masterFoods.invalidate()
+    if (previousImage && previousImage !== food.image) removeLibraryImage(previousImage)
     res.json(food)
 })
 
@@ -124,6 +137,7 @@ export const deleteFood = asyncHandler(async (req, res) => {
     }
     await food.deleteOne()
     if (food.isMaster) masterFoods.invalidate()
+    removeLibraryImage(food.image)
     res.json({ ok: true })
 })
 

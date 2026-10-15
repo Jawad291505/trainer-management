@@ -33,6 +33,7 @@ export function normalize(f) {
         carbs: f.carbs,
         fat: f.fat,
         fiber: f.fiber,
+        image: f.image || '',
         source: f.source,
     }
 }

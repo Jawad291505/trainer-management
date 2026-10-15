@@ -4,6 +4,8 @@ import { DietPlanTemplate, Food } from '../models/index.js'
 import { MAX_DIET_PLAN_TEMPLATES } from '../config/constants.js'
 import { resolvePlanNutrition } from '../services/dietPlan.service.js'
 import { sortMealsByTime } from '../utils/mealTime.js'
+import { normalizeYouTubeUrl } from '../utils/youtube.js'
+import { libraryImageOrEmpty } from './libraryImages.controller.js'
 
 // A meal payload may arrive as `{ options: [{label, items}] }` (current shape)
 // or, from older callers, a flat `{ items }` — normalise to always be options.
@@ -49,6 +51,22 @@ function normalizeSupplements(supplements) {
         })
 }
 
+const RECIPE_MAX = 5000
+
+// A meal's optional recipe details: free-text steps, a YouTube link and a photo.
+// Each may be empty; whatever is given must be valid.
+function normalizeRecipe(m) {
+    const label = String(m.name || 'meal').trim()
+    const rawYoutube = String(m.youtubeUrl || '').trim()
+    const youtubeUrl = rawYoutube ? normalizeYouTubeUrl(rawYoutube) : ''
+    if (youtubeUrl === null) throw ApiError.badRequest(`The video link for "${label}" must be a YouTube video link`)
+    return {
+        recipe: String(m.recipe || '').trim().slice(0, RECIPE_MAX),
+        youtubeUrl,
+        image: libraryImageOrEmpty(m.image, `image for "${label}"`),
+    }
+}
+
 // An edited meal/option arrives with the id it was loaded with; keeping it
 // stops a re-save from minting new ids. Builder-local ids ("M3") are dropped.
 const keepId = (doc) => {
@@ -86,6 +104,7 @@ export async function normalizeMeals(meals = []) {
         name: m.name,
         time: m.time || '',
         notes: m.notes || '',
+        ...normalizeRecipe(m),
         taskKey: m.taskKey ?? null,
         supplements: normalizeSupplements(m.supplements),
         options: mealOptionsInput(m).map((o) => ({

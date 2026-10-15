@@ -79,21 +79,12 @@ export async function deleteImage(publicId) {
     await cloudinary.uploader.destroy(publicId, { resource_type: 'image', invalidate: true })
 }
 
-// Uploads a payment-proof screenshot (buffer from multer memoryStorage) and
-// returns the Cloudinary reference to store on MemberPayment — never the raw
-// image bytes. Throws a clear error if Cloudinary isn't configured yet, rather
-// than accepting the upload and quietly losing the file.
-export function uploadPaymentProof(buffer, { memberId }) {
-    if (!configured) {
-        throw new Error('Payment screenshot uploads are not available yet — Cloudinary is not configured (CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET).')
-    }
+// Streams an image buffer (from multer memoryStorage) to Cloudinary and
+// resolves to its reference — the database keeps only the URL, never the bytes.
+function uploadImageBuffer(buffer, { folder, publicId }) {
     return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-            {
-                folder: 'fittrack/payment-proofs',
-                public_id: `member-${memberId}-${Date.now()}`,
-                resource_type: 'image',
-            },
+            { folder, public_id: publicId, resource_type: 'image' },
             (error, result) => {
                 if (error) return reject(error)
                 resolve({ url: result.secure_url, publicId: result.public_id })
@@ -101,4 +92,40 @@ export function uploadPaymentProof(buffer, { memberId }) {
         )
         stream.end(buffer)
     })
+}
+
+// Uploads a payment-proof screenshot (buffer from multer memoryStorage) and
+// returns the Cloudinary reference to store on MemberPayment — never the raw
+// image bytes. Throws a clear error if Cloudinary isn't configured yet, rather
+// than accepting the upload and quietly losing the file.
+export function uploadPaymentProof(buffer, { memberId }) {
+    assertConfigured('Payment screenshot uploads')
+    return uploadImageBuffer(buffer, {
+        folder: 'fittrack/payment-proofs',
+        publicId: `member-${memberId}-${Date.now()}`,
+    })
+}
+
+// ---- Food-library / meal images (optional photos on foods and diet-plan meals) ----
+const LIBRARY_IMAGE_FOLDER = 'fittrack/library'
+export const LIBRARY_IMAGE_KINDS = ['food', 'meal']
+
+export function uploadLibraryImage(buffer, { kind, userId }) {
+    assertConfigured('Image uploads')
+    return uploadImageBuffer(buffer, {
+        folder: `${LIBRARY_IMAGE_FOLDER}/${kind}s`,
+        publicId: `${kind}-${userId}-${Date.now()}`,
+    })
+}
+
+// The public_id of a library image URL on our Cloudinary account, or null for
+// anything else — stops a food/meal pointing its image at an arbitrary URL.
+// e.g. https://res.cloudinary.com/<cloud>/image/upload/v17/fittrack/library/foods/food-1-2.jpg
+//   -> fittrack/library/foods/food-1-2
+export function libraryImagePublicId(url) {
+    if (!configured || typeof url !== 'string') return null
+    const prefix = `https://res.cloudinary.com/${env.cloudinaryCloudName}/image/upload/`
+    if (!url.startsWith(prefix)) return null
+    const match = url.slice(prefix.length).match(/^(?:v\d+\/)?(fittrack\/library\/(?:foods|meals)\/[\w-]+)\.[a-z0-9]+$/i)
+    return match ? match[1] : null
 }
