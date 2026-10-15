@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { Select, Button, Modal, Form, Input, InputNumber, TimePicker, Tag, App, Alert, Spin, Segmented, Tabs, Typography } from 'antd'
+import { AutoComplete, Select, Button, Modal, Form, Input, InputNumber, TimePicker, Tag, App, Alert, Spin, Segmented, Tabs, Typography } from 'antd'
 import {
     PlusOutlined,
     EditOutlined,
@@ -311,10 +311,8 @@ export default function DietPlans() {
         setMealModal(true)
     }
 
-    // Template-sourced meals can carry a name outside the fixed list — keep it selectable while editing.
-    const editingMealName = editingMealId ? meals.find((m) => m.id === editingMealId)?.name : null
-    const mealNameOptions = [...new Set([...MEAL_TYPES, ...(editingMealName ? [editingMealName] : [])])]
-        .map((t) => ({ value: t, label: t }))
+    // Suggested meal names; the trainer can also type any other name.
+    const mealNameOptions = MEAL_TYPES.map((t) => ({ value: t, label: t }))
 
     const editingFoodItem = foodModal?.index != null
         ? meals.find((m) => m.id === foodModal.mealId)?.options.find((o) => o.id === foodModal.optionId)?.items[foodModal.index] || null
@@ -401,7 +399,7 @@ export default function DietPlans() {
             setMeals((prev) =>
                 prev.map((m) =>
                     m.id === editingMealId
-                        ? { ...m, name: v.name, time: v.time.format('HH:mm'), notes: v.notes || '', ...recipeDetails, supplements }
+                        ? { ...m, name: v.name.trim(), time: v.time.format('HH:mm'), notes: v.notes || '', ...recipeDetails, supplements }
                         : m,
                 ),
             )
@@ -414,7 +412,7 @@ export default function DietPlans() {
             ...prev,
             {
                 id: `M${mealSeq++}`,
-                name: v.name,
+                name: v.name.trim(),
                 time: v.time ? v.time.format('HH:mm') : '',
                 notes: v.notes || '',
                 ...recipeDetails,
@@ -842,8 +840,19 @@ export default function DietPlans() {
                 centered
             >
                 <Form form={mealForm} layout="vertical" className="mt-1">
-                    <Form.Item name="name" label="Meal name" rules={[{ required: true, message: 'Select a meal name' }]}>
-                        <Select placeholder="Select a meal" options={mealNameOptions} />
+                    <Form.Item
+                        name="name"
+                        label="Meal name"
+                        tooltip="Pick a suggested name or type your own."
+                        normalize={(v) => (v || '').replace(/^\s+/, '').slice(0, 60)}
+                        rules={[{ required: true, whitespace: true, message: 'Pick or type a meal name' }]}
+                    >
+                        <AutoComplete
+                            placeholder="Select or type a meal name"
+                            options={mealNameOptions}
+                            filterOption={(input, option) => option.value.toLowerCase().includes(input.trim().toLowerCase())}
+                            allowClear
+                        />
                     </Form.Item>
                     <Form.Item name="time" label="Time" rules={[{ required: true, message: 'Select a time' }]}>
                         <TimePicker use12Hours format="h:mm A" minuteStep={5} style={{ width: '100%' }} />

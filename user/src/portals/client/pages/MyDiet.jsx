@@ -373,22 +373,6 @@ export default function MyDiet() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checked, cheats, meals])
 
-  // Daily macro targets (non-cheat meals only).
-  const dayTotals = useMemo(() => {
-    return meals.reduce(
-      (acc, m) => {
-        if (isCheat(m.id)) return acc
-        acc.cal += m.totals.cal
-        acc.protein += m.totals.protein
-        acc.carbs += m.totals.carbs
-        acc.fat += m.totals.fat
-        return acc
-      },
-      { cal: 0, protein: 0, carbs: 0, fat: 0 },
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cheats, meals])
-
   if (loading) return <LoadingSkeleton cards={4} rows={6} />
   if (planError) return <div className="app-card"><SectionError title="Couldn't load your diet plan" error={planError} onRetry={loadPlan} /></div>
 
@@ -453,21 +437,6 @@ export default function MyDiet() {
           >
             <FireOutlined /> {summary.cheatMeals} cheat {summary.cheatMeals === 1 ? 'meal' : 'meals'}
           </span>
-        </div>
-
-        {/* Planned daily macros */}
-        <div className="mt-4 grid grid-cols-4 gap-2 border-t pt-4 text-center" style={{ borderColor: 'var(--color-border)' }}>
-          {[
-            { label: 'Calories', value: dayTotals.cal },
-            { label: 'Protein', value: `${Math.round(dayTotals.protein)}g` },
-            { label: 'Carbs', value: `${Math.round(dayTotals.carbs)}g` },
-            { label: 'Fats', value: `${Math.round(dayTotals.fat)}g` },
-          ].map((t) => (
-            <div key={t.label}>
-              <div className="text-base font-extrabold text-text-primary">{t.value}</div>
-              <div className="text-[11px] text-text-muted">{t.label}</div>
-            </div>
-          ))}
         </div>
 
         {summary.cheatMeals === 0 && summary.adherence === 100 && (
