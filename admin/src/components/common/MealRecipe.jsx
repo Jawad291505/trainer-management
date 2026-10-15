@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Image } from 'antd'
 import { ReadOutlined, PlayCircleOutlined, DownOutlined } from '@ant-design/icons'
 import YouTubePreview from './YouTubePreview'
 
@@ -31,18 +32,24 @@ export default function MealRecipe({ meal, className = '', defaultOpen = false }
     if (!image && !recipe && !video) return null
 
     return (
-        <div className={`flex flex-col gap-3 ${className}`}>
+        <div className={`flex items-start gap-3 ${className}`}>
             {image && (
-                <img
+                // Compact thumbnail — tap to view it full size.
+                <Image
                     src={image}
                     alt={meal.name ? `${meal.name} photo` : 'Meal photo'}
+                    width={88}
+                    height={88}
                     loading="lazy"
                     onError={() => setFailedImage(meal.image)}
-                    className="max-h-56 w-full rounded-xl object-cover"
+                    className="rounded-xl object-cover"
+                    rootClassName="shrink-0 cursor-zoom-in overflow-hidden rounded-xl"
+                    style={{ objectFit: 'cover' }}
+                    preview={{ mask: null }}
                 />
             )}
             {(recipe || video) && (
-                <div className="rounded-xl" style={{ background: 'var(--color-surface-secondary)' }}>
+                <div className="min-w-0 flex-1 rounded-xl" style={{ background: 'var(--color-surface-secondary)' }}>
                     <button
                         type="button"
                         onClick={() => setOpen((o) => !o)}
@@ -57,7 +64,7 @@ export default function MealRecipe({ meal, className = '', defaultOpen = false }
                         <div className="px-3 pb-3">
                             {recipe && <p className="mb-0 whitespace-pre-line break-words text-sm text-text-secondary">{recipe}</p>}
                             {video && (
-                                <div className={`max-w-xl ${recipe ? 'mt-3' : ''}`}>
+                                <div className={`max-w-sm ${recipe ? 'mt-3' : ''}`}>
                                     <YouTubePreview url={video} title={meal.name ? `${meal.name} recipe` : 'Recipe video'} />
                                     <a
                                         href={video}
