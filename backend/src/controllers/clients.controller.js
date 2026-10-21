@@ -195,6 +195,8 @@ export const createClient = asyncHandler(async (req, res) => {
     }
     if (!String(name || '').trim() || !email) throw ApiError.badRequest('name and email are required')
     const details = parseDetails(req.body)
+    // Trainers and Members must capture a contact number; admin may leave it blank.
+    if (req.user.role !== 'admin' && !details.phone) throw ApiError.badRequest('Phone number is required')
     const programme = parseProgramme(req.body)
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
     // A Member's client visibility is scoped to `trainer: { $in: their trainers }`

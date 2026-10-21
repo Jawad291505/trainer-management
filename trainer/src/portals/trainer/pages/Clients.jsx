@@ -199,7 +199,7 @@ export default function Clients() {
                 <Form form={addForm} layout="vertical" className="mt-4" initialValues={{ goal: 'Fat Loss' }}>
                     <Form.Item name="name" label="Full name" rules={[{ required: true, message: 'Name is required' }]}><Input placeholder="e.g. Jordan Blake" /></Form.Item>
                     <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Enter a valid email' }]}><Input placeholder="jordan.blake@gmail.com" /></Form.Item>
-                    <Form.Item name="phone" label="Phone" rules={[{ pattern: /^\+?[\d\s().-]{6,20}$/, message: 'Enter a valid phone number' }]}><Input placeholder="+1 (555) 000-0000" /></Form.Item>
+                    <Form.Item name="phone" label="Phone" rules={[{ required: true, whitespace: true, message: 'Phone number is required' }, { pattern: /^\+?[\d\s().-]{6,20}$/, message: 'Enter a valid phone number' }]}><Input placeholder="+1 (555) 000-0000" /></Form.Item>
                     <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                         <Form.Item name="age" label="Age"><InputNumber min={1} max={120} precision={0} style={{ width: '100%' }} placeholder="32" /></Form.Item>
                         <Form.Item name="gender" label="Gender" tooltip="Used to calculate BMR"><Select allowClear placeholder="Select" options={GENDER_OPTIONS} /></Form.Item>
