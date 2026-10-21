@@ -19,7 +19,7 @@ import EmptyState from '../../../components/common/EmptyState'
 import SectionError from '../../../components/feedback/SectionError'
 import { confirmDelete } from '../../../utils/confirm'
 import { useLibrary, normalizeEx } from '../../../context/LibraryContext'
-import { exerciseCategories, exerciseTechniques, getTechnique } from '../../../services/exerciseLibrary'
+import { exerciseCategories } from '../../../services/exerciseLibrary'
 import { useLibraryCategories } from '../../../hooks/useLibraryCategories'
 import CategorySelect from '../../../components/common/CategorySelect'
 
@@ -39,7 +39,6 @@ export default function Exercises() {
     const [form] = Form.useForm()
     // Built-in categories + any the admin has added since (new ones are created on save).
     const cats = useLibraryCategories('exercises', exerciseCategories)
-    const technique = Form.useWatch('technique', form)
 
     const openAdd = () => {
         setEditing(null)
@@ -108,15 +107,6 @@ export default function Exercises() {
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="truncate font-semibold text-text-primary">{x.name}</span>
-                        {x.technique && x.technique !== 'standard' && (
-                            <span
-                                className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"
-                                style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
-                                title={getTechnique(x.technique).description}
-                            >
-                                {getTechnique(x.technique).label}
-                            </span>
-                        )}
                     </div>
                     <div className="text-xs text-text-muted">{x.category}</div>
                 </div>
@@ -220,15 +210,6 @@ export default function Exercises() {
                         <Form.Item name="defaultReps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>
                         <Form.Item name="defaultRest" label="Rest"><Input placeholder="90s" /></Form.Item>
                     </div>
-                    <Form.Item
-                        name="technique"
-                        label="Technique"
-                        initialValue="standard"
-                        tooltip="How the set is performed"
-                        extra={technique && technique !== 'standard' ? getTechnique(technique).description : null}
-                    >
-                        <Select options={exerciseTechniques.map((t) => ({ value: t.key, label: t.label }))} />
-                    </Form.Item>
                     <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                         <Input placeholder="https://youtube.com/watch?v=…" />
                     </Form.Item>

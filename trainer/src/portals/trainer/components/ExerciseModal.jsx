@@ -5,7 +5,6 @@ import { useLibrary } from '../../../context/LibraryContext'
 import { exerciseCategories } from '../../../services/exerciseLibrary'
 import { libraryCategories } from '../../../utils/categories'
 import ModalTitle from '../../../components/common/ModalTitle'
-import TechniqueField from './TechniqueField'
 import TechniquePicker from './TechniquePicker'
 
 // Add an exercise to a day: pick a category → an exercise (defaults prefill), or
@@ -230,7 +229,6 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                         <InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 30" />
                                     </Form.Item>
                                 </div>
-                                <TechniqueField form={pickForm} />
                                 <Form.Item name="techniques" label="Techniques from the library" tooltip="Shown to the client with instructions and a video">
                                     <TechniquePicker />
                                 </Form.Item>
@@ -284,7 +282,6 @@ export default function ExerciseModal({ open, onCancel, onAdd }) {
                                 <InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 30" />
                             </Form.Item>
                         </div>
-                        <TechniqueField form={newForm} />
                         <Form.Item name="techniques" label="Techniques from the library" tooltip="Shown to the client with instructions and a video">
                             <TechniquePicker />
                         </Form.Item>

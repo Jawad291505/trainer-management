@@ -1,5 +1,4 @@
 import { PlayCircleOutlined, CheckCircleFilled, StarFilled, LinkOutlined } from '@ant-design/icons'
-import TechniqueTag from './TechniqueTag'
 import TechniqueChips from './TechniqueChips'
 import { groupLinked, getLinkType } from '../../../utils/exerciseLinks'
 
@@ -35,7 +34,6 @@ function ExerciseRow({ ex, step }) {
                             <StarFilled /> Important
                         </span>
                     )}
-                    <TechniqueTag technique={ex.technique} />
                 </span>
                 {ex.youtube && (
                     <a

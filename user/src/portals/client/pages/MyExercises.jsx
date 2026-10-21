@@ -9,7 +9,6 @@ import PageSpin from '../../../components/common/PageSpin'
 import SectionError from '../../../components/feedback/SectionError'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
-import { getTechnique } from '../../../services/exerciseLibrary'
 import { pktWeekday } from '../../../utils/pkt'
 import { sortByWeekday, dayForWeekday } from '../../../utils/weekdays'
 import { groupLinked, getLinkType } from '../../../utils/exerciseLinks'
@@ -129,14 +128,6 @@ export default function MyExercises() {
                                     <StarFilled /> Important
                                 </span>
                             )}
-                            {ex.technique && ex.technique !== 'standard' && (
-                                <span
-                                    className="inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold"
-                                    style={{ background: 'var(--color-warning-soft)', color: 'var(--color-warning)' }}
-                                >
-                                    {getTechnique(ex.technique).label}
-                                </span>
-                            )}
                         </div>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
                             <span className="rounded px-1.5 py-0.5 font-semibold" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
@@ -157,7 +148,7 @@ export default function MyExercises() {
                                 <PlayCircleOutlined /> Watch demo
                             </a>
                         )}
-                        <TechniqueDetails techniques={ex.techniques} method={ex.technique} className="mt-3" />
+                        <TechniqueDetails techniques={ex.techniques} className="mt-3" />
                     </div>
                 </div>
             </div>

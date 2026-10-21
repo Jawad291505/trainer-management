@@ -29,8 +29,6 @@ import { confirmDelete } from '../../../utils/confirm'
 import { WEEKDAYS } from '../../../constants/dietPlan'
 import { weekdayIndex, sortByWeekday } from '../../../utils/weekdays'
 import ExerciseModal from '../components/ExerciseModal'
-import TechniqueField from '../components/TechniqueField'
-import TechniqueTag from '../components/TechniqueTag'
 import TechniquePicker from '../components/TechniquePicker'
 import TechniqueChips from '../components/TechniqueChips'
 import LinkExercisesModal from '../components/LinkExercisesModal'
@@ -435,7 +433,6 @@ export default function ExercisePlans() {
                             <StarFilled /> Important
                         </span>
                     )}
-                    <TechniqueTag technique={ex.technique} />
                 </span>
                 <Dropdown trigger={['click']} menu={exerciseMenu(d, ex)}>
                     <Button size="small" type="text" icon={<MoreOutlined />} aria-label="Exercise actions" />
@@ -628,7 +625,6 @@ export default function ExercisePlans() {
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
                                         <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
-                                        <TechniqueTag technique={ex.technique} />
                                     </div>
                                     <div className="text-xs text-text-muted">{ex.category} · {ex.defaultSets} × {ex.defaultReps}</div>
                                 </div>
@@ -667,7 +663,6 @@ export default function ExercisePlans() {
                         <Form.Item name="defaultReps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>
                         <Form.Item name="defaultRest" label="Rest"><Input placeholder="90s" /></Form.Item>
                     </div>
-                    <TechniqueField form={editForm} />
                     <Form.Item name="youtube" label="YouTube URL" rules={[{ type: 'url', message: 'Enter a valid URL' }]}>
                         <Input placeholder="https://youtube.com/watch?v=…" />
                     </Form.Item>
@@ -707,7 +702,6 @@ export default function ExercisePlans() {
                         <Form.Item name="targetWeight" label="Target weight (kg)"><InputNumber min={0} style={{ width: '100%' }} placeholder="Optional" /></Form.Item>
                         <Form.Item name="targetDuration" label="Target duration (sec)"><InputNumber min={0} style={{ width: '100%' }} placeholder="e.g. 30" /></Form.Item>
                     </div>
-                    <TechniqueField form={planExForm} />
                     <Form.Item name="techniques" label="Techniques from the library" tooltip="Shown to the client with instructions and a video">
                         <TechniquePicker />
                     </Form.Item>

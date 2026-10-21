@@ -1,19 +1,11 @@
 import { BulbOutlined, PlayCircleOutlined } from '@ant-design/icons'
 import YouTubePreview from '../../../components/common/YouTubePreview'
-import { getTechnique } from '../../../services/exerciseLibrary'
 
 // The techniques a trainer attached to an exercise (or to a group of linked
 // exercises): title, instructions, an embedded video preview and the plain
 // YouTube link as a fallback.
-//
-// `method` is the exercise's training-method key (TUT / Super Set); when it isn't
-// the default it gets the same box, with its description written out in full.
-export default function TechniqueDetails({ techniques, method, className = '' }) {
-    const preset = method && method !== 'standard' ? getTechnique(method) : null
-    const items = [
-        ...(preset ? [{ _id: `method-${preset.key}`, title: preset.label, instructions: preset.description }] : []),
-        ...(techniques || []),
-    ]
+export default function TechniqueDetails({ techniques, className = '' }) {
+    const items = techniques || []
     if (!items.length) return null
     return (
         <div className={`flex flex-col gap-3 ${className}`}>

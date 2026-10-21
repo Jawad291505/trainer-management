@@ -214,7 +214,7 @@ export default function WorkoutRunner() {
                         )}
                     </div>
 
-                    <TechniqueDetails techniques={exercise.techniques} method={exercise.technique} className="mt-3" />
+                    <TechniqueDetails techniques={exercise.techniques} className="mt-3" />
 
                     {resting && (
                         <RestTimer

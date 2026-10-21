@@ -19,8 +19,6 @@ const CONFIG = {
         'Assignments and capacity at a glance',
         'Payments, plans and content libraries',
     ],
-    demoEmail: 'alexandra.reed@fittrack.io',
-    demoPassword: 'demo1234',
 }
 
 function Brand({ className = '' }) {
@@ -117,7 +115,7 @@ export default function Login() {
                         layout="vertical"
                         requiredMark={false}
                         className="mt-8"
-                        initialValues={{ email: CONFIG.demoEmail, password: CONFIG.demoPassword, remember: true }}
+                        initialValues={{ remember: true }}
                         onFinish={submit}
                     >
                         <Form.Item

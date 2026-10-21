@@ -13,8 +13,6 @@ const CONFIG = {
         'Log progress and stay accountable',
         'Message your trainer anytime',
     ],
-    demoEmail: 'emma.thompson@gmail.com',
-    demoPassword: 'demo1234',
 }
 
 function Brand({ className = '' }) {
@@ -72,7 +70,7 @@ export default function Login() {
                     <div className="mb-8 flex items-center gap-3 lg:hidden"><Brand /><div className="text-base font-extrabold text-text-primary">FitTrack</div></div>
                     <h2 className="text-2xl font-extrabold tracking-tight text-text-primary">Welcome back</h2>
                     <p className="mt-1.5 text-sm text-text-secondary">Sign in to continue to your dashboard.</p>
-                    <Form form={form} layout="vertical" requiredMark={false} className="mt-8" initialValues={{ email: CONFIG.demoEmail, password: CONFIG.demoPassword, remember: true }} onFinish={submit}>
+                    <Form form={form} layout="vertical" requiredMark={false} className="mt-8" initialValues={{ remember: true }} onFinish={submit}>
                         <Form.Item name="email" label="Email" rules={[{ required: true, message: 'Enter your email' }, { type: 'email', message: 'Enter a valid email' }]}>
                             <Input size="large" prefix={<MailOutlined />} placeholder="you@example.com" />
                         </Form.Item>
