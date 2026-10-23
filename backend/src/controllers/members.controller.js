@@ -175,7 +175,7 @@ export const createMember = asyncHandler(async (req, res) => {
         if (!plan) throw ApiError.badRequest('Select a valid plan')
     }
 
-    const { user, tempPassword, inviteSent, inviteWarning } = await createInvitedUser({
+    const { user, tempPassword, loginUrl, inviteSent, inviteWarning } = await createInvitedUser({
         name,
         email,
         role: 'member',
@@ -194,7 +194,7 @@ export const createMember = asyncHandler(async (req, res) => {
     await member.populate('plan')
     res.status(201).json({
         ...(await flatten(member)),
-        ...(inviteSent ? {} : { inviteWarning, tempPassword }),
+        ...(inviteSent ? {} : { inviteWarning, tempPassword, loginUrl }),
     })
 })
 

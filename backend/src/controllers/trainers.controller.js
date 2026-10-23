@@ -137,7 +137,7 @@ export const createTrainer = asyncHandler(async (req, res) => {
         }
     }
 
-    const { user, tempPassword, inviteSent, inviteWarning } = await createInvitedUser({
+    const { user, tempPassword, loginUrl, inviteSent, inviteWarning } = await createInvitedUser({
         name,
         email,
         role: 'trainer',
@@ -157,7 +157,7 @@ export const createTrainer = asyncHandler(async (req, res) => {
     await trainer.populate('user', 'name email avatarColor status')
     res.status(201).json({
         ...flatten(trainer),
-        ...(inviteSent ? {} : { inviteWarning, tempPassword }),
+        ...(inviteSent ? {} : { inviteWarning, tempPassword, loginUrl }),
     })
 })
 

@@ -76,7 +76,7 @@ export default function Trainers() {
                 fetchTrainers()
                 if (isMember) setMemberStats((prev) => (prev ? { ...prev, totalTrainers: prev.totalTrainers + 1 } : prev))
                 if (created.inviteWarning) {
-                    message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
+                    message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword} — Login link: ${created.loginUrl}`, 10)
                 } else {
                     message.success(`${v.name} created — an invite email was sent to ${v.email}`)
                 }

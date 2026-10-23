@@ -21,7 +21,7 @@ export const createAdmin = asyncHandler(async (req, res) => {
     if (!name || !email) throw ApiError.badRequest('name and email are required')
     if (await User.exists({ email: email.toLowerCase() })) throw ApiError.conflict('Email already in use')
 
-    const { user, tempPassword, inviteSent, inviteWarning } = await createInvitedUser({
+    const { user, tempPassword, loginUrl, inviteSent, inviteWarning } = await createInvitedUser({
         name,
         email,
         role: 'admin',
@@ -29,6 +29,6 @@ export const createAdmin = asyncHandler(async (req, res) => {
     })
     res.status(201).json({
         ...flatten(user),
-        ...(inviteSent ? {} : { inviteWarning, tempPassword }),
+        ...(inviteSent ? {} : { inviteWarning, tempPassword, loginUrl }),
     })
 })

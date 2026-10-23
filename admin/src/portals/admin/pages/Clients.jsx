@@ -99,7 +99,7 @@ export default function Clients() {
             setAddOpen(false)
             if (isMember) setMemberStats((prev) => (prev ? { ...prev, totalClients: prev.totalClients + 1 } : prev))
             if (created.inviteWarning) {
-                message.warning(`${v.name} added, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
+                message.warning(`${v.name} added, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword} — Login link: ${created.loginUrl}`, 10)
             } else {
                 message.success(`${v.name} added — an invite email was sent to ${v.email}`)
             }

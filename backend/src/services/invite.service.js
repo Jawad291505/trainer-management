@@ -1,7 +1,7 @@
 import { User } from '../models/index.js'
 import { hashPassword } from '../utils/password.js'
 import { generateTempPassword } from '../utils/tempPassword.js'
-import { sendInviteEmail } from './email.service.js'
+import { sendInviteEmail, PORTAL_URL } from './email.service.js'
 import { env } from '../config/env.js'
 
 function expiryDate() {
@@ -27,7 +27,7 @@ export async function createInvitedUser({ name, email, role, avatarColor, status
     })
 
     const { sent, reason } = await sendInviteEmail({ to: user.email, name: user.name, tempPassword, role })
-    return { user, tempPassword, inviteSent: sent, inviteWarning: reason }
+    return { user, tempPassword, loginUrl: PORTAL_URL[role] || env.adminPortalUrl, inviteSent: sent, inviteWarning: reason }
 }
 
 // Re-issue a fresh temp password for an existing account (expired/lost
@@ -40,5 +40,5 @@ export async function reissueInvite(user) {
     await user.save()
 
     const { sent, reason } = await sendInviteEmail({ to: user.email, name: user.name, tempPassword, role: user.role })
-    return { tempPassword, inviteSent: sent, inviteWarning: reason }
+    return { tempPassword, loginUrl: PORTAL_URL[user.role] || env.adminPortalUrl, inviteSent: sent, inviteWarning: reason }
 }

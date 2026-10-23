@@ -80,10 +80,10 @@ export const resendInvite = asyncHandler(async (req, res) => {
     const user = await User.findById(req.params.id).select('+passwordHash')
     if (!user) throw ApiError.notFound('User not found')
 
-    const { tempPassword, inviteSent, inviteWarning } = await reissueInvite(user)
+    const { tempPassword, loginUrl, inviteSent, inviteWarning } = await reissueInvite(user)
     res.json({
         id: String(user._id),
-        ...(inviteSent ? { ok: true } : { ok: true, inviteWarning, tempPassword }),
+        ...(inviteSent ? { ok: true } : { ok: true, inviteWarning, tempPassword, loginUrl }),
     })
 })
 

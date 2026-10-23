@@ -51,7 +51,7 @@ export default function Users() {
             list.setPage(1)
             fetchUsers()
             if (created.inviteWarning) {
-                message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword}`, 10)
+                message.warning(`${v.name} created, but the invite email failed to send (${created.inviteWarning}). Temporary password: ${created.tempPassword} — Login link: ${created.loginUrl}`, 10)
             } else {
                 message.success(`${v.name} invited — an email was sent to ${v.email}`)
             }
@@ -73,7 +73,7 @@ export default function Users() {
                     const res = await api.post(`/users/${record.id}/resend-invite`)
                     setData((prev) => prev.map((u) => (u.id === record.id ? { ...u, mustChangePassword: true } : u)))
                     if (res.inviteWarning) {
-                        message.warning(`Invite email failed to send (${res.inviteWarning}). Temporary password: ${res.tempPassword}`, 10)
+                        message.warning(`Invite email failed to send (${res.inviteWarning}). Temporary password: ${res.tempPassword} — Login link: ${res.loginUrl}`, 10)
                     } else {
                         message.success(`Invite re-sent to ${record.email}`)
                     }

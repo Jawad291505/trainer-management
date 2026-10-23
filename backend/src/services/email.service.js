@@ -3,7 +3,7 @@ import { env } from '../config/env.js'
 
 const resend = env.resendApiKey ? new Resend(env.resendApiKey) : null
 
-const PORTAL_URL = {
+export const PORTAL_URL = {
     admin: env.adminPortalUrl,
     member: env.adminPortalUrl, // Members use the same Admin portal.
     trainer: env.trainerPortalUrl,
@@ -20,6 +20,7 @@ function inviteEmailHtml({ name, email, tempPassword, portalUrl, roleLabel }) {
             <table style="width:100%; border-collapse: collapse; margin: 20px 0;">
                 <tr><td style="padding:8px 0; color:#64748b;">Login email</td><td style="padding:8px 0; font-weight:600;">${email}</td></tr>
                 <tr><td style="padding:8px 0; color:#64748b;">Temporary password</td><td style="padding:8px 0; font-weight:600; font-family: monospace;">${tempPassword}</td></tr>
+                <tr><td style="padding:8px 0; color:#64748b;">Login link</td><td style="padding:8px 0; font-weight:600;"><a href="${portalUrl}">${portalUrl}</a></td></tr>
             </table>
             <p><a href="${portalUrl}" style="display:inline-block; background:#0b2545; color:#fff; padding:10px 20px; border-radius:8px; text-decoration:none; font-weight:600;">Open the portal</a></p>
             <p style="color:#64748b; font-size:13px;">For your security, you'll be asked to set a new password the first time you log in. This temporary password expires in ${env.inviteExpiryDays} days.</p>

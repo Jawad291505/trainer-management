@@ -215,7 +215,7 @@ export const createClient = asyncHandler(async (req, res) => {
         await assertClientLimit(trainerId)
     }
 
-    const { user, tempPassword, inviteSent, inviteWarning } = await createInvitedUser({
+    const { user, tempPassword, loginUrl, inviteSent, inviteWarning } = await createInvitedUser({
         name,
         email,
         role: 'client',
@@ -253,7 +253,7 @@ export const createClient = asyncHandler(async (req, res) => {
     await client.populate([{ path: 'user' }, { path: 'trainer', populate: { path: 'user', select: 'name' } }])
     res.status(201).json({
         ...flatten(client),
-        ...(inviteSent ? {} : { inviteWarning, tempPassword }),
+        ...(inviteSent ? {} : { inviteWarning, tempPassword, loginUrl }),
     })
 })
 

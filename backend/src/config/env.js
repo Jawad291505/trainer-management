@@ -37,9 +37,10 @@ export const env = {
 
     // ---- Invitation flow ----
     inviteExpiryDays: Number(process.env.INVITE_EXPIRY_DAYS || 7),
-    adminPortalUrl: process.env.ADMIN_PORTAL_URL || 'http://localhost:5173',
-    trainerPortalUrl: process.env.TRAINER_PORTAL_URL || 'http://localhost:5174',
-    clientPortalUrl: process.env.CLIENT_PORTAL_URL || 'http://localhost:5175',
+    // Defaults are the live deployments; override per-env (e.g. localhost in dev).
+    adminPortalUrl: process.env.ADMIN_PORTAL_URL || 'https://trainer-management-delta.vercel.app/',
+    trainerPortalUrl: process.env.TRAINER_PORTAL_URL || 'https://trainer-management-4h4h.vercel.app/',
+    clientPortalUrl: process.env.CLIENT_PORTAL_URL || 'https://trainer-management-i7he.vercel.app/',
 
     // ---- Member self-signup: email OTP ----
     otpExpiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES || 10),
