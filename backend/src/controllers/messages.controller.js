@@ -14,9 +14,13 @@ import {
 // transport (or both). The socket path is realtime; REST is the fallback / SSR.
 
 // GET /api/conversations
+// Only conversations with at least one message — opening a thread upserts an
+// empty conversation, and that shouldn't show up in anyone's list.
 export const listConversations = asyncHandler(async (req, res) => {
-    const filter =
-        req.user.role === 'trainer' ? { trainer: req.trainer._id } : { client: req.client._id }
+    const filter = {
+        ...(req.user.role === 'trainer' ? { trainer: req.trainer._id } : { client: req.client._id }),
+        lastMessageAt: { $ne: null },
+    }
 
     const convos = await Conversation.find(filter)
         .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })

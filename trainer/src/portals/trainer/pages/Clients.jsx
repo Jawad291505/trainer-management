@@ -132,7 +132,7 @@ export default function Clients() {
                         { key: 'chat', icon: <MessageOutlined />, label: 'Message' },
                     ],
                     onClick: ({ key }) => {
-                        if (key === 'chat') navigate('/messages')
+                        if (key === 'chat') navigate(`/messages?client=${r.id}`)
                         else if (key === 'diet') navigate('/diet-plans')
                         else if (key === 'exercise') navigate('/exercise-plans')
                         else navigate(`/clients/${r.id}`)

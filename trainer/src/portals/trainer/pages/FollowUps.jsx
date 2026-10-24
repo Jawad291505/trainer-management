@@ -203,7 +203,7 @@ export default function FollowUps() {
                                     <span className="flex items-center gap-1.5 text-xs" style={{ color: overdue ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
                                         <CalendarOutlined /> {dayjs(f.date).format('ddd, D MMM')}{f.time ? ` · ${formatTime(f.time)}` : ''}
                                     </span>
-                                    <Button size="small" icon={<MessageOutlined />} onClick={() => navigate('/messages')} />
+                                    <Button size="small" icon={<MessageOutlined />} onClick={() => navigate(`/messages?client=${f.clientId}`)} />
                                     {open && (
                                         <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => setCompleting(f)}>
                                             Complete

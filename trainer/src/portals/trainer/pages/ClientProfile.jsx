@@ -648,7 +648,7 @@ export default function ClientProfile() {
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <Button icon={<MessageOutlined />} onClick={() => navigate('/messages')}>Message</Button>
+                        <Button icon={<MessageOutlined />} onClick={() => navigate(`/messages?client=${id}`)}>Message</Button>
                         <Button type="primary" onClick={() => navigate(`/follow-ups?new=${id}`)}>Schedule follow-up</Button>
                     </div>
                 </div>

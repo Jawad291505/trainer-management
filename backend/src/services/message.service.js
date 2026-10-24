@@ -60,7 +60,10 @@ export function participantUserIds(convo) {
 
 // Shape the per-recipient "conversation row" the front-end conversation list uses.
 function rowFor(convo, forRole) {
+    const other = forRole === 'trainer' ? convo.client?.user : convo.trainer?.user
     return {
+        name: other?.name,
+        avatarColor: other?.avatarColor,
         id: String(convo._id),
         conversationId: String(convo._id),
         clientId: String(convo.client?._id),
