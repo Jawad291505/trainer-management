@@ -65,6 +65,7 @@ export const listUsers = asyncHandler(async (req, res) => {
         roleKey: u.role,
         status: u.status,
         avatarColor: u.avatarColor,
+        avatarUrl: u.avatarUrl || null,
         trainerName: u.role === 'client' ? trainerNameByUser.get(String(u._id)) || '—' : '—',
         mustChangePassword: u.mustChangePassword,
         joinDate: u.joinDate,

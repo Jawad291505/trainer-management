@@ -30,6 +30,7 @@ function serialize(r, planUpdated) {
         clientId: String(r.client?._id || r.client),
         clientName: r.client?.user?.name,
         avatarColor: r.client?.user?.avatarColor,
+        avatarUrl: r.client?.user?.avatarUrl || null,
         area: r.area,
         item: r.item,
         type: r.type,
@@ -54,7 +55,7 @@ function serialize(r, planUpdated) {
 // Response body for a single request: populated like the list, so the client
 // name and plan-changed flag survive when the front-end swaps it into its state.
 async function respond(rq) {
-    await rq.populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })
+    await rq.populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
     const plans = rq.status === 'open' ? await planUpdatedAtByClient(rq.area, [rq.client._id]) : undefined
     return serialize(rq, plans)
 }
@@ -85,7 +86,7 @@ export const listCorrections = asyncHandler(async (req, res) => {
     }
 
     const docs = await CorrectionRequest.find(filter)
-        .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })
+        .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
         .sort({ createdAt: -1 })
 
     // One published-plan lookup per area, not per request.

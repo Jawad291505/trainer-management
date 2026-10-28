@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin, Dropdown, Segmented, Checkbox, Tag } from 'antd'
+import { Select, Button, Modal, Form, Input, InputNumber, App, Empty, Spin, Dropdown, Segmented, Checkbox, Tag, Typography } from 'antd'
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -15,6 +15,9 @@ import {
     MoreOutlined,
     LinkOutlined,
     DisconnectOutlined,
+    HolderOutlined,
+    ArrowUpOutlined,
+    ArrowDownOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
@@ -32,7 +35,7 @@ import ExerciseModal from '../components/ExerciseModal'
 import TechniquePicker from '../components/TechniquePicker'
 import TechniqueChips from '../components/TechniqueChips'
 import LinkExercisesModal from '../components/LinkExercisesModal'
-import { groupLinked, getLinkType, tidyLinks, applyLink, removeFromLink, unlinkGroup } from '../../../utils/exerciseLinks'
+import { groupLinked, getLinkType, tidyLinks, applyLink, removeFromLink, unlinkGroup, reorderExercises, moveExercise, canMoveExercise } from '../../../utils/exerciseLinks'
 
 let daySeq = 100
 let exSeq = 100
@@ -181,6 +184,12 @@ export default function ExercisePlans() {
         setDays((prev) => prev.map((d) => (d.id === id ? { ...d, day } : d)))
     }
 
+    // Inline edit of the day's focus ("Biceps", "Chest & Triceps"); blank keeps the old one.
+    const changeFocus = (id, focus) => {
+        const next = focus.trim()
+        if (next) setDays((prev) => prev.map((d) => (d.id === id ? { ...d, focus: next } : d)))
+    }
+
     const removeDay = (id) => {
         setDays((prev) => prev.filter((d) => d.id !== id))
         message.success('Day removed')
@@ -229,6 +238,7 @@ export default function ExercisePlans() {
     const openPlanExEdit = (dayId, ex) => {
         setPlanExEditing({ dayId, ex })
         planExForm.setFieldsValue({
+            name: ex.name,
             trackingType: ex.trackingType || 'reps',
             sets: ex.sets,
             reps: ex.reps,
@@ -246,6 +256,7 @@ export default function ExercisePlans() {
     const savePlanExEdit = async () => {
         const v = await planExForm.validateFields()
         patchExercise(planExEditing.dayId, planExEditing.ex.id, {
+            name: v.name.trim(),
             trackingType: v.trackingType || 'reps',
             sets: v.sets,
             reps: v.reps,
@@ -281,6 +292,8 @@ export default function ExercisePlans() {
         return {
             items: [
                 { key: 'edit', icon: <EditOutlined />, label: 'Edit exercise' },
+                { key: 'up', icon: <ArrowUpOutlined />, label: 'Move up', disabled: !canMoveExercise(d, ex.id, -1) },
+                { key: 'down', icon: <ArrowDownOutlined />, label: 'Move down', disabled: !canMoveExercise(d, ex.id, 1) },
                 link
                     ? { key: 'link', icon: <LinkOutlined />, label: 'Edit link' }
                     : { key: 'link', icon: <LinkOutlined />, label: 'Link with…', disabled: d.exercises.length < 2 },
@@ -296,6 +309,7 @@ export default function ExercisePlans() {
             ],
             onClick: ({ key }) => {
                 if (key === 'edit') openPlanExEdit(d.id, ex)
+                else if (key === 'up' || key === 'down') updateDay(d.id, (day) => moveExercise(day, ex.id, key === 'up' ? -1 : 1))
                 else if (key === 'link') setLinkTarget(link ? { day: d, link } : { day: d, startWith: ex.id })
                 else if (key === 'unlink') updateDay(d.id, (day) => removeFromLink(day, ex.id))
                 else if (key === 'important') patchExercise(d.id, ex.id, { important: !ex.important })
@@ -408,14 +422,52 @@ export default function ExercisePlans() {
         }
     }
 
+    // ---- Drag & drop ordering within a day (see reorderExercises for link groups) ----
+    const [drag, setDrag] = useState(null) // { dayId, exId } being dragged
+    const [dropOver, setDropOver] = useState(null) // exId under the pointer
+
+    const dragProps = (d, ex) => ({
+        draggable: true,
+        onDragStart: (e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('text/plain', ex.id)
+            setDrag({ dayId: d.id, exId: ex.id })
+        },
+        onDragOver: (e) => {
+            if (drag?.dayId !== d.id) return // only within the same day
+            e.preventDefault()
+            if (dropOver !== ex.id) setDropOver(ex.id)
+        },
+        onDrop: (e) => {
+            e.preventDefault()
+            if (drag?.dayId === d.id) updateDay(d.id, (day) => reorderExercises(day, drag.exId, ex.id))
+            setDrag(null)
+            setDropOver(null)
+        },
+        onDragEnd: () => {
+            setDrag(null)
+            setDropOver(null)
+        },
+    })
+
     // One exercise row of a day card; `step` is its position inside a link group.
     const renderExercise = (d, ex, step) => (
-        <div key={ex.id} className="rounded-xl p-3" style={{ background: step ? 'var(--color-surface)' : 'var(--color-surface-secondary)' }}>
+        <div
+            key={ex.id}
+            {...dragProps(d, ex)}
+            className="rounded-xl p-3 transition-shadow"
+            style={{
+                background: step ? 'var(--color-surface)' : 'var(--color-surface-secondary)',
+                opacity: drag?.exId === ex.id ? 0.5 : 1,
+                boxShadow: dropOver === ex.id && drag?.exId !== ex.id ? '0 0 0 2px var(--color-primary)' : undefined,
+            }}
+        >
             {ex.category && (
                 <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
             )}
             <div className="flex items-center justify-between">
                 <span className="flex min-w-0 items-center gap-2">
+                    <HolderOutlined className="shrink-0 cursor-grab text-text-muted" title="Drag to reorder" aria-hidden />
                     {step && (
                         <span
                             className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
@@ -525,7 +577,19 @@ export default function ExercisePlans() {
                                         style={{ minWidth: 130 }}
                                         aria-label="Training day"
                                     />
-                                    <div className="mt-1 text-xs text-text-muted">{d.focus}</div>
+                                    <Typography.Text
+                                        className="mt-1 block text-xs text-text-muted"
+                                        style={{ marginBottom: 0 }}
+                                        editable={{
+                                            text: d.focus || '',
+                                            onChange: (v) => changeFocus(d.id, v),
+                                            triggerType: ['icon', 'text'],
+                                            maxLength: 60,
+                                            tooltip: 'Edit focus',
+                                        }}
+                                    >
+                                        {d.focus || 'Add focus'}
+                                    </Typography.Text>
                                 </div>
                                 <Dropdown trigger={['click']} menu={dayMenu(d)}>
                                     <Button type="text" icon={<MoreOutlined />} aria-label="Day actions" />
@@ -684,6 +748,9 @@ export default function ExercisePlans() {
                 width={520}
             >
                 <Form form={planExForm} layout="vertical" className="mt-1 builder-input">
+                    <Form.Item name="name" label="Exercise title" rules={[{ required: true, whitespace: true, message: 'Enter a title' }]}>
+                        <Input placeholder="e.g. Incline Dumbbell Press" maxLength={120} />
+                    </Form.Item>
                     <Form.Item name="trackingType" label="Tracked by" className="mb-3">
                         <Segmented
                             block

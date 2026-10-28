@@ -23,8 +23,8 @@ export const listConversations = asyncHandler(async (req, res) => {
     }
 
     const convos = await Conversation.find(filter)
-        .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })
-        .populate({ path: 'trainer', populate: { path: 'user', select: 'name avatarColor' } })
+        .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
+        .populate({ path: 'trainer', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
         .sort({ lastMessageAt: -1, createdAt: -1 })
 
     res.json({
@@ -39,6 +39,7 @@ export const listConversations = asyncHandler(async (req, res) => {
                 trainerId: String(c.trainer?._id),
                 name: other?.name,
                 avatarColor: other?.avatarColor,
+                avatarUrl: other?.avatarUrl || null,
                 online: isOnline(otherUserId),
                 lastMessage: c.lastMessage,
                 lastMessageAt: c.lastMessageAt,

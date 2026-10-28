@@ -9,6 +9,7 @@ import {
     CalendarOutlined,
     ThunderboltOutlined,
     PlayCircleOutlined,
+    HolderOutlined,
 } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import EmptyState from '../../../components/common/EmptyState'
@@ -216,6 +217,43 @@ function PlanEditor({ plan, onSave, onBack }) {
     const removeExercise = (dayId, exId) =>
         setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, exercises: d.exercises.filter((e) => e.id !== exId) } : d)))
 
+    // Drag & drop ordering within a day — the saved order is the order trainers copy and clients follow.
+    const [drag, setDrag] = useState(null) // { dayId, exId } being dragged
+    const [dropOver, setDropOver] = useState(null) // exId under the pointer
+    const reorder = (dayId, dragId, overId) =>
+        setDays((prev) => prev.map((d) => {
+            if (d.id !== dayId || dragId === overId) return d
+            const exercises = [...d.exercises]
+            const from = exercises.findIndex((e) => e.id === dragId)
+            const to = exercises.findIndex((e) => e.id === overId)
+            if (from === -1 || to === -1) return d
+            exercises.splice(to, 0, exercises.splice(from, 1)[0])
+            return { ...d, exercises }
+        }))
+    const dragProps = (d, ex) => ({
+        draggable: true,
+        onDragStart: (e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('text/plain', ex.id)
+            setDrag({ dayId: d.id, exId: ex.id })
+        },
+        onDragOver: (e) => {
+            if (drag?.dayId !== d.id) return // only within the same day
+            e.preventDefault()
+            if (dropOver !== ex.id) setDropOver(ex.id)
+        },
+        onDrop: (e) => {
+            e.preventDefault()
+            if (drag?.dayId === d.id) reorder(d.id, drag.exId, ex.id)
+            setDrag(null)
+            setDropOver(null)
+        },
+        onDragEnd: () => {
+            setDrag(null)
+            setDropOver(null)
+        },
+    })
+
     return (
         <div>
             <Button
@@ -308,12 +346,24 @@ function PlanEditor({ plan, onSave, onBack }) {
                             ) : (
                                 <div className="flex flex-col gap-2">
                                     {d.exercises.map((ex) => (
-                                        <div key={ex.id} className="rounded-xl p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                                        <div
+                                            key={ex.id}
+                                            {...dragProps(d, ex)}
+                                            className="rounded-xl p-3 transition-shadow"
+                                            style={{
+                                                background: 'var(--color-surface-secondary)',
+                                                opacity: drag?.exId === ex.id ? 0.5 : 1,
+                                                boxShadow: dropOver === ex.id && drag?.exId !== ex.id ? '0 0 0 2px var(--color-primary)' : undefined,
+                                            }}
+                                        >
                                             {ex.category && (
                                                 <div className="mb-0.5 text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{ex.category}</div>
                                             )}
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    <HolderOutlined className="shrink-0 cursor-grab text-text-muted" title="Drag to reorder" aria-hidden />
+                                                    <span className="truncate text-sm font-semibold text-text-primary">{ex.name}</span>
+                                                </span>
                                                 <span className="flex shrink-0 items-center">
                                                     {ex.youtube && (
                                                         <Button size="small" type="text" icon={<PlayCircleOutlined />} href={ex.youtube} target="_blank" rel="noopener noreferrer" aria-label="Watch video" />
@@ -397,7 +447,7 @@ function ExercisePickerModal({ open, editing, onCancel, onSave }) {
         setCat(exerciseCategories[0])
         setExId(null)
         form.resetFields()
-        if (editing) form.setFieldsValue({ sets: editing.sets, reps: editing.reps, rest: editing.rest, instructions: editing.instructions })
+        if (editing) form.setFieldsValue({ name: editing.name, sets: editing.sets, reps: editing.reps, rest: editing.rest, instructions: editing.instructions })
     }, [open, editing, form])
 
     // Picking a library exercise prefills its default prescription.
@@ -412,7 +462,7 @@ function ExercisePickerModal({ open, editing, onCancel, onSave }) {
         const v = await form.validateFields()
         const prescription = { sets: v.sets, reps: v.reps, rest: v.rest || '60s', instructions: v.instructions || '' }
         if (editing) {
-            onSave(prescription)
+            onSave({ ...prescription, name: v.name.trim() })
             return
         }
         onSave({
@@ -494,6 +544,11 @@ function ExercisePickerModal({ open, editing, onCancel, onSave }) {
                     </span>
                 )}
                 <Form form={form} layout="vertical" className="mt-4">
+                    {editing && (
+                        <Form.Item name="name" label="Exercise title" rules={[{ required: true, whitespace: true, message: 'Enter a title' }]}>
+                            <Input placeholder="e.g. Incline Dumbbell Press" maxLength={120} />
+                        </Form.Item>
+                    )}
                     <div className="grid grid-cols-3 gap-x-4">
                         <Form.Item name="sets" label="Sets" rules={[{ required: true, message: 'Required' }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
                         <Form.Item name="reps" label="Reps" rules={[{ required: true, message: 'Required' }]}><Input placeholder="8-10" /></Form.Item>

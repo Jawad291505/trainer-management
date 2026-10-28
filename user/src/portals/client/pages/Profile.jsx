@@ -28,6 +28,7 @@ export default function Profile() {
     const trainer = {
         name: trainerInfo?.user?.name || 'Not assigned',
         avatarColor: trainerInfo?.user?.avatarColor || '#0b2545',
+        avatarUrl: trainerInfo?.user?.avatarUrl || undefined,
         specialization: trainerInfo?.specialization || '',
     }
     const [photoUrl, setPhotoUrl] = useState('')
@@ -39,7 +40,7 @@ export default function Profile() {
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="app-card p-5 lg:col-span-1">
                     <div className="flex flex-col items-center text-center">
-                        <UserAvatar name={currentClient.name} color={currentClient.avatarColor} size={88} />
+                        <UserAvatar name={currentClient.name} src={currentClient.avatarUrl || undefined} color={currentClient.avatarColor} size={88} />
                         <div className="mt-3 text-lg font-bold text-text-primary">{currentClient.name}</div>
                         <div className="text-sm text-text-muted">{currentClient.goal}{currentClient.programme ? ` · ${programmeName(currentClient.programme)}` : ''}</div>
                         {currentClient.programme && (
@@ -51,7 +52,7 @@ export default function Profile() {
                     <div className="mt-5 rounded-xl p-4" style={{ background: 'var(--color-surface-secondary)' }}>
                         <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Your trainer</div>
                         <div className="mt-2 flex items-center gap-3">
-                            <UserAvatar name={trainer.name} color={trainer.avatarColor} size={40} />
+                            <UserAvatar name={trainer.name} src={trainer.avatarUrl || undefined} color={trainer.avatarColor} size={40} />
                             <div>
                                 <div className="text-sm font-semibold text-text-primary">{trainer.name}</div>
                                 <div className="text-xs text-text-muted">{trainer.specialization}</div>

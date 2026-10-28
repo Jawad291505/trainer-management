@@ -109,7 +109,7 @@ function AdminDashboard() {
             title: 'Trainer', dataIndex: 'name',
             render: (name, r) => (
                 <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate(`/trainers/${r.id}`)}>
-                    <UserAvatar name={name || ''} color={r.avatarColor} size={34} />
+                    <UserAvatar name={name || ''} src={r.avatarUrl || undefined} color={r.avatarColor} size={34} />
                     <div className="min-w-0">
                         <div className="truncate font-semibold text-text-primary">{name}</div>
                         <div className="truncate text-xs text-text-muted">{r.email}</div>
@@ -131,7 +131,7 @@ function AdminDashboard() {
 
     const memberCell = (name, r) => (
         <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate(`/members/${r.id}`)}>
-            <UserAvatar name={name || ''} color={r.avatarColor} size={34} />
+            <UserAvatar name={name || ''} src={r.avatarUrl || undefined} color={r.avatarColor} size={34} />
             <div className="min-w-0">
                 <div className="truncate font-semibold text-text-primary">{name}</div>
                 <div className="truncate text-xs text-text-muted">{r.email}</div>
@@ -288,7 +288,7 @@ function MemberDashboard() {
             title: 'Trainer', dataIndex: 'name',
             render: (name, r) => (
                 <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate(`/trainers/${r.id}`)}>
-                    <UserAvatar name={name || ''} color={r.avatarColor} size={34} />
+                    <UserAvatar name={name || ''} src={r.avatarUrl || undefined} color={r.avatarColor} size={34} />
                     <div className="min-w-0">
                         <div className="truncate font-semibold text-text-primary">{name}</div>
                         <div className="truncate text-xs text-text-muted">{r.specialization}</div>
@@ -381,7 +381,7 @@ function MemberDashboard() {
                             <div className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
                                 {d.recentReviews.map((r) => (
                                     <div key={r.id} className="flex items-start gap-3 py-3">
-                                        <UserAvatar name={r.clientName || ''} color={r.clientAvatarColor} size={34} />
+                                        <UserAvatar name={r.clientName || ''} src={r.clientAvatarUrl || undefined} color={r.clientAvatarColor} size={34} />
                                         <div className="min-w-0 flex-1">
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <span className="text-sm font-semibold text-text-primary">{r.clientName} <span className="font-normal text-text-muted">→ {r.trainerName}</span></span>

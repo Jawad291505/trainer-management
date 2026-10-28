@@ -122,7 +122,7 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
                     placement="bottomRight"
                 >
                     <button className="ml-1 flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface-secondary">
-                        <UserAvatar name={user?.name || 'Trainer'} color={user?.avatarColor || 'var(--color-primary)'} size={34} />
+                        <UserAvatar name={user?.name || 'Trainer'} src={user?.avatarUrl || undefined} color={user?.avatarColor || 'var(--color-primary)'} size={34} />
                         <div className="hidden text-left leading-tight lg:block">
                             <div className="text-sm font-bold text-text-primary">{user?.name || 'Trainer'}</div>
                             <div className="text-[11px] text-text-muted">Trainer</div>

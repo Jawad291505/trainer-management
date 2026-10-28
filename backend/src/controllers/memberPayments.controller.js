@@ -9,7 +9,7 @@ import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 // Subscription payments come from a Member OR an outsourced Trainer (self-signup
 // and renewals share this model / review queue).
-const PAYER_USER = { path: 'user', select: 'name email avatarColor' }
+const PAYER_USER = { path: 'user', select: 'name email avatarColor avatarUrl' }
 const PAYER_POPULATE = [
     { path: 'member', populate: PAYER_USER },
     { path: 'trainer', populate: PAYER_USER },
@@ -25,6 +25,7 @@ function flatten(payment) {
         payerName: u?.name,
         payerEmail: u?.email,
         payerAvatarColor: u?.avatarColor,
+        payerAvatarUrl: u?.avatarUrl || null,
         planId: String(payment.plan),
         planName: payment.planName,
         amount: payment.amount,

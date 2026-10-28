@@ -35,7 +35,7 @@ export default function ClientCard({ client }) {
         <div className="app-card app-card-hover flex flex-col p-5">
             <div className="flex items-start justify-between">
                 <button className="flex items-center gap-3 text-left" onClick={() => navigate(`/clients/${client.id}`)}>
-                    <UserAvatar name={client.name} color={client.avatarColor} size={46} />
+                    <UserAvatar name={client.name} src={client.avatarUrl || undefined} color={client.avatarColor} size={46} />
                     <div>
                         <div className="font-bold text-text-primary transition-colors hover:text-primary">{client.name}</div>
                         <div className="text-xs text-text-muted">{client.goal}</div>

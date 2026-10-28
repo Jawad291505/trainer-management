@@ -329,7 +329,7 @@ export default function Messages() {
                         <div className="py-6 text-center text-sm text-text-muted">No clients found</div>
                     ) : pickable.map((c) => (
                         <button key={c.id} onClick={() => pickClient(c)} className="chat-conv flex w-full items-center gap-3 px-3 py-2.5 text-left">
-                            <UserAvatar name={c.name || 'Client'} color={c.avatarColor} size={38} />
+                            <UserAvatar name={c.name || 'Client'} src={c.avatarUrl || undefined} color={c.avatarColor} size={38} />
                             <div className="min-w-0 flex-1">
                                 <div className="truncate text-sm font-semibold text-text-primary">{c.name}</div>
                                 {c.goal && <div className="truncate text-xs text-text-muted">{c.goal}</div>}

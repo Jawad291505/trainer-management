@@ -183,7 +183,7 @@ export default function FollowUps() {
                                 style={overdue ? { borderLeft: '3px solid var(--color-danger)' } : undefined}
                             >
                                 <button className="flex flex-1 items-start gap-3 text-left" onClick={() => navigate(`/clients/${f.clientId}`)}>
-                                    <UserAvatar name={f.clientName} color={f.avatarColor} size={42} />
+                                    <UserAvatar name={f.clientName} src={f.avatarUrl || undefined} color={f.avatarColor} size={42} />
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="truncate font-semibold text-text-primary transition-colors hover:text-primary">{f.clientName}</span>

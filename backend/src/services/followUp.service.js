@@ -49,6 +49,7 @@ export function serializeFollowUp(fu, role) {
         clientId: String(c?._id || c),
         clientName: c?.user?.name,
         avatarColor: c?.user?.avatarColor,
+        avatarUrl: c?.user?.avatarUrl || null,
         goal: c?.goal,
         trainerId: String(t?._id || t),
         trainerName: t?.user?.name,
@@ -67,7 +68,7 @@ export function serializeFollowUp(fu, role) {
 }
 
 export const populateFollowUp = [
-    { path: 'client', select: 'goal user', populate: { path: 'user', select: 'name avatarColor' } },
+    { path: 'client', select: 'goal user', populate: { path: 'user', select: 'name avatarColor avatarUrl' } },
     { path: 'trainer', select: 'user', populate: { path: 'user', select: 'name' } },
 ]
 

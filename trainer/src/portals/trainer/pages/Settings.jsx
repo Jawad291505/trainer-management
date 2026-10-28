@@ -1,12 +1,66 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Form, Input, Switch, Button, App, Tabs, Modal, Tag, Empty, Skeleton } from 'antd'
-import { CopyOutlined, GiftOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { CopyOutlined, GiftOutlined, CheckCircleOutlined, CameraOutlined, DeleteOutlined } from '@ant-design/icons'
 import PageHeader from '../../../components/common/PageHeader'
 import ThemePicker from '../../../components/common/ThemePicker'
 import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
+import ChangePasswordCard from '../../../components/common/ChangePasswordCard'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
+
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024 // matches backend middlewares/upload.js
+
+// Profile photo — shown to admins, members and clients in place of the initials avatar.
+function ProfilePhotoControls() {
+    const { message, modal } = App.useApp()
+    const { user, refreshUser } = useAuth()
+    const inputRef = useRef(null)
+    const [busy, setBusy] = useState(false)
+
+    const onPick = async (e) => {
+        const file = e.target.files?.[0]
+        e.target.value = ''
+        if (!file) return
+        if (!file.type.startsWith('image/')) return message.error('Choose an image file')
+        if (file.size > MAX_PHOTO_BYTES) return message.error('Photo must be 5MB or smaller')
+        const fd = new FormData()
+        fd.append('image', file)
+        setBusy(true)
+        try {
+            await api.upload('/auth/me/avatar', fd)
+            await refreshUser()
+            message.success('Profile photo updated')
+        } catch (err) { message.error(err.message) }
+        finally { setBusy(false) }
+    }
+
+    const onRemove = () => modal.confirm({
+        title: 'Remove profile photo?',
+        content: 'Your initials will be shown instead.',
+        okText: 'Remove',
+        okButtonProps: { danger: true },
+        onOk: async () => {
+            try {
+                await api.delete('/auth/me/avatar')
+                await refreshUser()
+                message.success('Profile photo removed')
+            } catch (err) { message.error(err.message) }
+        },
+    })
+
+    return (
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <input ref={inputRef} type="file" accept="image/*" hidden onChange={onPick} />
+            <Button size="small" icon={<CameraOutlined />} loading={busy} onClick={() => inputRef.current?.click()}>
+                {user?.avatarUrl ? 'Change photo' : 'Upload photo'}
+            </Button>
+            {user?.avatarUrl && (
+                <Button size="small" danger icon={<DeleteOutlined />} disabled={busy} onClick={onRemove}>Remove</Button>
+            )}
+        </div>
+    )
+}
 
 function ProfileTab() {
     const { message } = App.useApp()
@@ -16,9 +70,10 @@ function ProfileTab() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="app-card p-5 lg:col-span-1">
                 <div className="flex flex-col items-center text-center">
-                    <UserAvatar name={user?.name || 'Trainer'} color={user?.avatarColor || 'var(--color-primary)'} size={84} />
+                    <UserAvatar name={user?.name || 'Trainer'} src={user?.avatarUrl || undefined} color={user?.avatarColor || 'var(--color-primary)'} size={84} />
                     <div className="mt-3 text-lg font-bold text-text-primary">{user?.name}</div>
                     <div className="text-sm text-text-muted">{trainer?.specialization || 'Trainer'}</div>
+                    <ProfilePhotoControls />
                 </div>
             </div>
             <div className="app-card p-5 lg:col-span-2">
@@ -190,6 +245,7 @@ export default function Settings() {
             <PageHeader title="Settings" subtitle="Manage your account and preferences." />
             <Tabs items={[
                 { key: 'profile', label: 'Profile', children: <ProfileTab /> },
+                { key: 'security', label: 'Security', children: <ChangePasswordCard /> },
                 { key: 'referrals', label: 'Referrals', children: <ReferralsTab /> },
                 { key: 'appearance', label: 'Appearance', children: <AppearanceTab /> },
                 { key: 'notifications', label: 'Notifications', children: <NotificationsTab /> },

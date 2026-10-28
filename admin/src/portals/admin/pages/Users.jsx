@@ -121,7 +121,7 @@ export default function Users() {
             sorter: (a, b) => a.name.localeCompare(b.name),
             render: (_, r) => (
                 <div className="flex cursor-pointer items-center gap-3" onClick={() => viewProfile(r)}>
-                    <UserAvatar name={r.name} color={r.avatarColor} size={38} />
+                    <UserAvatar name={r.name} src={r.avatarUrl || undefined} color={r.avatarColor} size={38} />
                     <div className="min-w-0">
                         <div className="truncate font-semibold text-text-primary transition-colors hover:text-primary">{r.name}</div>
                         <div className="truncate text-xs text-text-muted">{r.email}</div>

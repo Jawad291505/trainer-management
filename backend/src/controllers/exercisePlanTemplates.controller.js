@@ -12,7 +12,8 @@ const keepId = (doc) => {
 // Turn incoming day payloads into stored days. Each entry is linked to its
 // master Exercise by code and takes the library defaults for anything the
 // admin didn't set. An entry whose library exercise has since been deleted is
-// kept as long as it still carries its own name.
+// kept as long as it still carries its own name. A name sent with the entry
+// (the admin may rename it) wins over the library name.
 async function normalizeDays(days = []) {
     if (!Array.isArray(days)) throw ApiError.badRequest('days must be a list')
 
@@ -34,7 +35,7 @@ async function normalizeDays(days = []) {
                     ...keepId(e),
                     exercise: ref?._id || null,
                     exerciseCode: ref?.code || e.exerciseCode || null,
-                    name: ref?.name || e.name,
+                    name: String(e.name || '').trim() || ref?.name,
                     category: ref?.category || e.category || '',
                     sets: e.sets ?? ref?.defaultSets ?? 3,
                     reps: e.reps ?? ref?.defaultReps ?? '8-12',

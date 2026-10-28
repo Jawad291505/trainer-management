@@ -58,6 +58,7 @@ async function flatten(member, counts, extras) {
         name: u?.name,
         email: u?.email,
         avatarColor: u?.avatarColor,
+        avatarUrl: u?.avatarUrl || null,
         title: member.title,
         status: member.status,
         trainerCount,
@@ -107,7 +108,7 @@ export const listMembers = asyncHandler(async (req, res) => {
 
     const paging = pageParams(req.query)
     let query = Member.find(filter)
-        .populate('user', 'name email avatarColor status')
+        .populate('user', 'name email avatarColor avatarUrl status')
         .populate('plan')
         .sort({ createdAt: -1, _id: -1 })
         .lean()
@@ -149,11 +150,11 @@ export const subscriptionSummary = asyncHandler(async (_req, res) => {
 // GET /api/members/:id   (admin only) — includes the trainers assigned to this member
 export const getMember = asyncHandler(async (req, res) => {
     const member = await Member.findById(req.params.id)
-        .populate('user', 'name email avatarColor status phone')
+        .populate('user', 'name email avatarColor avatarUrl status phone')
         .populate('plan')
     if (!member) throw ApiError.notFound('Member not found')
 
-    const trainers = await Trainer.find({ managedBy: member._id }).populate('user', 'name email avatarColor status')
+    const trainers = await Trainer.find({ managedBy: member._id }).populate('user', 'name email avatarColor avatarUrl status')
     res.json({ ...(await flatten(member)), trainers })
 })
 
@@ -190,7 +191,7 @@ export const createMember = asyncHandler(async (req, res) => {
             ? { plan: plan._id, trainerLimit: plan.maxTrainers, clientLimit: plan.maxClients }
             : { trainerLimit: trainerLimit ?? 5 }),
     })
-    await member.populate('user', 'name email avatarColor status')
+    await member.populate('user', 'name email avatarColor avatarUrl status')
     await member.populate('plan')
     res.status(201).json({
         ...(await flatten(member)),
@@ -203,7 +204,7 @@ export const createMember = asyncHandler(async (req, res) => {
 // `planId` reassigns the member's plan, snapshotting its limits (same as create);
 // pass `planId: null` to detach the plan and fall back to a manual `trainerLimit`.
 export const updateMember = asyncHandler(async (req, res) => {
-    const member = await Member.findById(req.params.id).populate('user', 'name email avatarColor status')
+    const member = await Member.findById(req.params.id).populate('user', 'name email avatarColor avatarUrl status')
     if (!member) throw ApiError.notFound('Member not found')
 
     if (req.body.title !== undefined) member.title = req.body.title

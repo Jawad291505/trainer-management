@@ -12,6 +12,7 @@ export default function Messages() {
     const trainerInfo = client?.trainer
     const trainerName = trainerInfo?.user?.name || 'Your Trainer'
     const trainerColor = trainerInfo?.user?.avatarColor || '#0b2545'
+    const trainerPhoto = trainerInfo?.user?.avatarUrl || undefined
 
     const [messages, setMessages] = useState([])
     const [draft, setDraft] = useState('')
@@ -111,7 +112,7 @@ export default function Messages() {
         <div className="chat-shell flex flex-col" style={{ height: 'calc(100vh - 190px)', minHeight: 480 }}>
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4">
-                <UserAvatar name={trainerName} color={trainerColor} size={44} />
+                <UserAvatar name={trainerName} src={trainerPhoto} color={trainerColor} size={44} />
                 <div>
                     <div className="text-sm font-bold text-text-primary">{trainerName}</div>
                     <div className="text-xs" style={{ color: typing ? 'var(--color-success)' : 'var(--color-text-muted)' }}>

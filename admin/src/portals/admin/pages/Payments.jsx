@@ -170,7 +170,7 @@ function SubscriptionsView({ kind }) {
             dataIndex: 'name',
             render: (_, r) => (
                 <div className="flex items-center gap-3">
-                    <UserAvatar name={r.name} color={r.avatarColor} size={36} />
+                    <UserAvatar name={r.name} src={r.avatarUrl || undefined} color={r.avatarColor} size={36} />
                     <div className="min-w-0">
                         <div className="truncate font-semibold text-text-primary">{r.name}</div>
                         <div className="truncate text-xs text-text-muted">{r.email}</div>

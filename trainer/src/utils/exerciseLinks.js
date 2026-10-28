@@ -88,3 +88,61 @@ export function removeFromLink(day, exerciseId) {
 export function unlinkGroup(day, key) {
     return tidyLinks({ ...day, links: (day.links || []).filter((l) => l.key !== key) })
 }
+
+// ---- Reordering (drag & drop in the builder; the client app follows array order) ----
+
+const move = (list, from, to) => {
+    const next = [...list]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    return next
+}
+
+// Drops exercise `dragId` onto exercise `overId`. Within one link group the two
+// swap places inside the group; otherwise the dragged exercise's whole block (the
+// exercise, or its entire link group) moves to the target block's position, so
+// a group's members always stay together.
+export function reorderExercises(day, dragId, overId) {
+    if (dragId === overId) return day
+    const blocks = groupLinked(day.exercises, day.links)
+    const blockOf = (id) => blocks.findIndex((b) => b.exercises.some((e) => e.id === id))
+    const from = blockOf(dragId)
+    const to = blockOf(overId)
+    if (from === -1 || to === -1) return day
+
+    let next
+    if (from === to) {
+        const block = blocks[from]
+        const ids = block.exercises.map((e) => e.id)
+        next = blocks.map((b, i) => (i === from ? { ...b, exercises: move(b.exercises, ids.indexOf(dragId), ids.indexOf(overId)) } : b))
+    } else {
+        next = move(blocks, from, to)
+    }
+    return { ...day, exercises: next.flatMap((b) => b.exercises) }
+}
+
+// Keyboard/touch fallback: nudges an exercise one place up (-1) or down (+1) —
+// inside its link group if it has one, otherwise past the neighbouring block.
+export function moveExercise(day, id, dir) {
+    const blocks = groupLinked(day.exercises, day.links)
+    const bi = blocks.findIndex((b) => b.exercises.some((e) => e.id === id))
+    if (bi === -1) return day
+    const block = blocks[bi]
+    if (block.link) {
+        const i = block.exercises.findIndex((e) => e.id === id)
+        const target = block.exercises[i + dir]
+        return target ? reorderExercises(day, id, target.id) : day
+    }
+    const neighbour = blocks[bi + dir]
+    return neighbour ? reorderExercises(day, id, neighbour.exercises[0].id) : day
+}
+
+// Whether moveExercise(day, id, dir) would change anything (for disabling menu items).
+export function canMoveExercise(day, id, dir) {
+    const blocks = groupLinked(day.exercises, day.links)
+    const bi = blocks.findIndex((b) => b.exercises.some((e) => e.id === id))
+    if (bi === -1) return false
+    const block = blocks[bi]
+    if (block.link) return !!block.exercises[block.exercises.findIndex((e) => e.id === id) + dir]
+    return !!blocks[bi + dir]
+}

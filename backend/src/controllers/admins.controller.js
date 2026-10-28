@@ -9,6 +9,7 @@ function flatten(user) {
         name: user.name,
         email: user.email,
         avatarColor: user.avatarColor,
+        avatarUrl: user.avatarUrl || null,
         status: user.status,
         joinDate: user.joinDate,
     }

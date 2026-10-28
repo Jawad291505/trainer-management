@@ -45,6 +45,10 @@ const userSchema = new mongoose.Schema(
 
         // Cosmetic — every front-end renders a coloured avatar (UserAvatar.jsx).
         avatarColor: { type: String, default: '#0b2545' },
+        // Optional profile photo (Cloudinary) — shown instead of the coloured initials
+        // when set. Trainers upload theirs from Settings (POST /api/auth/me/avatar).
+        avatarUrl: { type: String, default: null },
+        avatarPublicId: { type: String, default: null, select: false },
         phone: { type: String, trim: true },
 
         joinDate: { type: Date, default: Date.now },
@@ -57,6 +61,7 @@ userSchema.set('toJSON', {
     virtuals: true,
     transform(_doc, ret) {
         delete ret.passwordHash
+        delete ret.avatarPublicId
         delete ret.__v
         return ret
     },

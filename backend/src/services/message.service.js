@@ -38,8 +38,8 @@ export async function resolveConversation(actor, { conversationId, clientId } = 
     }
 
     await convo.populate([
-        { path: 'trainer', select: 'user', populate: { path: 'user', select: 'name avatarColor' } },
-        { path: 'client', select: 'user', populate: { path: 'user', select: 'name avatarColor' } },
+        { path: 'trainer', select: 'user', populate: { path: 'user', select: 'name avatarColor avatarUrl' } },
+        { path: 'client', select: 'user', populate: { path: 'user', select: 'name avatarColor avatarUrl' } },
     ])
 
     const mine =
@@ -64,6 +64,7 @@ function rowFor(convo, forRole) {
     return {
         name: other?.name,
         avatarColor: other?.avatarColor,
+        avatarUrl: other?.avatarUrl || null,
         id: String(convo._id),
         conversationId: String(convo._id),
         clientId: String(convo.client?._id),

@@ -74,7 +74,7 @@ export default function PaymentApprovals() {
             dataIndex: 'payerName',
             render: (_, r) => (
                 <div className="flex items-center gap-3">
-                    <UserAvatar name={r.payerName} color={r.payerAvatarColor} size={36} />
+                    <UserAvatar name={r.payerName} src={r.payerAvatarUrl || undefined} color={r.payerAvatarColor} size={36} />
                     <div className="min-w-0">
                         <div className="flex items-center gap-2">
                             <span className="truncate font-semibold text-text-primary">{r.payerName}</span>
@@ -177,7 +177,7 @@ export default function PaymentApprovals() {
                 {viewing && (
                     <div>
                         <div className="mb-4 flex items-center gap-3">
-                            <UserAvatar name={viewing.payerName} color={viewing.payerAvatarColor} size={44} />
+                            <UserAvatar name={viewing.payerName} src={viewing.payerAvatarUrl || undefined} color={viewing.payerAvatarColor} size={44} />
                             <div>
                                 <div className="font-bold text-text-primary">{viewing.payerName} <Tag color={viewing.payerType === 'trainer' ? 'purple' : 'blue'} style={{ borderRadius: 999 }}>{PAYER_LABEL[viewing.payerType]}</Tag></div>
                                 <div className="text-xs text-text-muted">{viewing.payerEmail}</div>

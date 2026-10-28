@@ -204,7 +204,7 @@ export default function MemberDetail() {
             <div className="app-card mb-6 p-5 md:p-6">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-center gap-4">
-                        <UserAvatar name={member.name} color={member.avatarColor} size={64} />
+                        <UserAvatar name={member.name} src={member.avatarUrl || undefined} color={member.avatarColor} size={64} />
                         <div>
                             <div className="flex items-center gap-3">
                                 <h1 className="m-0 text-xl font-extrabold text-text-primary md:text-2xl">{member.name}</h1>

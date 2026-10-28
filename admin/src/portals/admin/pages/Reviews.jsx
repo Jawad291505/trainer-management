@@ -45,7 +45,7 @@ export default function Reviews() {
             dataIndex: 'clientName',
             render: (name, r) => (
                 <div className="flex items-center gap-3">
-                    <UserAvatar name={name || ''} color={r.clientAvatarColor} size={34} />
+                    <UserAvatar name={name || ''} src={r.clientAvatarUrl || undefined} color={r.clientAvatarColor} size={34} />
                     <span className="font-semibold text-text-primary">{name}</span>
                 </div>
             ),
@@ -55,7 +55,7 @@ export default function Reviews() {
             dataIndex: 'trainerName',
             render: (name, r) => (
                 <div className="flex items-center gap-3">
-                    <UserAvatar name={name || ''} color={r.trainerAvatarColor} size={34} />
+                    <UserAvatar name={name || ''} src={r.trainerAvatarUrl || undefined} color={r.trainerAvatarColor} size={34} />
                     <span className="text-text-primary">{name}</span>
                 </div>
             ),

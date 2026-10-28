@@ -63,7 +63,7 @@ export default function RateTrainer() {
                 ) : (
                     <div className="app-card p-5">
                         <div className="flex items-center gap-3">
-                            <UserAvatar name={trainer.name || ''} color={trainer.avatarColor} size={44} />
+                            <UserAvatar name={trainer.name || ''} src={trainer.avatarUrl || undefined} color={trainer.avatarColor} size={44} />
                             <div>
                                 <div className="text-base font-bold text-text-primary">{trainer.name}</div>
                                 <div className="text-xs text-text-muted">

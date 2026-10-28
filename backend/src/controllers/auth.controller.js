@@ -5,6 +5,7 @@ import { signToken } from '../utils/jwt.js'
 import { User, Member, Trainer, Client } from '../models/index.js'
 import { ensureReferralCode, redeemReferralCode } from '../services/referral.service.js'
 import { ROLES } from '../config/constants.js'
+import { uploadAvatar, deleteImage } from '../services/cloudinary.service.js'
 
 // Assemble the "who am I" payload the front-end AuthContext needs. Exported for
 // reuse by memberSignup.controller.js, whose responses shape the same object.
@@ -27,7 +28,7 @@ export async function profileFor(user, loaded = {}) {
         return { ...base, trainer: trainer ? trainer.toJSON() : null }
     }
     if (user.role === ROLES.CLIENT) {
-        const populateTrainer = { path: 'trainer', populate: { path: 'user', select: 'name email avatarColor' } }
+        const populateTrainer = { path: 'trainer', populate: { path: 'user', select: 'name email avatarColor avatarUrl' } }
         const client = loaded.client
             ? await loaded.client.populate(populateTrainer)
             : await Client.findOne({ user: user._id }).populate(populateTrainer)
@@ -161,5 +162,35 @@ export const updateMe = asyncHandler(async (req, res) => {
     }
 
     await user.save()
+    res.json({ user: await profileFor(user) })
+})
+
+// POST /api/auth/me/avatar   multipart: { image }
+// Uploads a new profile photo to Cloudinary and swaps it in; the previous photo is removed.
+export const uploadMyAvatar = asyncHandler(async (req, res) => {
+    if (!req.file) throw ApiError.badRequest('An image file is required')
+    const user = await User.findById(req.user._id).select('+avatarPublicId')
+    let uploaded
+    try {
+        uploaded = await uploadAvatar(req.file.buffer, { userId: user._id })
+    } catch (err) {
+        throw ApiError.badRequest(err.message || 'Could not upload the photo')
+    }
+    const previous = user.avatarPublicId
+    user.avatarUrl = uploaded.url
+    user.avatarPublicId = uploaded.publicId
+    await user.save()
+    if (previous) deleteImage(previous).catch(() => {})
+    res.json({ user: await profileFor(user) })
+})
+
+// DELETE /api/auth/me/avatar — back to the coloured initials.
+export const removeMyAvatar = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).select('+avatarPublicId')
+    const previous = user.avatarPublicId
+    user.avatarUrl = null
+    user.avatarPublicId = null
+    await user.save()
+    if (previous) deleteImage(previous).catch(() => {})
     res.json({ user: await profileFor(user) })
 })

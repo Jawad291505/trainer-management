@@ -3,6 +3,7 @@ import { Form, Input, Switch, Button, App, Tabs, Modal } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
 import ThemePicker from '../../../components/common/ThemePicker'
 import UserAvatar from '../../../components/common/UserAvatar'
+import ChangePasswordCard from '../../../components/common/ChangePasswordCard'
 import { useAuth } from '../../../context/AuthContext'
 import { api } from '../../../services/api'
 
@@ -37,7 +38,7 @@ function ProfileTab() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="app-card p-5 lg:col-span-1">
                 <div className="flex flex-col items-center text-center">
-                    <UserAvatar name={user?.name || 'Admin'} color={user?.avatarColor || 'var(--color-primary)'} size={84} />
+                    <UserAvatar name={user?.name || 'Admin'} src={user?.avatarUrl || undefined} color={user?.avatarColor || 'var(--color-primary)'} size={84} />
                     <div className="mt-3 text-lg font-bold text-text-primary">{user?.name || 'Admin'}</div>
                     <div className="text-sm text-text-muted">Super Admin</div>
                 </div>
@@ -142,6 +143,7 @@ export default function Settings() {
             <Tabs
                 items={[
                     { key: 'profile', label: 'Profile', children: <ProfileTab /> },
+                    { key: 'security', label: 'Security', children: <ChangePasswordCard /> },
                     { key: 'appearance', label: 'Appearance', children: <AppearanceTab /> },
                     { key: 'notifications', label: 'Notifications', children: <NotificationsTab /> },
                 ]}

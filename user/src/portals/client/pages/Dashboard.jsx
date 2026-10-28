@@ -82,7 +82,7 @@ export default function Dashboard() {
                 <div className="app-card animate-rise flex flex-col p-5 lg:col-span-2">
                     <h3 className="section-title mb-4">Your Trainer</h3>
                     <div className="flex items-center gap-4">
-                        <UserAvatar name={trainerName} color={trainerInfo?.user?.avatarColor || '#0b2545'} size={60} />
+                        <UserAvatar name={trainerName} src={trainerInfo?.user?.avatarUrl || undefined} color={trainerInfo?.user?.avatarColor || '#0b2545'} size={60} />
                         <div className="min-w-0 flex-1">
                             <span className="font-bold text-text-primary">{trainerName}</span>
                             {trainerSpec && <div className="text-xs text-text-muted">{trainerSpec}</div>}

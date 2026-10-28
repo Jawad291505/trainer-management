@@ -69,7 +69,7 @@ export default function TrainerDetail() {
             title: 'Client', dataIndex: 'name',
             render: (_, r) => (
                 <div className="flex cursor-pointer items-center gap-3" onClick={() => navigate(`/clients/${r.id}`)}>
-                    <UserAvatar name={r.name} color={r.avatarColor} size={34} />
+                    <UserAvatar name={r.name} src={r.avatarUrl || undefined} color={r.avatarColor} size={34} />
                     <div className="min-w-0">
                         <div className="truncate font-semibold text-text-primary">{r.name}</div>
                         <div className="truncate text-xs text-text-muted">{r.email}</div>
@@ -90,7 +90,7 @@ export default function TrainerDetail() {
             <div className="app-card mb-6 p-5 md:p-6">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-center gap-4">
-                        <UserAvatar name={trainer.name} color={trainer.avatarColor} size={64} />
+                        <UserAvatar name={trainer.name} src={trainer.avatarUrl || undefined} color={trainer.avatarColor} size={64} />
                         <div>
                             <div className="flex items-center gap-3">
                                 <h1 className="m-0 text-xl font-extrabold text-text-primary md:text-2xl">{trainer.name}</h1>

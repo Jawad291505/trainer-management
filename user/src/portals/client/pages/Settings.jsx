@@ -1,6 +1,7 @@
 import { Switch, Button, App, Tabs } from 'antd'
 import PageHeader from '../../../components/common/PageHeader'
 import ThemePicker from '../../../components/common/ThemePicker'
+import ChangePasswordCard from '../../../components/common/ChangePasswordCard'
 
 function AppearanceTab() {
     return (
@@ -56,7 +57,6 @@ function AccountTab() {
         <div className="app-card p-5">
             <h3 className="section-title mb-4">Account</h3>
             <div className="flex flex-col gap-3">
-                <Button block onClick={() => message.info('Password reset link sent')}>Change password</Button>
                 <Button block onClick={() => message.info('Export requested')}>Export my data</Button>
                 <Button block danger onClick={() => message.info('Contact your trainer to deactivate')}>Deactivate account</Button>
             </div>
@@ -72,6 +72,7 @@ export default function Settings() {
                 items={[
                     { key: 'appearance', label: 'Appearance', children: <AppearanceTab /> },
                     { key: 'notifications', label: 'Notifications', children: <NotificationsTab /> },
+                    { key: 'security', label: 'Security', children: <ChangePasswordCard /> },
                     { key: 'account', label: 'Account', children: <AccountTab /> },
                 ]}
             />

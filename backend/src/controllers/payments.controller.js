@@ -17,7 +17,7 @@ export const listPayments = asyncHandler(async (req, res) => {
     }
 
     const payments = await Payment.find(filter)
-        .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })
+        .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
         .populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })
         .sort({ date: -1 })
 

@@ -174,7 +174,7 @@ export async function getAdminDashboard() {
 
     const [members, teams, paymentAgg, revenueAgg, trainers, totalClients, memberGrowthAgg, trainerGrowthAgg, paidTrainerAgg] = await Promise.all([
         Member.find({}, 'user plan status planExpiryDate trainerLimit clientLimit joinDate')
-            .populate('user', 'name email avatarColor')
+            .populate('user', 'name email avatarColor avatarUrl')
             .populate('plan', 'name priceMonthly discountPercent currency')
             .lean(),
         // Trainers grouped by the member who manages them (denormalised clientCount, as in getMemberStats).
@@ -190,7 +190,7 @@ export async function getAdminDashboard() {
         // Every trainer on the platform, however they got here: self-signup
         // (outsourced) or added by the admin / a member.
         Trainer.find({}, 'user managedBy affiliation plan planExpiryDate status capacity clientCount joinDate')
-            .populate('user', 'name email avatarColor')
+            .populate('user', 'name email avatarColor avatarUrl')
             .populate('plan', 'name')
             .populate({ path: 'managedBy', select: 'user', populate: { path: 'user', select: 'name' } })
             .lean(),
@@ -220,6 +220,7 @@ export async function getAdminDashboard() {
             name: t.user?.name,
             email: t.user?.email,
             avatarColor: t.user?.avatarColor,
+            avatarUrl: t.user?.avatarUrl || null,
             affiliation,
             memberName: t.managedBy?.user?.name || null,
             status: t.status,
@@ -244,6 +245,7 @@ export async function getAdminDashboard() {
             name: mb.user?.name,
             email: mb.user?.email,
             avatarColor: mb.user?.avatarColor,
+            avatarUrl: mb.user?.avatarUrl || null,
             memberStatus: mb.status,
             plan: mb.plan?.name || null,
             planExpiryDate: mb.planExpiryDate,
@@ -335,7 +337,7 @@ export async function getMemberDashboard(memberId) {
         Member.findById(memberId, 'trainerLimit clientLimit plan planExpiryDate status')
             .populate('plan', 'name maxClients maxTrainers currency')
             .lean(),
-        Trainer.find({ managedBy: memberId }).populate('user', 'name email avatarColor').lean(),
+        Trainer.find({ managedBy: memberId }).populate('user', 'name email avatarColor avatarUrl').lean(),
     ])
     const trainerIds = trainers.map((t) => t._id)
     const inScope = { $in: trainerIds }
@@ -361,7 +363,7 @@ export async function getMemberDashboard(memberId) {
         Review.find({ trainer: inScope })
             .sort({ createdAt: -1 })
             .limit(5)
-            .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor' } })
+            .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
             .populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })
             .lean(),
     ])
@@ -378,6 +380,7 @@ export async function getMemberDashboard(memberId) {
             name: t.user?.name,
             email: t.user?.email,
             avatarColor: t.user?.avatarColor,
+            avatarUrl: t.user?.avatarUrl || null,
             specialization: t.specialization,
             status: t.status,
             clients: c?.clients || 0,
@@ -419,6 +422,7 @@ export async function getMemberDashboard(memberId) {
             id: String(r._id),
             clientName: r.client?.user?.name,
             clientAvatarColor: r.client?.user?.avatarColor,
+            clientAvatarUrl: r.client?.user?.avatarUrl || null,
             trainerName: r.trainer?.user?.name,
             rating: r.rating,
             comment: r.comment,

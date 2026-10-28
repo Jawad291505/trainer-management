@@ -60,7 +60,7 @@ export default function Reviews() {
                                 <div key={r.id} className="app-card p-4">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex min-w-0 items-center gap-3">
-                                            <UserAvatar name={r.clientName || ''} color={r.clientAvatarColor} size={36} />
+                                            <UserAvatar name={r.clientName || ''} src={r.clientAvatarUrl || undefined} color={r.clientAvatarColor} size={36} />
                                             <div className="min-w-0">
                                                 <div className="truncate text-sm font-semibold text-text-primary">{r.clientName}</div>
                                                 <div className="text-xs text-text-muted">{dayjs(r.updatedAt).format('D MMM YYYY')}</div>

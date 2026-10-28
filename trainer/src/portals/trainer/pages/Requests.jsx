@@ -174,7 +174,7 @@ export default function Requests() {
                                         className="flex flex-1 items-start gap-3 text-left"
                                         onClick={() => go(r, `/clients/${r.clientId}`)}
                                     >
-                                        <UserAvatar name={r.clientName} color={r.avatarColor} size={42} />
+                                        <UserAvatar name={r.clientName} src={r.avatarUrl || undefined} color={r.avatarColor} size={42} />
                                         <div className="min-w-0">
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <span className="font-semibold text-text-primary transition-colors hover:text-primary">

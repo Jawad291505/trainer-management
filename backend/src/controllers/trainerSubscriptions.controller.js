@@ -19,6 +19,7 @@ function flatten(trainer, extras) {
         name: u?.name,
         email: u?.email,
         avatarColor: u?.avatarColor,
+        avatarUrl: u?.avatarUrl || null,
         status: trainer.status,
         onboardingStage: trainer.onboardingStage || null,
         plan: plan ? {
@@ -55,7 +56,7 @@ export const listTrainerSubscriptions = asyncHandler(async (req, res) => {
 
     const paging = pageParams(req.query)
     let query = Trainer.find(filter)
-        .populate('user', 'name email avatarColor status')
+        .populate('user', 'name email avatarColor avatarUrl status')
         .populate('plan')
         .sort({ createdAt: -1, _id: -1 })
         .lean()

@@ -17,6 +17,7 @@ function flatten(client) {
         name: u?.name,
         email: u?.email,
         avatarColor: u?.avatarColor,
+        avatarUrl: u?.avatarUrl || null,
         phone: u?.phone,
         role: 'Client',
         age: client.age ?? null,
@@ -123,7 +124,7 @@ export const listClients = asyncHandler(async (req, res) => {
 
     const paging = pageParams(req.query)
     let query = Client.find(filter)
-        .populate('user', 'name email avatarColor phone status')
+        .populate('user', 'name email avatarColor avatarUrl phone status')
         .populate({ path: 'trainer', populate: { path: 'user', select: 'name' } })
         .sort({ createdAt: -1, _id: -1 })
         .lean()
@@ -138,8 +139,8 @@ export const listClients = asyncHandler(async (req, res) => {
 export const getClient = asyncHandler(async (req, res) => {
     const id = req.params.id === 'me' ? req.client?._id : req.params.id
     const client = await Client.findById(id)
-        .populate('user', 'name email avatarColor phone status')
-        .populate({ path: 'trainer', populate: { path: 'user', select: 'name email avatarColor specialization' } })
+        .populate('user', 'name email avatarColor avatarUrl phone status')
+        .populate({ path: 'trainer', populate: { path: 'user', select: 'name email avatarColor avatarUrl specialization' } })
     if (!client) throw ApiError.notFound('Client not found')
 
     if (req.user.role === 'trainer' && String(client.trainer?._id) !== String(req.trainer._id)) {

@@ -159,7 +159,7 @@ export default function Members() {
                         <div key={m.id} className="app-card app-card-hover animate-rise flex flex-col p-5">
                             <div className="flex items-start justify-between">
                                 <button className="flex items-center gap-3 text-left" onClick={() => handleAction('view', m)}>
-                                    <UserAvatar name={m.name} color={m.avatarColor} size={48} />
+                                    <UserAvatar name={m.name} src={m.avatarUrl || undefined} color={m.avatarColor} size={48} />
                                     <div>
                                         <div className="font-bold text-text-primary transition-colors hover:text-primary">{m.name}</div>
                                         <div className="text-xs text-text-muted">{m.title}</div>

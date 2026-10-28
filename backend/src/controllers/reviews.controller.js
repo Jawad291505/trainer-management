@@ -6,8 +6,8 @@ import { REVIEW_MAX_RATING, REVIEW_MAX_COMMENT } from '../config/constants.js'
 import { escapeRegex, pageParams, pagedBody } from '../utils/pagination.js'
 
 const POPULATE = [
-    { path: 'client', populate: { path: 'user', select: 'name avatarColor' } },
-    { path: 'trainer', populate: { path: 'user', select: 'name avatarColor' } },
+    { path: 'client', populate: { path: 'user', select: 'name avatarColor avatarUrl' } },
+    { path: 'trainer', populate: { path: 'user', select: 'name avatarColor avatarUrl' } },
 ]
 
 // Flat shape the front-ends read (`id`, `clientName`, ...).
@@ -17,9 +17,11 @@ function serialize(r) {
         clientId: String(r.client?._id || r.client),
         clientName: r.client?.user?.name,
         clientAvatarColor: r.client?.user?.avatarColor,
+        clientAvatarUrl: r.client?.user?.avatarUrl || null,
         trainerId: String(r.trainer?._id || r.trainer),
         trainerName: r.trainer?.user?.name,
         trainerAvatarColor: r.trainer?.user?.avatarColor,
+        trainerAvatarUrl: r.trainer?.user?.avatarUrl || null,
         rating: r.rating,
         comment: r.comment,
         createdAt: r.createdAt,
@@ -111,9 +113,9 @@ export const listReviews = asyncHandler(async (req, res) => {
     if (summary) body.summary = summary
 
     if (role === 'client') {
-        const client = await Client.findById(req.client._id, 'trainer').populate({ path: 'trainer', populate: { path: 'user', select: 'name avatarColor' } })
+        const client = await Client.findById(req.client._id, 'trainer').populate({ path: 'trainer', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
         const trainer = client?.trainer
-        body.trainer = trainer ? { id: String(trainer._id), name: trainer.user?.name, avatarColor: trainer.user?.avatarColor } : null
+        body.trainer = trainer ? { id: String(trainer._id), name: trainer.user?.name, avatarColor: trainer.user?.avatarColor, avatarUrl: trainer.user?.avatarUrl || null } : null
         body.current = trainer ? items.find((r) => r.trainerId === String(trainer._id)) || null : null
     }
     res.json(body)

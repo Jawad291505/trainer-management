@@ -106,6 +106,15 @@ export function uploadPaymentProof(buffer, { memberId }) {
     })
 }
 
+// ---- Profile photos (a user's own avatar) ----
+export function uploadAvatar(buffer, { userId }) {
+    assertConfigured('Profile photo uploads')
+    return uploadImageBuffer(buffer, {
+        folder: 'fittrack/avatars',
+        publicId: `user-${userId}-${Date.now()}`,
+    })
+}
+
 // ---- Food-library / meal images (optional photos on foods and diet-plan meals) ----
 const LIBRARY_IMAGE_FOLDER = 'fittrack/library'
 export const LIBRARY_IMAGE_KINDS = ['food', 'meal']

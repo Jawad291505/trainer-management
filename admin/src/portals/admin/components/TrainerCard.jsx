@@ -53,7 +53,7 @@ export default function TrainerCard({ trainer, onAction, showType = false, showR
                     className="flex items-center gap-3 text-left"
                     onClick={() => onAction('view', trainer)}
                 >
-                    <UserAvatar name={trainer.name} color={trainer.avatarColor} size={48} />
+                    <UserAvatar name={trainer.name} src={trainer.avatarUrl || undefined} color={trainer.avatarColor} size={48} />
                     <div>
                         <div className="font-bold text-text-primary transition-colors hover:text-primary">
                             {trainer.name}

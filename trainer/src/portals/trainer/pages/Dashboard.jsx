@@ -132,7 +132,7 @@ export default function Dashboard() {
                         <div className="flex max-h-[280px] flex-col gap-1 overflow-y-auto">
                             {programmeClients.map((c) => (
                                 <button key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className="flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors hover:bg-surface-secondary">
-                                    <UserAvatar name={c.name} color={c.avatarColor} size={38} />
+                                    <UserAvatar name={c.name} src={c.avatarUrl || undefined} color={c.avatarColor} size={38} />
                                     <div className="min-w-0 flex-1">
                                         <div className="truncate text-sm font-semibold text-text-primary">{c.name}</div>
                                         <div className="text-xs text-text-muted">{programmeDay(c.programme)}</div>
@@ -158,7 +158,7 @@ export default function Dashboard() {
                         <div className="flex flex-col gap-3">
                             {attentionClients.map((c) => (
                                 <button key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className="flex items-center gap-3 rounded-xl p-2.5 text-left transition-colors hover:bg-surface-secondary">
-                                    <UserAvatar name={c.name} color={c.avatarColor} size={38} />
+                                    <UserAvatar name={c.name} src={c.avatarUrl || undefined} color={c.avatarColor} size={38} />
                                     <div className="min-w-0 flex-1">
                                         <div className="truncate text-sm font-semibold text-text-primary">{c.name}</div>
                                         <div className="text-xs" style={{ color: 'var(--color-warning)' }}>Low completion</div>
@@ -177,7 +177,7 @@ export default function Dashboard() {
                     <div className="flex flex-col gap-4">
                         {progressClients.map((c) => (
                             <div key={c.id} className="flex items-center gap-4">
-                                <UserAvatar name={c.name} color={c.avatarColor} size={40} />
+                                <UserAvatar name={c.name} src={c.avatarUrl || undefined} color={c.avatarColor} size={40} />
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between">
                                         <span className="truncate text-sm font-semibold text-text-primary">{c.name}</span>

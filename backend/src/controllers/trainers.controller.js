@@ -22,6 +22,7 @@ function flatten(trainer) {
         name: u?.name,
         email: u?.email,
         avatarColor: u?.avatarColor,
+        avatarUrl: u?.avatarUrl || null,
         specialization: trainer.specialization,
         status: trainer.status,
         capacity: trainer.capacity,
@@ -74,7 +75,7 @@ export const listTrainers = asyncHandler(async (req, res) => {
 
     const paging = pageParams(req.query)
     let query = Trainer.find(filter)
-        .populate('user', 'name email avatarColor status')
+        .populate('user', 'name email avatarColor avatarUrl status')
         .populate(MANAGED_BY_POPULATE)
         .sort({ createdAt: -1, _id: -1 })
         .lean()
@@ -89,7 +90,7 @@ export const listTrainers = asyncHandler(async (req, res) => {
 export const getTrainer = asyncHandler(async (req, res) => {
     const id = req.params.id === 'me' ? req.trainer?._id : req.params.id
     const trainer = await Trainer.findById(id)
-        .populate('user', 'name email avatarColor status phone')
+        .populate('user', 'name email avatarColor avatarUrl status phone')
         .populate(MANAGED_BY_POPULATE)
     if (!trainer) throw ApiError.notFound('Trainer not found')
 
@@ -98,7 +99,7 @@ export const getTrainer = asyncHandler(async (req, res) => {
     }
     assertMemberOwns(req, trainer)
 
-    const clients = await Client.find({ trainer: trainer._id }).populate('user', 'name email avatarColor')
+    const clients = await Client.find({ trainer: trainer._id }).populate('user', 'name email avatarColor avatarUrl')
     res.json({ ...flatten(trainer), clientList: clients })
 })
 
@@ -154,7 +155,7 @@ export const createTrainer = asyncHandler(async (req, res) => {
         affiliation,
     })
     await ensureReferralCode(trainer)
-    await trainer.populate('user', 'name email avatarColor status')
+    await trainer.populate('user', 'name email avatarColor avatarUrl status')
     res.status(201).json({
         ...flatten(trainer),
         ...(inviteSent ? {} : { inviteWarning, tempPassword, loginUrl }),
@@ -163,7 +164,7 @@ export const createTrainer = asyncHandler(async (req, res) => {
 
 // PATCH /api/trainers/:id   (admin, or the assigned member) — profile, status, capacity, rating
 export const updateTrainer = asyncHandler(async (req, res) => {
-    const trainer = await Trainer.findById(req.params.id).populate('user', 'name email avatarColor status')
+    const trainer = await Trainer.findById(req.params.id).populate('user', 'name email avatarColor avatarUrl status')
     if (!trainer) throw ApiError.notFound('Trainer not found')
     assertMemberOwns(req, trainer)
 
@@ -193,7 +194,7 @@ export const updateTrainer = asyncHandler(async (req, res) => {
 // PATCH /api/trainers/:id/capacity   (admin, or the assigned member)  Body: { delta } or { capacity }
 // Backs the admin Assignments "Increase capacity" button.
 export const adjustCapacity = asyncHandler(async (req, res) => {
-    const trainer = await Trainer.findById(req.params.id).populate('user', 'name email avatarColor status')
+    const trainer = await Trainer.findById(req.params.id).populate('user', 'name email avatarColor avatarUrl status')
     if (!trainer) throw ApiError.notFound('Trainer not found')
     assertMemberOwns(req, trainer)
 
