@@ -15,6 +15,7 @@ import UserAvatar from '../common/UserAvatar'
 import NotificationMenu from './NotificationMenu'
 import ThemePicker from '../common/ThemePicker'
 import { useAuth } from '../../context/AuthContext'
+import { useBadges } from '../../context/BadgesContext'
 
 // Search index will be built dynamically when data is available
 const SEARCH_INDEX = []
@@ -25,7 +26,7 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
     const [notifOpen, setNotifOpen] = useState(false)
     const [query, setQuery] = useState('')
 
-    const unread = 0
+    const { notifications: unread } = useBadges()
 
     const searchOptions = useMemo(() => {
         const q = query.trim().toLowerCase()
@@ -119,7 +120,7 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
                         className="flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-secondary"
                         aria-label="Notifications"
                     >
-                        <Badge count={unread} size="small" offset={[-2, 2]}>
+                        <Badge count={unread} overflowCount={99} size="small" offset={[-2, 2]}>
                             <BellOutlined style={{ fontSize: 17 }} />
                         </Badge>
                     </button>

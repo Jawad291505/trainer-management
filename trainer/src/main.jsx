@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext'
 import UserScope from './context/UserScope'
 import { ScheduleProvider } from './context/ScheduleContext'
 import { CorrectionsProvider } from './context/CorrectionsContext'
+import { BadgesProvider } from './context/BadgesContext'
 import { ProgressPhotosProvider } from './context/ProgressPhotosContext'
 import { LibraryProvider } from './context/LibraryContext'
 import App from './App'
@@ -19,11 +20,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     <UserScope>
                         <ScheduleProvider>
                             <CorrectionsProvider>
-                                <ProgressPhotosProvider>
-                                    <LibraryProvider>
-                                        <App />
-                                    </LibraryProvider>
-                                </ProgressPhotosProvider>
+                                <BadgesProvider>
+                                    <ProgressPhotosProvider>
+                                        <LibraryProvider>
+                                            <App />
+                                        </LibraryProvider>
+                                    </ProgressPhotosProvider>
+                                </BadgesProvider>
                             </CorrectionsProvider>
                         </ScheduleProvider>
                     </UserScope>

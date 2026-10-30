@@ -38,10 +38,10 @@ export const clientNavGroups = [
         heading: 'Communication',
         caption: 'Messages & alerts',
         items: [
-            { key: '/messages', label: 'Messages', icon: MessageOutlined },
+            { key: '/messages', label: 'Messages', icon: MessageOutlined, badge: 'messages' },
             { key: '/requests', label: 'My Requests', icon: EditOutlined, badge: 'corrections' },
             { key: '/rate-trainer', label: 'Rate Trainer', icon: StarOutlined },
-            { key: '/notifications', label: 'Notifications', icon: BellOutlined },
+            { key: '/notifications', label: 'Notifications', icon: BellOutlined, badge: 'notifications' },
         ],
     },
     {

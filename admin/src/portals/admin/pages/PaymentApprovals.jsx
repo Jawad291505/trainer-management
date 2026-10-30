@@ -12,6 +12,7 @@ import LoadingSkeleton from '../../../components/feedback/LoadingSkeleton'
 import SectionError from '../../../components/feedback/SectionError'
 import UserAvatar from '../../../components/common/UserAvatar'
 import { api } from '../../../services/api'
+import { useBadges } from '../../../context/BadgesContext'
 
 const money = (n, currency) => `${currency} ${Number(n).toLocaleString()}`
 const fmtDate = (d) => (d ? new Date(d).toLocaleString() : '—')
@@ -26,6 +27,7 @@ const SOURCE_LABEL = { self_signup: 'Self-signup', admin_renewal: 'Admin renewal
 // resubmit from their own Pending Approval screen.
 export default function PaymentApprovals() {
     const { message } = App.useApp()
+    const { refreshApprovals } = useBadges()
     const [status, setStatus] = useState('pending')
     const [payer, setPayer] = useState('all')
     const [search, setSearch] = useState('')
@@ -41,6 +43,7 @@ export default function PaymentApprovals() {
         try {
             await api.patch(`/member-payments/${payment.id}/approve`, {})
             fetchPayments()
+            refreshApprovals()
             message.success(payment.source === 'plan_change'
                 ? `${payment.payerName} moved to the ${payment.planName} plan`
                 : `${payment.payerName} approved — their account is now active`)
@@ -57,6 +60,7 @@ export default function PaymentApprovals() {
         try {
             await api.patch(`/member-payments/${rejecting.id}/reject`, { reason })
             fetchPayments()
+            refreshApprovals()
             message.success(`${rejecting.payerName}'s payment was rejected`)
             setRejecting(null)
             setReason('')

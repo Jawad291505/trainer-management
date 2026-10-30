@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { emitNotificationsChanged } from '../realtime/io.js'
 
 // In-app notifications. Every portal has a NotificationMenu + NotificationsPage.
 // Types seen across the apps: message, followup, progress, session, payment,
@@ -23,5 +24,16 @@ const notificationSchema = new mongoose.Schema(
 
 // Bell/list reads: a user's newest notifications.
 notificationSchema.index({ user: 1, createdAt: -1 })
+
+// Every creation path (Notification.create, notify.service's insertMany) pings the
+// recipient's open tabs so their badges refetch. Read-state changes ping from the
+// places that flip `read`.
+notificationSchema.pre('save', function () {
+    this.$locals.wasNew = this.isNew
+})
+notificationSchema.post('save', (doc) => {
+    if (doc.$locals.wasNew) emitNotificationsChanged([doc.user])
+})
+notificationSchema.post('insertMany', (docs) => emitNotificationsChanged(docs.map((d) => d.user)))
 
 export const Notification = mongoose.model('Notification', notificationSchema)

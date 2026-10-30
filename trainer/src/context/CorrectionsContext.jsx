@@ -41,10 +41,16 @@ export function CorrectionsProvider({ children }) {
         [loaded, requests, summaryCount],
     )
 
+    // Badge refresh (a new request came in): quietly refetch whichever source openCount reads.
+    const refreshCount = useCallback(() => {
+        if (loaded) return reload({ silent: true })
+        return api.get('/corrections?summary=1').then((res) => setSummaryCount(res.openCount || 0)).catch(() => { })
+    }, [loaded, reload])
+
     const loading = status === 'idle' || status === 'loading'
     const value = useMemo(
-        () => ({ requests, resolve, decline, reopen, markSeen, openCount, loaded, loading, error, reload, ensureLoaded }),
-        [requests, resolve, decline, reopen, markSeen, openCount, loaded, loading, error, reload, ensureLoaded],
+        () => ({ requests, resolve, decline, reopen, markSeen, openCount, refreshCount, loaded, loading, error, reload, ensureLoaded }),
+        [requests, resolve, decline, reopen, markSeen, openCount, refreshCount, loaded, loading, error, reload, ensureLoaded],
     )
     return <CorrectionsContext.Provider value={value}>{children}</CorrectionsContext.Provider>
 }

@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { Notification } from '../models/index.js'
 import { pageParams, pagedBody } from '../utils/pagination.js'
+import { emitNotificationsChanged } from '../realtime/io.js'
 
 // "5 min ago" style label the portals render as `n.time`.
 function timeAgo(date) {
@@ -31,6 +32,11 @@ const serialize = (n) => ({
 // GET /api/notifications?unread=1&limit=50
 // Also: ?status=all|unread|read, and opt-in pagination with ?page=&limit= (see utils/pagination.js).
 export const listNotifications = asyncHandler(async (req, res) => {
+    // ?summary=1 — just the unread count for the sidebar / bell badges.
+    if (req.query.summary === '1') {
+        return res.json({ unreadCount: await Notification.countDocuments({ user: req.user._id, read: false }) })
+    }
+
     const filter = { user: req.user._id }
     if (req.query.unread === '1' || req.query.status === 'unread') filter.read = false
     else if (req.query.status === 'read') filter.read = true
@@ -52,13 +58,16 @@ export const listNotifications = asyncHandler(async (req, res) => {
 export const markRead = asyncHandler(async (req, res) => {
     const n = await Notification.findOne({ _id: req.params.id, user: req.user._id })
     if (!n) throw ApiError.notFound('Notification not found')
+    const wasUnread = !n.read
     n.read = true
     await n.save()
+    if (wasUnread) emitNotificationsChanged([req.user._id])
     res.json(serialize(n))
 })
 
 // PATCH /api/notifications/read-all
 export const markAllRead = asyncHandler(async (req, res) => {
-    await Notification.updateMany({ user: req.user._id, read: false }, { read: true })
+    const result = await Notification.updateMany({ user: req.user._id, read: false }, { read: true })
+    if (result.modifiedCount) emitNotificationsChanged([req.user._id])
     res.json({ ok: true })
 })

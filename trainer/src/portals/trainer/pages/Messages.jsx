@@ -47,13 +47,16 @@ export default function Messages() {
         if (!s) return
         socketRef.current = s
 
-        s.on('conversation:updated', (row) => {
+        // Named so cleanup removes only this page's listener — the sidebar badge
+        // listens to the same event on the shared socket.
+        const onConversationUpdated = (row) => {
             setConversations((prev) => {
                 const idx = prev.findIndex((c) => c.conversationId === row.conversationId || c.id === row.id)
                 if (idx >= 0) { const n = [...prev]; n[idx] = { ...n[idx], ...row }; return n }
                 return [row, ...prev]
             })
-        })
+        }
+        s.on('conversation:updated', onConversationUpdated)
 
         s.on('message:new', (payload) => {
             if (!payload?.message) return
@@ -69,7 +72,7 @@ export default function Messages() {
         })
 
         return () => {
-            s.off('conversation:updated')
+            s.off('conversation:updated', onConversationUpdated)
             s.off('message:new')
             s.off('typing')
         }

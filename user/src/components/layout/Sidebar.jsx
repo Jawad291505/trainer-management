@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { clientNavGroups } from '../../constants/navigation'
-import { useCorrectionsBadge } from '../../context/CorrectionsContext'
+import { useBadges, formatBadge } from '../../context/BadgesContext'
 
 const NAV_GROUPS = clientNavGroups
 const BRAND_SUBTITLE = 'My Fitness'
@@ -30,8 +30,7 @@ function Logo({ collapsed }) {
 export default function Sidebar({ collapsed, onNavigate }) {
     const location = useLocation()
     const navigate = useNavigate()
-    const openCount = useCorrectionsBadge()
-    const badgeCounts = { corrections: openCount }
+    const badgeCounts = useBadges()
 
     const isActive = (key) =>
         key === '/' ? location.pathname === '/' : location.pathname.startsWith(key)
@@ -83,7 +82,7 @@ export default function Sidebar({ collapsed, onNavigate }) {
                                                 className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
                                                 style={{ background: 'var(--color-danger)' }}
                                             >
-                                                {count}
+                                                {formatBadge(count)}
                                             </span>
                                         )}
                                     </span>
@@ -93,7 +92,7 @@ export default function Sidebar({ collapsed, onNavigate }) {
                                             className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white"
                                             style={{ background: 'var(--color-danger)' }}
                                         >
-                                            {count}
+                                            {formatBadge(count)}
                                         </span>
                                     )}
                                 </button>

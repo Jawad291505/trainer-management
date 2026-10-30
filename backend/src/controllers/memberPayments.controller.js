@@ -237,6 +237,11 @@ export const myPayments = asyncHandler(async (req, res) => {
 // one payer (detail pages). `search` matches the payer's name or email.
 // Pagination is opt-in (see utils/pagination.js).
 export const listMemberPayments = asyncHandler(async (req, res) => {
+    // ?summary=1 — just the pending count for the Payment Approvals sidebar badge.
+    if (req.query.summary === '1') {
+        return res.json({ pendingCount: await MemberPayment.countDocuments({ status: 'pending' }) })
+    }
+
     const filter = {}
     if (req.query.status && req.query.status !== 'all') filter.status = req.query.status
     if (req.query.payer === 'member') filter.member = { $ne: null }

@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext'
 import UserScope from './context/UserScope'
 import { ScheduleProvider } from './context/ScheduleContext'
 import { CorrectionsProvider } from './context/CorrectionsContext'
+import { BadgesProvider } from './context/BadgesContext'
 import { ProgressPhotosProvider } from './context/ProgressPhotosContext'
 import App from './App'
 import './styles/global.css'
@@ -18,9 +19,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     <UserScope>
                         <ScheduleProvider>
                             <CorrectionsProvider>
-                                <ProgressPhotosProvider>
-                                    <App />
-                                </ProgressPhotosProvider>
+                                <BadgesProvider>
+                                    <ProgressPhotosProvider>
+                                        <App />
+                                    </ProgressPhotosProvider>
+                                </BadgesProvider>
                             </CorrectionsProvider>
                         </ScheduleProvider>
                     </UserScope>

@@ -15,3 +15,10 @@ export function getIo() {
 // their open tabs/devices.
 export const userRoom = (userId) => `user:${userId}`
 export const conversationRoom = (conversationId) => `conversation:${conversationId}`
+
+// Tell each user's open tabs that their notifications changed (new ones arrived,
+// or some were read) so the sidebar / bell badges refetch their unread count.
+export function emitNotificationsChanged(userIds) {
+    if (!io) return
+    for (const id of new Set(userIds.map(String))) io.to(userRoom(id)).emit('notifications:changed')
+}

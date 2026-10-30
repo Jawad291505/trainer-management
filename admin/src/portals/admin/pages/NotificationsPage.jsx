@@ -14,6 +14,7 @@ import Pager from '../../../components/common/Pager'
 import { usePagedList } from '../../../hooks/usePagedList'
 import SectionError from '../../../components/feedback/SectionError'
 import { api } from '../../../services/api'
+import { useBadges } from '../../../context/BadgesContext'
 
 const ICONS = {
     payment: CreditCardOutlined,
@@ -24,6 +25,7 @@ const ICONS = {
 
 export default function NotificationsPage() {
     const { message } = App.useApp()
+    const { refreshNotifications } = useBadges()
     const [filter, setFilter] = useState('all')
     // The read / unread filter and paging are applied by the backend.
     const list = usePagedList('/notifications', { params: { status: filter }, pageSize: 20 })
@@ -33,7 +35,18 @@ export default function NotificationsPage() {
         try {
             await api.patch('/notifications/read-all')
             load()
+            refreshNotifications()
             message.success('All marked as read')
+        } catch (err) {
+            message.error(err.message)
+        }
+    }
+
+    const markRead = async (n) => {
+        try {
+            await api.patch(`/notifications/${n.id}/read`)
+            load()
+            refreshNotifications()
         } catch (err) {
             message.error(err.message)
         }
@@ -73,8 +86,9 @@ export default function NotificationsPage() {
                         return (
                             <div
                                 key={n.id}
-                                className="flex items-start gap-4 p-4 transition-colors"
+                                className={`flex items-start gap-4 p-4 transition-colors ${n.unread ? 'cursor-pointer' : ''}`}
                                 style={{ background: n.unread ? 'var(--color-surface-secondary)' : 'transparent' }}
+                                onClick={() => n.unread && markRead(n)}
                             >
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: 'var(--color-primary-soft)', color: 'var(--color-primary)' }}>
                                     <Icon />

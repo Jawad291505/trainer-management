@@ -57,7 +57,7 @@ export const adminNavGroups = [
             { key: '/diet-plans', label: 'Diet Plans', icon: ProfileOutlined },
             { key: '/exercise-plans', label: 'Exercise Plans', icon: ScheduleOutlined },
             { key: '/subscription-plans', label: 'Subscription Plans', icon: CrownOutlined },
-            { key: '/payment-approvals', label: 'Payment Approvals', icon: FileDoneOutlined },
+            { key: '/payment-approvals', label: 'Payment Approvals', icon: FileDoneOutlined, badge: 'approvals' },
             { key: '/payments', label: 'Payments', icon: CreditCardOutlined },
         ],
     },
@@ -65,7 +65,7 @@ export const adminNavGroups = [
         heading: 'Account',
         caption: 'Alerts & preferences',
         items: [
-            { key: '/notifications', label: 'Notifications', icon: BellOutlined },
+            { key: '/notifications', label: 'Notifications', icon: BellOutlined, badge: 'notifications' },
             { key: '/settings', label: 'Settings', icon: SettingOutlined },
         ],
     },
@@ -108,7 +108,7 @@ export const memberNavGroups = [
         heading: 'Account',
         caption: 'Alerts & preferences',
         items: [
-            { key: '/notifications', label: 'Notifications', icon: BellOutlined },
+            { key: '/notifications', label: 'Notifications', icon: BellOutlined, badge: 'notifications' },
             { key: '/settings', label: 'Settings', icon: SettingOutlined },
         ],
     },

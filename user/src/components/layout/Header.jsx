@@ -9,6 +9,7 @@ import UserAvatar from '../common/UserAvatar'
 import NotificationMenu from './NotificationMenu'
 import ThemePicker from '../common/ThemePicker'
 import { useAuth } from '../../context/AuthContext'
+import { useBadges } from '../../context/BadgesContext'
 
 const PAGE_TARGETS = [
     { value: 'page:/diet', label: 'My Diet Plan', sub: 'Meals & nutrition', path: '/diet' },
@@ -24,6 +25,7 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
     const navigate = useNavigate()
     const { logout, user } = useAuth()
     const [notifOpen, setNotifOpen] = useState(false)
+    const { notifications } = useBadges()
     const [query, setQuery] = useState('')
 
     const searchOptions = useMemo(() => {
@@ -60,7 +62,7 @@ export default function Header({ collapsed, onToggle, onOpenMobile }) {
                 </Popover>
                 <Popover content={<NotificationMenu onClose={() => setNotifOpen(false)} />} trigger="click" open={notifOpen} onOpenChange={setNotifOpen} placement="bottomRight" styles={{ body: { padding: 0, background: 'transparent', boxShadow: 'none' } }}>
                     <button className="flex h-9 w-9 items-center justify-center rounded-lg text-text-secondary transition-colors hover:bg-surface-secondary" aria-label="Notifications">
-                        <Badge count={0} size="small" offset={[-2, 2]}><BellOutlined style={{ fontSize: 17 }} /></Badge>
+                        <Badge count={notifications} overflowCount={99} size="small" offset={[-2, 2]}><BellOutlined style={{ fontSize: 17 }} /></Badge>
                     </button>
                 </Popover>
                 <Dropdown menu={{ items: profileItems, onClick: ({ key }) => { if (key === 'settings') navigate('/settings'); else if (key === 'profile') navigate('/profile'); else if (key === 'logout') { logout(); navigate('/login', { replace: true }) } } }} trigger={['click']} placement="bottomRight">

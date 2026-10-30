@@ -1,6 +1,6 @@
 import ApiError from '../utils/ApiError.js'
 import { Conversation, Message, Client, Notification } from '../models/index.js'
-import { getIo, userRoom, conversationRoom } from '../realtime/io.js'
+import { getIo, userRoom, conversationRoom, emitNotificationsChanged } from '../realtime/io.js'
 import { isOnline } from '../realtime/presence.js'
 
 // Normalised caller context used by both the REST controller and the socket
@@ -157,6 +157,15 @@ export async function markConversationRead(convo, readerRole) {
     if (readerRole === 'trainer') convo.unreadForTrainer = 0
     else convo.unreadForClient = 0
     await convo.save()
+
+    // The "New message" notifications for this thread are now stale too.
+    const { trainerUserId, clientUserId } = participantUserIds(convo)
+    const readerUserId = readerRole === 'trainer' ? trainerUserId : clientUserId
+    const cleared = await Notification.updateMany(
+        { user: readerUserId, type: 'message', 'ref.kind': 'conversation', 'ref.id': convo._id, read: false },
+        { read: true },
+    )
+    if (cleared.modifiedCount) emitNotificationsChanged([readerUserId])
 
     const io = getIo()
     if (io && unread.length) {

@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
 import UserScope from './context/UserScope'
 import { LibraryProvider } from './context/LibraryContext'
+import { BadgesProvider } from './context/BadgesContext'
 import App from './App'
 import './styles/global.css'
 
@@ -14,9 +15,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <AuthProvider>
                 <BrowserRouter>
                     <UserScope>
-                        <LibraryProvider>
-                            <App />
-                        </LibraryProvider>
+                        <BadgesProvider>
+                            <LibraryProvider>
+                                <App />
+                            </LibraryProvider>
+                        </BadgesProvider>
                     </UserScope>
                 </BrowserRouter>
             </AuthProvider>

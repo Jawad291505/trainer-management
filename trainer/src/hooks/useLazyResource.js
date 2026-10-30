@@ -9,7 +9,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 //                   than `staleMs` is quietly refreshed in the background (the current data
 //                   stays on screen, no spinner), so revisiting a page isn't stuck on old data.
 //                   Safe to call from many components / StrictMode.
-//   reload(): force a refetch (e.g. a "Retry" button)
+//   reload(): force a refetch (e.g. a "Retry" button); reload({ silent: true }) keeps the
+//             current data on screen and swallows errors (background refreshes)
 export function useLazyResource(fetcher, { staleMs = 30_000 } = {}) {
     const [status, setStatus] = useState('idle')
     const [error, setError] = useState(null)
@@ -48,9 +49,9 @@ export function useLazyResource(fetcher, { staleMs = 30_000 } = {}) {
         }
     }, [run, staleMs])
 
-    const reload = useCallback(() => {
+    const reload = useCallback(({ silent = false } = {}) => {
         started.current = true
-        return run()
+        return run({ silent: silent === true })
     }, [run])
 
     return { status, error, ensureLoaded, reload }

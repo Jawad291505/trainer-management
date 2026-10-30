@@ -39,8 +39,8 @@ export const trainerNavGroups = [
         heading: 'Communication',
         caption: 'Messages & alerts',
         items: [
-            { key: '/messages', label: 'Messages', icon: MessageOutlined },
-            { key: '/notifications', label: 'Notifications', icon: BellOutlined },
+            { key: '/messages', label: 'Messages', icon: MessageOutlined, badge: 'messages' },
+            { key: '/notifications', label: 'Notifications', icon: BellOutlined, badge: 'notifications' },
         ],
     },
     {

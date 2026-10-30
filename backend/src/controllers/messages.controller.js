@@ -22,6 +22,13 @@ export const listConversations = asyncHandler(async (req, res) => {
         lastMessageAt: { $ne: null },
     }
 
+    // ?summary=1 — total unread messages across all threads, for the sidebar badge.
+    if (req.query.summary === '1') {
+        const field = req.user.role === 'trainer' ? '$unreadForTrainer' : '$unreadForClient'
+        const [row] = await Conversation.aggregate([{ $match: filter }, { $group: { _id: null, n: { $sum: field } } }])
+        return res.json({ unreadCount: row?.n || 0 })
+    }
+
     const convos = await Conversation.find(filter)
         .populate({ path: 'client', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })
         .populate({ path: 'trainer', populate: { path: 'user', select: 'name avatarColor avatarUrl' } })

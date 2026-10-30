@@ -14,6 +14,7 @@ import EmptyState from '../../../components/common/EmptyState'
 import PageSpin from '../../../components/common/PageSpin'
 import SectionError from '../../../components/feedback/SectionError'
 import { api } from '../../../services/api'
+import { useBadges } from '../../../context/BadgesContext'
 
 const ICONS = {
     message: MessageOutlined,
@@ -29,6 +30,7 @@ const ROUTES = { followup: '/follow-ups', conversation: '/messages', correction:
 export default function NotificationsPage() {
     const { message } = App.useApp()
     const navigate = useNavigate()
+    const { refreshNotifications } = useBadges()
     const [data, setData] = useState([])
     const [filter, setFilter] = useState('all')
     const [loading, setLoading] = useState(true)
@@ -47,6 +49,7 @@ export default function NotificationsPage() {
         try {
             await api.patch('/notifications/read-all')
             setData((prev) => prev.map((n) => ({ ...n, unread: false })))
+            refreshNotifications()
             message.success('All marked as read')
         } catch (err) {
             message.error(err.message || 'Could not mark notifications as read')
@@ -57,7 +60,7 @@ export default function NotificationsPage() {
     const open = (n) => {
         if (n.unread) {
             setData((prev) => prev.map((x) => (x.id === n.id ? { ...x, unread: false } : x)))
-            api.patch(`/notifications/${n.id}/read`).catch(() => { })
+            api.patch(`/notifications/${n.id}/read`).then(refreshNotifications).catch(() => { })
         }
         const target = ROUTES[n.ref?.kind]
         if (target) navigate(target)
