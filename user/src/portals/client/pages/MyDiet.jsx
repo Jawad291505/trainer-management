@@ -387,7 +387,7 @@ export default function MyDiet() {
           area="diet"
           targetKind="meal"
           targetDate={selectedDate}
-          items={(activeDay?.meals || []).map((m) => ({ label: `${m.name} — ${m.time}`, refId: m.id || m._id }))}
+          items={(activeDay?.meals || []).map((m) => ({ label: `${m.name} — ${formatMealTime(m.time, selectedDate)}`, refId: m.id || m._id }))}
         />
       </PageHeader>
 
@@ -473,7 +473,7 @@ export default function MyDiet() {
                   <div>
                     <div className="font-bold text-text-primary">{meal.name}</div>
                     <div className="flex items-center gap-1 text-xs text-text-muted">
-                      <ClockCircleOutlined /> {formatMealTime(meal.time)}
+                      <ClockCircleOutlined /> {formatMealTime(meal.time, selectedDate)}
                     </div>
                   </div>
                 </div>
